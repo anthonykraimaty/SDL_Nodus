@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma init)",
+      "Bash(npm create:*)",
+      "Bash(npm run dev:*)",
+      "Bash(test:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(\"k:\\Projects\\SDL\\nodus\\frontend\\.env\")",
+      "Bash(cat:*)",
+      "Bash(npx prisma migrate dev --name init)",
+      "Bash(npm run prisma:seed:*)",
+      "Bash(curl:*)",
+      "Bash(npx prisma:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force)",
+      "Bash(npm run generate-icons:*)",
+      "Bash(node src/server.js:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout /t 3 /nobreak)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,270 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CHEF_TROUPE
+  BRANCHE_ECLAIREURS
+}
+
+enum PictureType {
+  INSTALLATION_PHOTO
+  SCHEMATIC
+}
+
+enum PictureStatus {
+  PENDING         // Just uploaded
+  CLASSIFIED      // Metadata added
+  APPROVED        // Approved by Branche Eclaireurs
+  REJECTED        // Rejected by Branche Eclaireurs
+}
+
+enum AnnouncementType {
+  NEWS
+  MONTHLY_UPLOAD
+  UPCOMING
+}
+
+// Organizational hierarchy
+model District {
+  id                    Int                    @id @default(autoincrement())
+  name                  String
+  code                  String                 @unique
+  groups                Group[]
+  brancheAccessUsers    UserDistrictAccess[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+}
+
+model Group {
+  id         Int      @id @default(autoincrement())
+  name       String
+  code       String   @unique
+  districtId Int
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  troupes    Troupe[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([districtId])
+}
+
+model Troupe {
+  id          Int          @id @default(autoincrement())
+  name        String
+  code        String       @unique
+  groupId     Int
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users       User[]
+  patrouilles Patrouille[]
+  pictureSets PictureSet[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([groupId])
+}
+
+model Patrouille {
+  id          Int          @id @default(autoincrement())
+  name        String
+  totem       String
+  cri         String
+  troupeId    Int
+  troupe      Troupe       @relation(fields: [troupeId], references: [id], onDelete: Cascade)
+  pictureSets PictureSet[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([troupeId])
+}
+
+// User management
+model User {
+  id                     Int                    @id @default(autoincrement())
+  email                  String                 @unique
+  password               String
+  name                   String
+  role                   UserRole               @default(CHEF_TROUPE)
+  troupeId               Int?
+  troupe                 Troupe?                @relation(fields: [troupeId], references: [id], onDelete: SetNull)
+  uploadedPictureSets    PictureSet[]           @relation("PictureSetUploader")
+  approvedPictureSets    PictureSet[]           @relation("PictureSetApprover")
+  classifiedPictureSets  PictureSet[]           @relation("PictureSetClassifier")
+  districtAccess         UserDistrictAccess[]
+  isActive               Boolean                @default(true)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([troupeId])
+  @@index([role])
+}
+
+// Junction table for Branche members' district access
+model UserDistrictAccess {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  districtId Int
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, districtId])
+  @@index([userId])
+  @@index([districtId])
+}
+
+// Category system
+model Category {
+  id                     Int              @id @default(autoincrement())
+  name                   String
+  description            String?
+  type                   PictureType      // INSTALLATION_PHOTO or SCHEMATIC
+  parentId               Int?             // For sub-categories
+  parent                 Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  subcategories          Category[]       @relation("CategoryHierarchy")
+  pictureSets            PictureSet[]     @relation("PictureSetCategory")
+  subCategoryPictureSets PictureSet[]     @relation("PictureSetSubCategory")
+  monthlyCategories      MonthlyCategory[]
+  isSchematicEnabled     Boolean          @default(false) // Enable/disable for schematic upload
+  displayOrder           Int              @default(0)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([type])
+  @@index([parentId])
+}
+
+// Monthly category availability (for schematics)
+model MonthlyCategory {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  month      Int      // 1-12
+  year       Int
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([categoryId, month, year])
+  @@index([month, year, isActive])
+}
+
+// Picture Set - Group multiple pictures of same installation
+model PictureSet {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String?
+  type        PictureType
+  status      PictureStatus @default(PENDING)
+
+  // Relationships
+  uploadedById  Int
+  uploadedBy    User          @relation("PictureSetUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  troupeId      Int
+  troupe        Troupe        @relation(fields: [troupeId], references: [id], onDelete: Cascade)
+
+  patrouilleId  Int?
+  patrouille    Patrouille?   @relation(fields: [patrouilleId], references: [id], onDelete: SetNull)
+
+  categoryId    Int?
+  category      Category?     @relation("PictureSetCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+
+  subCategoryId Int?
+  subCategory   Category?     @relation("PictureSetSubCategory", fields: [subCategoryId], references: [id], onDelete: SetNull)
+
+  // Classification and approval
+  classifiedById Int?
+  classifiedBy   User?        @relation("PictureSetClassifier", fields: [classifiedById], references: [id], onDelete: SetNull)
+  classifiedAt   DateTime?
+
+  approvedById   Int?
+  approvedBy     User?        @relation("PictureSetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt     DateTime?
+
+  rejectionReason String?
+
+  // Metadata
+  location      String?
+  latitude      Float?
+  longitude     Float?
+
+  // Display
+  isHighlight   Boolean      @default(false)
+  viewCount     Int          @default(0)
+
+  // Pictures in this set
+  pictures      Picture[]
+  tags          Tag[]
+
+  uploadedAt    DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([uploadedById])
+  @@index([troupeId])
+  @@index([patrouilleId])
+  @@index([categoryId])
+  @@index([subCategoryId])
+  @@index([status])
+  @@index([type])
+  @@index([isHighlight])
+  @@index([uploadedAt])
+}
+
+// Individual Picture in a set
+model Picture {
+  id            Int           @id @default(autoincrement())
+  filePath      String
+  displayOrder  Int           @default(0)
+  caption       String?
+  categoryId    Int?
+  takenAt       DateTime?
+
+  // Part of a picture set
+  pictureSetId  Int
+  pictureSet    PictureSet    @relation(fields: [pictureSetId], references: [id], onDelete: Cascade)
+
+  uploadedAt    DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([pictureSetId])
+  @@index([displayOrder])
+}
+
+// Tagging system for additional classification
+model Tag {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  pictureSets PictureSet[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+// Announcements and news
+model Announcement {
+  id           Int              @id @default(autoincrement())
+  title        String
+  content      String
+  type         AnnouncementType
+  validFrom    DateTime
+  validTo      DateTime?
+  displayOrder Int              @default(0)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([type, isActive, validFrom, validTo])
+}

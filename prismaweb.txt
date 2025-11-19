@@ -1,0 +1,13 @@
+Currently Running Services:
+Prisma Studio - http://localhost:5555 (Database GUI)
+Backend API - http://localhost:3001
+Frontend - http://localhost:5175
+To Manually Start/Stop Prisma Studio:
+
+
+# Start Prisma Studio
+cd backend
+npm run prisma:studio
+
+# Or using npx directly
+npx prisma studio
