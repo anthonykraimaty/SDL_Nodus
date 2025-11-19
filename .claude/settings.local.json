@@ -21,7 +21,10 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
-      "Bash(timeout /t 3 /nobreak)"
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(del \"K:\\Projects\\SDL\\nodus\\frontend\\src\\pages\\Admin.jsx.backup\")",
+      "Bash(del \"K:\\Projects\\SDL\\nodus\\frontend\\src\\pages\\Browse.css\")",
+      "Bash(timeout /t 2 /nobreak)"
     ],
     "deny": [],
     "ask": []

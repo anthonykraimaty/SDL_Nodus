@@ -22,7 +22,12 @@ const AdminUsers = () => {
     role: 'CHEF_TROUPE',
     troupeId: '',
     isActive: true,
+    forcePasswordChange: false,
   });
+
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     loadData();
@@ -54,6 +59,47 @@ const AdminUsers = () => {
     }
   };
 
+  // Get unique districts from troupes
+  const getDistricts = () => {
+    const districtsMap = new Map();
+    troupes.forEach(troupe => {
+      if (troupe.group?.district) {
+        const district = troupe.group.district;
+        if (!districtsMap.has(district.id)) {
+          districtsMap.set(district.id, district);
+        }
+      }
+    });
+    return Array.from(districtsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Get groups for selected district
+  const getGroupsForDistrict = (districtId) => {
+    if (!districtId) return [];
+    const groupsMap = new Map();
+    troupes.forEach(troupe => {
+      if (troupe.group?.districtId === parseInt(districtId)) {
+        if (!groupsMap.has(troupe.group.id)) {
+          groupsMap.set(troupe.group.id, troupe.group);
+        }
+      }
+    });
+    return Array.from(groupsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Handle district change
+  const handleDistrictChange = (districtId) => {
+    setSelectedDistrict(districtId);
+    setSelectedGroup('');
+    setUserForm({ ...userForm, troupeId: '' });
+  };
+
+  // Handle group change
+  const handleGroupChange = (groupId) => {
+    setSelectedGroup(groupId);
+    setUserForm({ ...userForm, troupeId: '' });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -67,6 +113,7 @@ const AdminUsers = () => {
         role: userForm.role,
         troupeId: userForm.troupeId ? parseInt(userForm.troupeId) : null,
         isActive: userForm.isActive,
+        forcePasswordChange: userForm.forcePasswordChange,
       };
 
       if (userForm.password) {
@@ -115,7 +162,23 @@ const AdminUsers = () => {
       role: userToEdit.role,
       troupeId: userToEdit.troupeId || '',
       isActive: userToEdit.isActive,
+      forcePasswordChange: userToEdit.forcePasswordChange || false,
     });
+
+    // Pre-select district and group if editing a CHEF_TROUPE user
+    if (userToEdit.role === 'CHEF_TROUPE' && userToEdit.troupe) {
+      if (userToEdit.troupe.group && userToEdit.troupe.group.districtId) {
+        setSelectedDistrict(userToEdit.troupe.group.districtId.toString());
+        setSelectedGroup(userToEdit.troupe.groupId.toString());
+      } else {
+        setSelectedDistrict('');
+        setSelectedGroup('');
+      }
+    } else {
+      setSelectedDistrict('');
+      setSelectedGroup('');
+    }
+
     setShowModal(true);
   };
 
@@ -143,7 +206,10 @@ const AdminUsers = () => {
       role: 'CHEF_TROUPE',
       troupeId: '',
       isActive: true,
+      forcePasswordChange: false,
     });
+    setSelectedDistrict('');
+    setSelectedGroup('');
     setEditingUser(null);
     setShowModal(false);
   };
@@ -263,6 +329,19 @@ const AdminUsers = () => {
     XLSX.writeFile(wb, 'users_template.xlsx');
   };
 
+  // Filter users based on search term
+  const filteredUsers = users.filter(u => {
+    if (!searchTerm) return true;
+
+    const search = searchTerm.toLowerCase();
+    return (
+      u.name?.toLowerCase().includes(search) ||
+      u.email?.toLowerCase().includes(search) ||
+      u.role?.toLowerCase().includes(search) ||
+      u.troupe?.name?.toLowerCase().includes(search)
+    );
+  });
+
   if (loading) {
     return (
       <div className="admin-users">
@@ -299,6 +378,26 @@ const AdminUsers = () => {
 
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
+
+        {/* Search Bar */}
+        <div className="search-container">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by name, email, role, or troupe..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button
+              className="clear-search"
+              onClick={() => setSearchTerm('')}
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
         {/* Import Preview */}
         {importPreview && (
@@ -358,7 +457,7 @@ const AdminUsers = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {filteredUsers.map((u) => (
                 <tr key={u.id}>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
@@ -439,20 +538,57 @@ const AdminUsers = () => {
               </div>
 
               {userForm.role === 'CHEF_TROUPE' && (
-                <div className="form-group">
-                  <label>Troupe</label>
-                  <select
-                    value={userForm.troupeId}
-                    onChange={(e) => setUserForm({ ...userForm, troupeId: e.target.value })}
-                  >
-                    <option value="">Select Troupe</option>
-                    {troupes.map((troupe) => (
-                      <option key={troupe.id} value={troupe.id}>
-                        {troupe.name} ({troupe.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div className="form-group">
+                    <label>District *</label>
+                    <select
+                      value={selectedDistrict}
+                      onChange={(e) => handleDistrictChange(e.target.value)}
+                      required
+                    >
+                      <option value="">Select District</option>
+                      {getDistricts().map(district => (
+                        <option key={district.id} value={district.id}>
+                          {district.name} ({district.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Group *</label>
+                    <select
+                      value={selectedGroup}
+                      onChange={(e) => handleGroupChange(e.target.value)}
+                      disabled={!selectedDistrict}
+                      required
+                    >
+                      <option value="">Select Group</option>
+                      {getGroupsForDistrict(selectedDistrict).map(group => (
+                        <option key={group.id} value={group.id}>
+                          {group.name} ({group.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Troupe *</label>
+                    <select
+                      value={userForm.troupeId}
+                      onChange={(e) => setUserForm({ ...userForm, troupeId: e.target.value })}
+                      disabled={!selectedGroup}
+                      required
+                    >
+                      <option value="">Select Troupe</option>
+                      {troupes.filter(t => t.groupId === parseInt(selectedGroup)).map(troupe => (
+                        <option key={troupe.id} value={troupe.id}>
+                          {troupe.name} ({troupe.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
               )}
 
               <div className="form-group checkbox-group">
@@ -463,6 +599,17 @@ const AdminUsers = () => {
                     onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })}
                   />
                   <span>Active</span>
+                </label>
+              </div>
+
+              <div className="form-group checkbox-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={userForm.forcePasswordChange}
+                    onChange={(e) => setUserForm({ ...userForm, forcePasswordChange: e.target.checked })}
+                  />
+                  <span>Force Password Change on Next Login</span>
                 </label>
               </div>
 

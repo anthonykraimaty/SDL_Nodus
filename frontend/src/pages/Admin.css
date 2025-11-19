@@ -106,6 +106,68 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Accordion Styles */
+.accordion-container {
+  padding: 0;
+  overflow: hidden;
+}
+
+.accordion-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.accordion-section:last-child {
+  border-bottom: none;
+}
+
+.accordion-header {
+  width: 100%;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  background: var(--bg-medium);
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.accordion-header:hover {
+  background: var(--bg-light);
+  color: var(--accent);
+}
+
+.accordion-header.active {
+  background: var(--bg-light);
+  color: var(--accent);
+}
+
+.accordion-icon {
+  font-size: 0.9rem;
+  transition: transform 0.3s ease;
+  color: var(--accent);
+}
+
+.accordion-content {
+  padding: var(--spacing-xl);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 2000px;
+  }
+}
+
 /* Admin Form */
 .admin-form {
   display: flex;

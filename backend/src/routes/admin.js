@@ -12,10 +12,12 @@ router.get('/users', authenticate, authorize('ADMIN'), async (req, res) => {
     const users = await prisma.user.findMany({
       include: {
         troupe: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
+          include: {
+            group: {
+              include: {
+                district: true,
+              },
+            },
           },
         },
       },
@@ -24,7 +26,10 @@ router.get('/users', authenticate, authorize('ADMIN'), async (req, res) => {
       },
     });
 
-    res.json(users);
+    // Remove passwords from response
+    const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+
+    res.json(usersWithoutPasswords);
   } catch (error) {
     console.error('Failed to fetch users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -35,10 +40,12 @@ router.get('/users', authenticate, authorize('ADMIN'), async (req, res) => {
 router.get('/troupes', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
     const troupes = await prisma.troupe.findMany({
-      select: {
-        id: true,
-        name: true,
-        code: true,
+      include: {
+        group: {
+          include: {
+            district: true,
+          },
+        },
       },
       orderBy: {
         name: 'asc',
@@ -115,7 +122,7 @@ router.post('/users', authenticate, authorize('ADMIN'), async (req, res) => {
 router.put('/users/:id', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, password, role, troupeId, isActive } = req.body;
+    const { name, email, password, role, troupeId, isActive, forcePasswordChange } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -144,6 +151,7 @@ router.put('/users/:id', authenticate, authorize('ADMIN'), async (req, res) => {
     if (email) updateData.email = email;
     if (role) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (forcePasswordChange !== undefined) updateData.forcePasswordChange = forcePasswordChange;
 
     // Update password if provided
     if (password && password.trim() !== '') {
@@ -160,10 +168,12 @@ router.put('/users/:id', authenticate, authorize('ADMIN'), async (req, res) => {
       data: updateData,
       include: {
         troupe: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
+          include: {
+            group: {
+              include: {
+                district: true,
+              },
+            },
           },
         },
       },

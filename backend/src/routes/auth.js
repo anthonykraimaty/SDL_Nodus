@@ -119,6 +119,7 @@ router.post('/login', async (req, res) => {
       message: 'Login successful',
       token,
       user: userWithoutPassword,
+      forcePasswordChange: user.forcePasswordChange,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -157,6 +158,50 @@ router.get('/me', authenticate, async (req, res) => {
 // POST /api/auth/logout - Logout (client-side token removal)
 router.post('/logout', authenticate, (req, res) => {
   res.json({ message: 'Logout successful' });
+});
+
+// POST /api/auth/change-password - Change password
+router.post('/change-password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    });
+
+    // Verify current password
+    const isValidPassword = await comparePassword(currentPassword, user.password);
+
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update password and reset forcePasswordChange flag
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        password: hashedPassword,
+        forcePasswordChange: false,
+      },
+    });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
 });
 
 export default router;

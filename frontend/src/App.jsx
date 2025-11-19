@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout';
 import AdminLayout from './components/layout/AdminLayout';
 import Landing from './pages/Landing';
 import Browse from './pages/Browse';
+import CategoryView from './pages/CategoryView';
 import Login from './pages/Login';
 import Upload from './pages/Upload';
 import Classify from './pages/Classify';
@@ -62,6 +63,7 @@ function App() {
             {/* Public Routes */}
             <Route index element={<Landing />} />
             <Route path="browse" element={<Browse />} />
+            <Route path="category/:categoryId" element={<CategoryView />} />
             <Route path="login" element={<Login />} />
 
             {/* Protected Routes */}

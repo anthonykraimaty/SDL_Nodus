@@ -12,6 +12,7 @@ const Admin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [expandedSection, setExpandedSection] = useState('form');
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -31,7 +32,12 @@ const Admin = () => {
     role: 'CHEF_TROUPE',
     troupeId: '',
     isActive: true,
+    forcePasswordChange: false,
   });
+
+  // Cascading selection for CHEF_TROUPE
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('');
 
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
@@ -73,6 +79,51 @@ const Admin = () => {
     }
   };
 
+  const toggleSection = (section) => {
+    setExpandedSection(expandedSection === section ? null : section);
+  };
+
+  // Get unique districts from troupes
+  const getDistricts = () => {
+    const districtsMap = new Map();
+    troupes.forEach(troupe => {
+      if (troupe.group?.district) {
+        const district = troupe.group.district;
+        if (!districtsMap.has(district.id)) {
+          districtsMap.set(district.id, district);
+        }
+      }
+    });
+    return Array.from(districtsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Get groups for selected district
+  const getGroupsForDistrict = (districtId) => {
+    if (!districtId) return [];
+    const groupsMap = new Map();
+    troupes.forEach(troupe => {
+      if (troupe.group?.districtId === parseInt(districtId)) {
+        if (!groupsMap.has(troupe.group.id)) {
+          groupsMap.set(troupe.group.id, troupe.group);
+        }
+      }
+    });
+    return Array.from(groupsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Handle district change
+  const handleDistrictChange = (districtId) => {
+    setSelectedDistrict(districtId);
+    setSelectedGroup('');
+    setUserForm({ ...userForm, troupeId: '' });
+  };
+
+  // Handle group change
+  const handleGroupChange = (groupId) => {
+    setSelectedGroup(groupId);
+    setUserForm({ ...userForm, troupeId: '' });
+  };
+
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -109,6 +160,7 @@ const Admin = () => {
         setSuccess('Category created successfully!');
       }
 
+      setExpandedSection(null);
       // Reset form
       setCategoryForm({
         name: '',
@@ -136,6 +188,7 @@ const Admin = () => {
         role: userForm.role,
         troupeId: userForm.troupeId ? parseInt(userForm.troupeId) : null,
         isActive: userForm.isActive,
+        forcePasswordChange: userForm.forcePasswordChange,
       };
 
       if (userForm.password) {
@@ -170,6 +223,7 @@ const Admin = () => {
         setSuccess('User created successfully!');
       }
 
+      setExpandedSection(null);
       // Reset form
       setUserForm({
         id: '',
@@ -179,7 +233,10 @@ const Admin = () => {
         role: 'CHEF_TROUPE',
         troupeId: '',
         isActive: true,
+        forcePasswordChange: false,
       });
+      setSelectedDistrict('');
+      setSelectedGroup('');
       setEditingUser(null);
       loadData();
     } catch (err) {
@@ -196,6 +253,7 @@ const Admin = () => {
       parentId: category.parentId || '',
       displayOrder: category.displayOrder,
     });
+    setExpandedSection('form');
   };
 
   const handleEditUser = (user) => {
@@ -208,7 +266,19 @@ const Admin = () => {
       role: user.role,
       troupeId: user.troupeId || '',
       isActive: user.isActive,
+      forcePasswordChange: user.forcePasswordChange || false,
     });
+
+    // Pre-select district and group if editing a CHEF_TROUPE user
+    if (user.role === 'CHEF_TROUPE' && user.troupe) {
+      setSelectedDistrict(user.troupe.group.districtId.toString());
+      setSelectedGroup(user.troupe.groupId.toString());
+    } else {
+      setSelectedDistrict('');
+      setSelectedGroup('');
+    }
+
+    setExpandedSection('form');
   };
 
   const handleDeleteCategory = async (id) => {
@@ -289,9 +359,18 @@ const Admin = () => {
           <div className="admin-content">
             <div className="admin-grid">
               {/* Category Form */}
-              <div className="admin-card">
-                <h2>{editingCategory ? 'Edit Category' : 'Create Category'}</h2>
-                <form onSubmit={handleCategorySubmit} className="admin-form">
+              <div className="admin-card accordion-container">
+                <div className="accordion-section">
+                  <button
+                    className={`accordion-header ${expandedSection === 'form' ? 'active' : ''}`}
+                    onClick={() => toggleSection('form')}
+                  >
+                    <span>{editingCategory ? '✏️ Edit Category' : '➕ Create Category'}</span>
+                    <span className="accordion-icon">{expandedSection === 'form' ? '▼' : '▶'}</span>
+                  </button>
+                  {expandedSection === 'form' && (
+                    <div className="accordion-content">
+                      <form onSubmit={handleCategorySubmit} className="admin-form">
                   <div className="form-group">
                     <label>Name *</label>
                     <input
@@ -368,7 +447,10 @@ const Admin = () => {
                       </button>
                     )}
                   </div>
-                </form>
+                      </form>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Categories List */}
@@ -425,9 +507,18 @@ const Admin = () => {
           <div className="admin-content">
             <div className="admin-grid">
               {/* User Form */}
-              <div className="admin-card">
-                <h2>{editingUser ? 'Edit User' : 'Create User'}</h2>
-                <form onSubmit={handleUserSubmit} className="admin-form">
+              <div className="admin-card accordion-container">
+                <div className="accordion-section">
+                  <button
+                    className={`accordion-header ${expandedSection === 'form' ? 'active' : ''}`}
+                    onClick={() => toggleSection('form')}
+                  >
+                    <span>{editingUser ? '✏️ Edit User' : '➕ Create User'}</span>
+                    <span className="accordion-icon">{expandedSection === 'form' ? '▼' : '▶'}</span>
+                  </button>
+                  {expandedSection === 'form' && (
+                    <div className="accordion-content">
+                      <form onSubmit={handleUserSubmit} className="admin-form">
                   <div className="form-group">
                     <label>Name *</label>
                     <input
@@ -473,20 +564,57 @@ const Admin = () => {
                   </div>
 
                   {userForm.role === 'CHEF_TROUPE' && (
-                    <div className="form-group">
-                      <label>Troupe</label>
-                      <select
-                        value={userForm.troupeId}
-                        onChange={(e) => setUserForm({ ...userForm, troupeId: e.target.value })}
-                      >
-                        <option value="">Select Troupe</option>
-                        {troupes.map(troupe => (
-                          <option key={troupe.id} value={troupe.id}>
-                            {troupe.name} ({troupe.code})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <>
+                      <div className="form-group">
+                        <label>District *</label>
+                        <select
+                          value={selectedDistrict}
+                          onChange={(e) => handleDistrictChange(e.target.value)}
+                          required
+                        >
+                          <option value="">Select District</option>
+                          {getDistricts().map(district => (
+                            <option key={district.id} value={district.id}>
+                              {district.name} ({district.code})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Group *</label>
+                        <select
+                          value={selectedGroup}
+                          onChange={(e) => handleGroupChange(e.target.value)}
+                          disabled={!selectedDistrict}
+                          required
+                        >
+                          <option value="">Select Group</option>
+                          {getGroupsForDistrict(selectedDistrict).map(group => (
+                            <option key={group.id} value={group.id}>
+                              {group.name} ({group.code})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Troupe *</label>
+                        <select
+                          value={userForm.troupeId}
+                          onChange={(e) => setUserForm({ ...userForm, troupeId: e.target.value })}
+                          disabled={!selectedGroup}
+                          required
+                        >
+                          <option value="">Select Troupe</option>
+                          {troupes.filter(t => t.groupId === parseInt(selectedGroup)).map(troupe => (
+                            <option key={troupe.id} value={troupe.id}>
+                              {troupe.name} ({troupe.code})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
                   )}
 
                   <div className="form-group">
@@ -497,6 +625,17 @@ const Admin = () => {
                         onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })}
                       />
                       <span>Active</span>
+                    </label>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={userForm.forcePasswordChange}
+                        onChange={(e) => setUserForm({ ...userForm, forcePasswordChange: e.target.checked })}
+                      />
+                      <span>Force Password Change on Next Login</span>
                     </label>
                   </div>
 
@@ -518,14 +657,20 @@ const Admin = () => {
                             role: 'CHEF_TROUPE',
                             troupeId: '',
                             isActive: true,
+                            forcePasswordChange: false,
                           });
+                          setSelectedDistrict('');
+                          setSelectedGroup('');
                         }}
                       >
                         Cancel
                       </button>
                     )}
                   </div>
-                </form>
+                      </form>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Users List */}

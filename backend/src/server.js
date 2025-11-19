@@ -14,6 +14,7 @@ import analyticsRoutes from './routes/analytics.js';
 import adminRoutes from './routes/admin.js';
 import userRoutes from './routes/users.js';
 import districtRoutes from './routes/districts.js';
+import groupRoutes from './routes/groups.js';
 import troupeRoutes from './routes/troupes.js';
 import patrouilleRoutes from './routes/patrouilles.js';
 
@@ -66,6 +67,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/districts', districtRoutes);
+app.use('/api/groups', groupRoutes);
 app.use('/api/troupes', troupeRoutes);
 app.use('/api/patrouilles', patrouilleRoutes);
 

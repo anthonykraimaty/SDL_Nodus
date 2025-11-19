@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Production Configuration
+# Runs both PostgreSQL and Backend in Docker
+# Backend exposed on port 5020
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: nodus_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nodus_user
+      POSTGRES_PASSWORD: nodus_password
+      POSTGRES_DB: nodus_db
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - nodus_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nodus_user -d nodus_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nodus_backend_prod
+    restart: unless-stopped
+    ports:
+      - "5020:3001"
+    environment:
+      - DATABASE_URL=postgresql://nodus_user:nodus_password@postgres:5432/nodus_db?schema=public
+      - PORT=3001
+      - NODE_ENV=production
+      - CLIENT_URL=http://localhost:5173
+      - JWT_SECRET=change-this-to-a-very-secure-random-string-in-production
+      - JWT_EXPIRES_IN=7d
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - nodus_network
+
+networks:
+  nodus_network:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+    driver: local
+  uploads_data:
+    driver: local

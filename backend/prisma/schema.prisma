@@ -104,6 +104,7 @@ model User {
   classifiedPictureSets  PictureSet[]           @relation("PictureSetClassifier")
   districtAccess         UserDistrictAccess[]
   isActive               Boolean                @default(true)
+  forcePasswordChange    Boolean                @default(false)
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
 
@@ -140,6 +141,8 @@ model Category {
   monthlyCategories      MonthlyCategory[]
   isSchematicEnabled     Boolean          @default(false) // Enable/disable for schematic upload
   displayOrder           Int              @default(0)
+  mainPictureId          Int?             // Main picture to display for this category
+  mainPicture            Picture?         @relation("CategoryMainPicture", fields: [mainPictureId], references: [id], onDelete: SetNull)
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
@@ -236,6 +239,9 @@ model Picture {
   // Part of a picture set
   pictureSetId  Int
   pictureSet    PictureSet    @relation(fields: [pictureSetId], references: [id], onDelete: Cascade)
+
+  // Categories using this as main picture
+  categoriesAsMain Category[] @relation("CategoryMainPicture")
 
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt

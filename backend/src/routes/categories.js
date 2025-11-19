@@ -5,27 +5,81 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// GET /api/categories - Get all categories
+// GET /api/categories - Get all categories with optional filtering
 router.get('/', async (req, res) => {
   try {
-    const { type, parentId } = req.query;
+    const { type, parentId, districtId, groupId, dateFrom, dateTo } = req.query;
 
-    const where = {};
-    if (type) where.type = type;
-    if (parentId) where.parentId = parentId === 'null' ? null : parseInt(parentId);
+    const categoryWhere = {};
+    if (type) categoryWhere.type = type;
+    if (parentId) categoryWhere.parentId = parentId === 'null' ? null : parseInt(parentId);
 
+    // Build picture set filter for counting
+    const pictureSetWhere = {
+      status: 'APPROVED', // Only count approved picture sets
+    };
+
+    // Apply filters to picture sets
+    if (districtId || groupId || dateFrom || dateTo) {
+      // Filter by troupe's group or district
+      if (groupId) {
+        pictureSetWhere.troupe = {
+          groupId: parseInt(groupId),
+        };
+      } else if (districtId) {
+        pictureSetWhere.troupe = {
+          group: {
+            districtId: parseInt(districtId),
+          },
+        };
+      }
+
+      // Filter by upload date range
+      if (dateFrom || dateTo) {
+        pictureSetWhere.uploadedAt = {};
+        if (dateFrom) pictureSetWhere.uploadedAt.gte = new Date(dateFrom);
+        if (dateTo) {
+          const endDate = new Date(dateTo);
+          endDate.setHours(23, 59, 59, 999); // Include the entire end date
+          pictureSetWhere.uploadedAt.lte = endDate;
+        }
+      }
+    }
+
+    // Fetch categories
     const categories = await prisma.category.findMany({
-      where,
+      where: categoryWhere,
       include: {
         subcategories: true,
-        _count: {
-          select: { pictureSets: true },
-        },
+        mainPicture: true,
       },
       orderBy: { displayOrder: 'asc' },
     });
 
-    res.json(categories);
+    // For each category, count picture sets matching the filters
+    // This is optimized to avoid loading all picture sets into memory
+    const categoriesWithCounts = await Promise.all(
+      categories.map(async (category) => {
+        const count = await prisma.pictureSet.count({
+          where: {
+            ...pictureSetWhere,
+            OR: [
+              { categoryId: category.id },
+              { subCategoryId: category.id },
+            ],
+          },
+        });
+
+        return {
+          ...category,
+          _count: {
+            pictureSets: count,
+          },
+        };
+      })
+    );
+
+    res.json(categoriesWithCounts);
   } catch (error) {
     console.error('Get categories error:', error);
     res.status(500).json({ error: 'Failed to fetch categories' });
@@ -320,6 +374,159 @@ router.delete('/monthly', authenticate, authorize('ADMIN'), async (req, res) => 
   } catch (error) {
     console.error('Disable monthly category error:', error);
     res.status(500).json({ error: 'Failed to disable monthly category' });
+  }
+});
+
+// PATCH /api/categories/:id/main-picture - Set main picture for category (admin only)
+router.patch('/:id/main-picture', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pictureId } = req.body;
+
+    // Check if category exists
+    const category = await prisma.category.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // If pictureId provided, verify it exists
+    if (pictureId) {
+      const picture = await prisma.picture.findUnique({
+        where: { id: parseInt(pictureId) },
+      });
+
+      if (!picture) {
+        return res.status(404).json({ error: 'Picture not found' });
+      }
+    }
+
+    // Update category main picture
+    const updatedCategory = await prisma.category.update({
+      where: { id: parseInt(id) },
+      data: {
+        mainPictureId: pictureId ? parseInt(pictureId) : null,
+      },
+      include: {
+        mainPicture: true,
+        subcategories: true,
+        _count: {
+          select: { pictureSets: true },
+        },
+      },
+    });
+
+    res.json(updatedCategory);
+  } catch (error) {
+    console.error('Set main picture error:', error);
+    res.status(500).json({ error: 'Failed to set main picture' });
+  }
+});
+
+// GET /api/categories/:id/pictures - Get all approved pictures in a category with optional filtering
+router.get('/:id/pictures', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { districtId, groupId, dateFrom, dateTo } = req.query;
+
+    // Check if category exists
+    const category = await prisma.category.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // Build where clause for filtering
+    const where = {
+      status: 'APPROVED',
+      OR: [
+        { categoryId: parseInt(id) },
+        { subCategoryId: parseInt(id) },
+      ],
+    };
+
+    // Apply filters
+    if (groupId) {
+      where.troupe = {
+        groupId: parseInt(groupId),
+      };
+    } else if (districtId) {
+      where.troupe = {
+        group: {
+          districtId: parseInt(districtId),
+        },
+      };
+    }
+
+    // Filter by upload date range
+    if (dateFrom || dateTo) {
+      where.uploadedAt = {};
+      if (dateFrom) where.uploadedAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999); // Include the entire end date
+        where.uploadedAt.lte = endDate;
+      }
+    }
+
+    // Get all approved picture sets in this category or subcategory
+    const pictureSets = await prisma.pictureSet.findMany({
+      where,
+      include: {
+        pictures: {
+          orderBy: { displayOrder: 'asc' },
+        },
+        troupe: {
+          include: {
+            group: {
+              include: {
+                district: true,
+              },
+            },
+          },
+        },
+        patrouille: true,
+        category: true,
+        subCategory: true,
+        uploadedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        uploadedAt: 'desc',
+      },
+    });
+
+    // Extract all pictures from picture sets
+    const pictures = pictureSets.flatMap(set =>
+      set.pictures.map(pic => ({
+        ...pic,
+        pictureSet: {
+          id: set.id,
+          title: set.title,
+          description: set.description,
+          location: set.location,
+          uploadedAt: set.uploadedAt,
+        },
+        troupe: set.troupe,
+        patrouille: set.patrouille,
+        category: set.category,
+        subCategory: set.subCategory,
+      }))
+    );
+
+    res.json({ category, pictures });
+  } catch (error) {
+    console.error('Get category pictures error:', error);
+    res.status(500).json({ error: 'Failed to fetch category pictures' });
   }
 });
 

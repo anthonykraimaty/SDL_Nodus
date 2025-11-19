@@ -46,7 +46,10 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.login(email, password);
       localStorage.setItem('token', response.token);
       setUser(response.user);
-      return response.user;
+      return {
+        user: response.user,
+        forcePasswordChange: response.forcePasswordChange,
+      };
     } catch (err) {
       setError(err.message);
       throw err;

@@ -5,16 +5,11 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all districts (with groups and troupes)
-router.get('/', authenticate, authorize('ADMIN'), async (req, res) => {
+// Get all districts (with groups and troupes) - Public for filters
+router.get('/', async (req, res) => {
   try {
     const districts = await prisma.district.findMany({
       include: {
-        groups: {
-          include: {
-            troupes: true,
-          },
-        },
         _count: {
           select: {
             groups: true,

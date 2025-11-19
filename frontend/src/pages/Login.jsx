@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ChangePassword from '../components/ChangePassword';
 import './Login.css';
 
 const Login = () => {
@@ -8,6 +9,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,13 +20,31 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const result = await login(email, password);
+
+      // Check if password change is required
+      if (result.forcePasswordChange) {
+        setShowChangePassword(true);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Failed to login');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePasswordChangeSuccess = () => {
+    setShowChangePassword(false);
+    navigate('/dashboard');
+  };
+
+  const handlePasswordChangeCancel = () => {
+    // Logout user if they cancel password change
+    localStorage.removeItem('token');
+    setShowChangePassword(false);
+    setError('Password change is required to continue');
   };
 
   return (
@@ -85,6 +105,13 @@ const Login = () => {
           </div>
         </div>
       </div>
+
+      {showChangePassword && (
+        <ChangePassword
+          onSuccess={handlePasswordChangeSuccess}
+          onCancel={handlePasswordChangeCancel}
+        />
+      )}
     </div>
   );
 };

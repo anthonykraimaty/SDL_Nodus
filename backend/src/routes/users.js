@@ -168,4 +168,76 @@ router.get('/branche/members', authenticate, authorize('ADMIN'), async (req, res
   }
 });
 
+// Update user (admin only)
+router.put('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { name, email, role, troupeId, isActive, forcePasswordChange } = req.body;
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if email is being changed and if it's already in use
+    if (email && email !== existingUser.email) {
+      const emailInUse = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (emailInUse) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+    }
+
+    // Validate role-specific requirements
+    if (role === 'CHEF_TROUPE' && !troupeId) {
+      return res.status(400).json({ error: 'Chef Troupe must be assigned to a troupe' });
+    }
+
+    // Build update data
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (role !== undefined) updateData.role = role;
+    if (troupeId !== undefined) updateData.troupeId = troupeId || null;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (forcePasswordChange !== undefined) updateData.forcePasswordChange = forcePasswordChange;
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: {
+        troupe: {
+          include: {
+            group: {
+              include: {
+                district: true,
+              },
+            },
+          },
+        },
+        districtAccess: {
+          include: {
+            district: true,
+          },
+        },
+      },
+    });
+
+    // Exclude password
+    const { password, ...userWithoutPassword } = updatedUser;
+
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
 export default router;
