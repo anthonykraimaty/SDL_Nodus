@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import { categoryService } from '../services/api';
 import './Admin.css';
 
@@ -54,7 +55,7 @@ const Admin = () => {
         setCategories(categoriesData);
       } else if (activeTab === 'users') {
         // Load users
-        const response = await fetch('http://localhost:3001/api/admin/users', {
+        const response = await fetch(`${API_URL}/api/admin/users`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },
@@ -63,7 +64,7 @@ const Admin = () => {
         setUsers(data);
 
         // Load troupes for dropdown
-        const troupesResponse = await fetch('http://localhost:3001/api/admin/troupes', {
+        const troupesResponse = await fetch(`${API_URL}/api/admin/troupes`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },
@@ -138,7 +139,7 @@ const Admin = () => {
 
       if (editingCategory) {
         // Update existing category
-        await fetch(`http://localhost:3001/api/categories/${editingCategory.id}`, {
+        await fetch(`${API_URL}/api/categories/${editingCategory.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -149,7 +150,7 @@ const Admin = () => {
         setSuccess('Category updated successfully!');
       } else {
         // Create new category
-        await fetch('http://localhost:3001/api/categories', {
+        await fetch(`${API_URL}/api/categories`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -197,7 +198,7 @@ const Admin = () => {
 
       if (editingUser) {
         // Update existing user
-        await fetch(`http://localhost:3001/api/admin/users/${editingUser.id}`, {
+        await fetch(`${API_URL}/api/admin/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -212,7 +213,7 @@ const Admin = () => {
           setError('Password is required for new users');
           return;
         }
-        await fetch('http://localhost:3001/api/admin/users', {
+        await fetch(`${API_URL}/api/admin/users`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -285,7 +286,7 @@ const Admin = () => {
     if (!confirm('Are you sure you want to delete this category?')) return;
 
     try {
-      await fetch(`http://localhost:3001/api/categories/${id}`, {
+      await fetch(`${API_URL}/api/categories/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -302,7 +303,7 @@ const Admin = () => {
     if (!confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      await fetch(`http://localhost:3001/api/admin/users/${id}`, {
+      await fetch(`${API_URL}/api/admin/users/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_URL } from '../config/api';
 import './ChangePassword.css';
 
 const ChangePassword = ({ onSuccess, onCancel }) => {
@@ -27,7 +28,7 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/auth/change-password', {
+      const response = await fetch(`${API_URL}/api/auth/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

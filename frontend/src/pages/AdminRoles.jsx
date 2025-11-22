@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import './AdminRoles.css';
 
 const AdminRoles = () => {
@@ -24,12 +25,12 @@ const AdminRoles = () => {
       const token = localStorage.getItem('token');
 
       const [usersResponse, districtsResponse] = await Promise.all([
-        fetch('http://localhost:3001/api/users', {
+        fetch(`${API_URL}/api/users`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         }),
-        fetch('http://localhost:3001/api/districts', {
+        fetch(`${API_URL}/api/districts`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -82,7 +83,7 @@ const AdminRoles = () => {
       const token = localStorage.getItem('token');
 
       const response = await fetch(
-        `http://localhost:3001/api/users/${selectedUser.id}/district-access`,
+        `${API_URL}/api/users/${selectedUser.id}/district-access`,
         {
           method: 'PUT',
           headers: {

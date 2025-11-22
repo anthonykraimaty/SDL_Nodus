@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { API_URL } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import './CategoryView.css';
 
@@ -33,7 +34,7 @@ const CategoryView = () => {
       if (dateTo) params.append('dateTo', dateTo);
 
       const queryString = params.toString();
-      const url = `http://localhost:3001/api/categories/${categoryId}/pictures${queryString ? `?${queryString}` : ''}`;
+      const url = `${API_URL}/api/categories/${categoryId}/pictures${queryString ? `?${queryString}` : ''}`;
 
       const response = await fetch(url);
 
@@ -116,7 +117,7 @@ const CategoryView = () => {
               >
                 <div className="thumbnail-image">
                   <img
-                    src={`http://localhost:3001/${picture.filePath}`}
+                    src={`${API_URL}/${picture.filePath}`}
                     alt={picture.caption || `Picture ${index + 1}`}
                     loading="lazy"
                   />

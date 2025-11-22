@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../config/api';
 import './ImagePreviewer.css';
 
 const ImagePreviewer = ({ pictures, initialIndex = 0, onClose }) => {
@@ -96,7 +97,7 @@ const ImagePreviewer = ({ pictures, initialIndex = 0, onClose }) => {
         {/* Image Display */}
         <div className="previewer-image-container">
           <img
-            src={`http://localhost:3001/${currentPicture.filePath}`}
+            src={`${API_URL}/${currentPicture.filePath}`}
             alt={currentPicture.caption || `Picture ${currentIndex + 1}`}
             style={{ transform: `scale(${zoom})` }}
             className="previewer-image"

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { API_URL } from '../config/api';
 import { categoryService } from '../services/api';
 import './Browse.css';
 
@@ -32,7 +33,7 @@ const Browse = () => {
       setLoadingFilters(true);
 
       // Load districts for filter
-      const districtsResponse = await fetch('http://localhost:3001/api/districts');
+      const districtsResponse = await fetch(`${API_URL}/api/districts`);
       if (districtsResponse.ok) {
         const districtsData = await districtsResponse.json();
         setDistricts(Array.isArray(districtsData) ? districtsData : []);
@@ -41,7 +42,7 @@ const Browse = () => {
       }
 
       // Load groups for filter
-      const groupsResponse = await fetch('http://localhost:3001/api/groups');
+      const groupsResponse = await fetch(`${API_URL}/api/groups`);
       if (groupsResponse.ok) {
         const groupsData = await groupsResponse.json();
         setGroups(Array.isArray(groupsData) ? groupsData : []);
@@ -75,7 +76,7 @@ const Browse = () => {
       if (dateToFilter) params.append('dateTo', dateToFilter);
 
       const queryString = params.toString();
-      const url = `http://localhost:3001/api/categories${queryString ? `?${queryString}` : ''}`;
+      const url = `${API_URL}/api/categories${queryString ? `?${queryString}` : ''}`;
 
       const response = await fetch(url);
 
@@ -207,7 +208,7 @@ const Browse = () => {
                     <div className="category-image">
                       {category.mainPicture ? (
                         <img
-                          src={`http://localhost:3001/${category.mainPicture.filePath}`}
+                          src={`${API_URL}/${category.mainPicture.filePath}`}
                           alt={category.name}
                         />
                       ) : (

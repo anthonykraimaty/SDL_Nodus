@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import './AdminCategories.css';
 
 const AdminCategories = () => {
@@ -29,7 +30,7 @@ const AdminCategories = () => {
 
       // Load all categories
       const response = await fetch(
-        'http://localhost:3001/api/categories',
+        `${API_URL}/api/categories`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -59,7 +60,7 @@ const AdminCategories = () => {
       setSuccess('');
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}/schematic`, {
+      const response = await fetch(`${API_URL}/api/categories/${categoryId}/schematic`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -96,7 +97,7 @@ const AdminCategories = () => {
 
       console.log('Creating category:', categoryData);
 
-      const response = await fetch('http://localhost:3001/api/categories', {
+      const response = await fetch(`${API_URL}/api/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,7 +128,7 @@ const AdminCategories = () => {
       setError('');
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:3001/api/categories/${categoryId}`, {
+      const response = await fetch(`${API_URL}/api/categories/${categoryId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

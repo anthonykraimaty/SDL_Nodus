@@ -159,20 +159,29 @@ async function main() {
   ];
 
   let displayOrder = 0;
+  let createdCount = 0;
+
   for (const category of categories) {
-    await prisma.category.upsert({
+    // Check if category already exists
+    const existing = await prisma.category.findFirst({
       where: { name: category.name },
-      update: {},
-      create: {
-        name: category.name,
-        type: category.type,
-        displayOrder: displayOrder++,
-        isSchematicEnabled: true,
-      },
     });
+
+    if (!existing) {
+      await prisma.category.create({
+        data: {
+          name: category.name,
+          type: category.type,
+          displayOrder: displayOrder,
+          isSchematicEnabled: true,
+        },
+      });
+      createdCount++;
+    }
+    displayOrder++;
   }
 
-  console.log(`Created ${categories.length} categories`);
+  console.log(`Created ${createdCount} new categories (${categories.length - createdCount} already existed)`);
 
   console.log('Seed completed successfully!');
 }

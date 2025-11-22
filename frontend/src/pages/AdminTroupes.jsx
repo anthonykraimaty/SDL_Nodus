@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -32,10 +33,10 @@ const AdminTroupes = () => {
       const token = localStorage.getItem('token');
 
       const [troupesRes, districtsRes] = await Promise.all([
-        fetch('http://localhost:3001/api/troupes', {
+        fetch(`${API_URL}/api/troupes`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
-        fetch('http://localhost:3001/api/districts', {
+        fetch(`${API_URL}/api/districts`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
       ]);
@@ -86,8 +87,8 @@ const AdminTroupes = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingTroupe
-        ? `http://localhost:3001/api/troupes/${editingTroupe.id}`
-        : 'http://localhost:3001/api/troupes';
+        ? `${API_URL}/api/troupes/${editingTroupe.id}`
+        : `${API_URL}/api/troupes`;
 
       const response = await fetch(url, {
         method: editingTroupe ? 'PUT' : 'POST',
@@ -126,7 +127,7 @@ const AdminTroupes = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/troupes/${id}`, {
+      const response = await fetch(`${API_URL}/api/troupes/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -189,7 +190,7 @@ const AdminTroupes = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/troupes/import', {
+      const response = await fetch(`${API_URL}/api/troupes/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

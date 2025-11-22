@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -28,7 +29,7 @@ const AdminDistricts = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
 
-      const response = await fetch('http://localhost:3001/api/districts', {
+      const response = await fetch(`${API_URL}/api/districts`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -51,8 +52,8 @@ const AdminDistricts = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingDistrict
-        ? `http://localhost:3001/api/districts/${editingDistrict.id}`
-        : 'http://localhost:3001/api/districts';
+        ? `${API_URL}/api/districts/${editingDistrict.id}`
+        : `${API_URL}/api/districts`;
 
       const response = await fetch(url, {
         method: editingDistrict ? 'PUT' : 'POST',
@@ -90,7 +91,7 @@ const AdminDistricts = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/districts/${id}`, {
+      const response = await fetch(`${API_URL}/api/districts/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -151,7 +152,7 @@ const AdminDistricts = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/districts/import', {
+      const response = await fetch(`${API_URL}/api/districts/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

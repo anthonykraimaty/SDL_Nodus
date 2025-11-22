@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import './AdminUsers.css';
 
@@ -39,10 +40,10 @@ const AdminUsers = () => {
       const token = localStorage.getItem('token');
 
       const [usersResponse, troupesResponse] = await Promise.all([
-        fetch('http://localhost:3001/api/admin/users', {
+        fetch(`${API_URL}/api/admin/users`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
-        fetch('http://localhost:3001/api/admin/troupes', {
+        fetch(`${API_URL}/api/admin/troupes`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
       ]);
@@ -121,7 +122,7 @@ const AdminUsers = () => {
       }
 
       if (editingUser) {
-        await fetch(`http://localhost:3001/api/admin/users/${editingUser.id}`, {
+        await fetch(`${API_URL}/api/admin/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -135,7 +136,7 @@ const AdminUsers = () => {
           setError('Password is required for new users');
           return;
         }
-        await fetch('http://localhost:3001/api/admin/users', {
+        await fetch(`${API_URL}/api/admin/users`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -187,7 +188,7 @@ const AdminUsers = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await fetch(`http://localhost:3001/api/admin/users/${id}`, {
+      await fetch(`${API_URL}/api/admin/users/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -257,7 +258,7 @@ const AdminUsers = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/admin/users/import', {
+      const response = await fetch(`${API_URL}/api/admin/users/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

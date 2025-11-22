@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -35,10 +36,10 @@ const AdminPatrouilles = () => {
       const token = localStorage.getItem('token');
 
       const [patrouillesRes, troupesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/patrouilles', {
+        fetch(`${API_URL}/api/patrouilles`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
-        fetch('http://localhost:3001/api/troupes', {
+        fetch(`${API_URL}/api/troupes`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
       ]);
@@ -84,8 +85,8 @@ const AdminPatrouilles = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingPatrouille
-        ? `http://localhost:3001/api/patrouilles/${editingPatrouille.id}`
-        : 'http://localhost:3001/api/patrouilles';
+        ? `${API_URL}/api/patrouilles/${editingPatrouille.id}`
+        : `${API_URL}/api/patrouilles`;
 
       const response = await fetch(url, {
         method: editingPatrouille ? 'PUT' : 'POST',
@@ -181,7 +182,7 @@ const AdminPatrouilles = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/patrouilles/${id}`, {
+      const response = await fetch(`${API_URL}/api/patrouilles/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -246,7 +247,7 @@ const AdminPatrouilles = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/patrouilles/import', {
+      const response = await fetch(`${API_URL}/api/patrouilles/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

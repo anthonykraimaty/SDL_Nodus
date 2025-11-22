@@ -4,7 +4,6 @@ npm-debug.log
 .env.local
 .env.production
 uploads
-prisma/migrations
 .git
 .gitignore
 README.md

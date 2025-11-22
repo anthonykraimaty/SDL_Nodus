@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -24,19 +25,19 @@ const AdminDashboard = () => {
       const token = localStorage.getItem('token');
 
       // Load users stats
-      const usersResponse = await fetch('http://localhost:3001/api/users', {
+      const usersResponse = await fetch(`${API_URL}/api/users`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const users = await usersResponse.json();
 
       // Load pictures stats
-      const picturesResponse = await fetch('http://localhost:3001/api/pictures?status=PENDING', {
+      const picturesResponse = await fetch(`${API_URL}/api/pictures?status=PENDING`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const picturesData = await picturesResponse.json();
 
       // Load categories
-      const categoriesResponse = await fetch('http://localhost:3001/api/categories');
+      const categoriesResponse = await fetch(`${API_URL}/api/categories`);
       const categories = await categoriesResponse.json();
 
       setStats({
