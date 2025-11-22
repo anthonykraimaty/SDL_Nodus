@@ -1,23 +1,34 @@
 version: '3.8'
 
+# PostgreSQL Database - Standalone
+# Can be used for both development and production
+
 services:
   postgres:
     image: postgres:15-alpine
     container_name: nodus_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: nodus_user
-      POSTGRES_PASSWORD: nodus_password
-      POSTGRES_DB: nodus_db
+      # IMPORTANT: Change these credentials in production
+      POSTGRES_USER: ${POSTGRES_USER:-nodus_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nodus_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nodus_db}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nodus_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nodus_user -d nodus_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nodus_user} -d ${POSTGRES_DB:-nodus_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+networks:
+  nodus_network:
+    name: nodus_network
+    driver: bridge
 
 volumes:
   postgres_data:
