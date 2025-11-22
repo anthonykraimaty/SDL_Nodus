@@ -18,6 +18,7 @@ import AdminCategories from './pages/AdminCategories';
 import AdminRoles from './pages/AdminRoles';
 import AdminOrganizations from './pages/AdminOrganizations';
 import AdminDistricts from './pages/AdminDistricts';
+import AdminGroups from './pages/AdminGroups';
 import AdminTroupes from './pages/AdminTroupes';
 import AdminPatrouilles from './pages/AdminPatrouilles';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
@@ -140,6 +141,7 @@ function App() {
             <Route path="categories" element={<AdminCategories />} />
             <Route path="organizations" element={<AdminOrganizations />} />
             <Route path="districts" element={<AdminDistricts />} />
+            <Route path="groups" element={<AdminGroups />} />
             <Route path="troupes" element={<AdminTroupes />} />
             <Route path="patrouilles" element={<AdminPatrouilles />} />
           </Route>

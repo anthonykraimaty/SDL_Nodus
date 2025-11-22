@@ -89,6 +89,14 @@ const AdminLayout = () => {
           </Link>
 
           <Link
+            to="/admin/groups"
+            className={`admin-nav-link ${isActive('/admin/groups') ? 'active' : ''}`}
+          >
+            <span className="nav-icon">🏘️</span>
+            <span className="nav-text">Groups</span>
+          </Link>
+
+          <Link
             to="/admin/troupes"
             className={`admin-nav-link ${isActive('/admin/troupes') ? 'active' : ''}`}
           >
