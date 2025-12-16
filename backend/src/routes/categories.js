@@ -529,11 +529,13 @@ router.get('/:id/pictures', async (req, res) => {
       if (woodCountMax) pictureSetWhere.woodCount.lte = parseInt(woodCountMax);
     }
 
-    // Get pictures that belong to this category (per-picture category)
+    // Get pictures that belong to this category (via pictureSet.categoryId)
     const pictures = await prisma.picture.findMany({
       where: {
-        categoryId: parseInt(id),
-        pictureSet: pictureSetWhere,
+        pictureSet: {
+          ...pictureSetWhere,
+          categoryId: parseInt(id),
+        },
       },
       include: {
         category: true,
