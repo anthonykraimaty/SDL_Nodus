@@ -104,6 +104,64 @@
   align-items: end;
 }
 
+/* Wood Count Card */
+.wood-count-card {
+  background: var(--bg-medium);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.wood-count-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.wood-count-header p {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.wood-count-input-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.wood-count-input-group label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.wood-count-input {
+  width: 100px;
+  padding: 10px 14px;
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.wood-count-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.wood-count-input::placeholder {
+  color: var(--text-muted);
+}
+
 /* Pictures Grid */
 .pictures-grid {
   display: grid;
@@ -528,6 +586,22 @@
 
   .bulk-inputs {
     grid-template-columns: 1fr;
+  }
+
+  .wood-count-card {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .wood-count-input-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wood-count-input {
+    width: 100%;
   }
 
   .pictures-grid {

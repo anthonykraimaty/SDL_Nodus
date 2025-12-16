@@ -63,8 +63,10 @@
   width: 100%;
 }
 
-.brand-icon {
-  font-size: 2rem;
+.brand-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
 }
 
 .brand-text {
@@ -190,8 +192,8 @@
     font-size: 1.25rem;
   }
 
-  .brand-icon {
-    font-size: 1.5rem;
+  .brand-logo {
+    height: 32px;
   }
 
   .brand-text {

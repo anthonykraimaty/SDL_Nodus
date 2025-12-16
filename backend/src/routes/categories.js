@@ -56,23 +56,79 @@ router.get('/', async (req, res) => {
       orderBy: { displayOrder: 'asc' },
     });
 
-    // For each category, count pictures matching the filters
-    // Pictures are now categorized individually, not at the set level
+    // For each category, count pictures and get thumbnail previews
+    // Pictures inherit category from their PictureSet
     const categoriesWithCounts = await Promise.all(
       categories.map(async (category) => {
-        const count = await prisma.picture.count({
-          where: {
+        try {
+          // Build the where clause for this category's pictures
+          const pictureSetFilter = {
+            status: 'APPROVED',
             categoryId: category.id,
-            pictureSet: pictureSetWhere,
-          },
-        });
+          };
 
-        return {
-          ...category,
-          _count: {
-            pictures: count,
-          },
-        };
+          // Apply additional filters if provided
+          if (groupId) {
+            pictureSetFilter.troupe = {
+              groupId: parseInt(groupId),
+            };
+          } else if (districtId) {
+            pictureSetFilter.troupe = {
+              group: {
+                districtId: parseInt(districtId),
+              },
+            };
+          }
+
+          if (dateFrom || dateTo) {
+            pictureSetFilter.uploadedAt = {};
+            if (dateFrom) pictureSetFilter.uploadedAt.gte = new Date(dateFrom);
+            if (dateTo) {
+              const endDate = new Date(dateTo);
+              endDate.setHours(23, 59, 59, 999);
+              pictureSetFilter.uploadedAt.lte = endDate;
+            }
+          }
+
+          // Count pictures in approved picture sets for this category
+          const count = await prisma.picture.count({
+            where: {
+              pictureSet: pictureSetFilter,
+            },
+          });
+
+          // Get up to 4 thumbnail pictures for preview
+          const thumbnailPictures = await prisma.picture.findMany({
+            where: {
+              pictureSet: pictureSetFilter,
+            },
+            select: {
+              id: true,
+              filePath: true,
+            },
+            orderBy: {
+              uploadedAt: 'desc',
+            },
+            take: 4,
+          });
+
+          return {
+            ...category,
+            _count: {
+              pictures: count,
+            },
+            thumbnailPictures,
+          };
+        } catch (err) {
+          console.error(`Error processing category ${category.id}:`, err);
+          return {
+            ...category,
+            _count: {
+              pictures: 0,
+            },
+            thumbnailPictures: [],
+          };
+        }
       })
     );
 
@@ -426,7 +482,7 @@ router.patch('/:id/main-picture', authenticate, authorize('ADMIN'), async (req, 
 router.get('/:id/pictures', async (req, res) => {
   try {
     const { id } = req.params;
-    const { districtId, groupId, dateFrom, dateTo } = req.query;
+    const { districtId, groupId, dateFrom, dateTo, woodCountMin, woodCountMax } = req.query;
 
     // Check if category exists
     const category = await prisma.category.findUnique({
@@ -464,6 +520,13 @@ router.get('/:id/pictures', async (req, res) => {
         endDate.setHours(23, 59, 59, 999); // Include the entire end date
         pictureSetWhere.uploadedAt.lte = endDate;
       }
+    }
+
+    // Filter by wood count range
+    if (woodCountMin || woodCountMax) {
+      pictureSetWhere.woodCount = {};
+      if (woodCountMin) pictureSetWhere.woodCount.gte = parseInt(woodCountMin);
+      if (woodCountMax) pictureSetWhere.woodCount.lte = parseInt(woodCountMax);
     }
 
     // Get pictures that belong to this category (per-picture category)
@@ -514,6 +577,7 @@ router.get('/:id/pictures', async (req, res) => {
         description: pic.pictureSet.description,
         location: pic.pictureSet.location,
         uploadedAt: pic.pictureSet.uploadedAt,
+        woodCount: pic.pictureSet.woodCount,
       },
     }));
 

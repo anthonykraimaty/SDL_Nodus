@@ -160,6 +160,79 @@ router.post('/logout', authenticate, (req, res) => {
   res.json({ message: 'Logout successful' });
 });
 
+// PUT /api/auth/profile - Update profile (name and/or email)
+router.put('/profile', authenticate, async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    // Validate that at least one field is provided
+    if ((!name || !name.trim()) && (!email || !email.trim())) {
+      return res.status(400).json({ error: 'Name or email is required' });
+    }
+
+    const updateData = {};
+
+    // Handle name update
+    if (name && name.trim()) {
+      updateData.name = name.trim();
+    }
+
+    // Handle email update
+    if (email && email.trim()) {
+      const newEmail = email.trim().toLowerCase();
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newEmail)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
+      // Check if email is already taken by another user
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: newEmail,
+          NOT: { id: req.user.id },
+        },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email is already in use by another account' });
+      }
+
+      updateData.email = newEmail;
+    }
+
+    // Update user profile
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: updateData,
+      include: {
+        troupe: {
+          include: {
+            group: {
+              include: {
+                district: true,
+              },
+            },
+            patrouilles: true,
+          },
+        },
+      },
+    });
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = updatedUser;
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: userWithoutPassword,
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 // POST /api/auth/change-password - Change password
 router.post('/change-password', authenticate, async (req, res) => {
   try {

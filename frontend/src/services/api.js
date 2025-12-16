@@ -164,6 +164,9 @@ export const authService = {
   register: (data) => api.post('/api/auth/register', data),
   getMe: () => api.get('/api/auth/me', true),
   logout: () => api.post('/api/auth/logout', {}, true),
+  updateProfile: (data) => api.put('/api/auth/profile', data, true),
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/api/auth/change-password', { currentPassword, newPassword }, true),
 };
 
 // Pictures

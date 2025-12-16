@@ -20,6 +20,7 @@ const ImageClassifier = () => {
   const [bulkCategory, setBulkCategory] = useState('');
   const [bulkMonth, setBulkMonth] = useState('');
   const [bulkYear, setBulkYear] = useState('');
+  const [woodCount, setWoodCount] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
@@ -36,6 +37,11 @@ const ImageClassifier = () => {
 
       setPictureSet(pictureSetData);
       setCategories(categoriesData);
+
+      // Initialize wood count from picture set
+      if (pictureSetData.woodCount) {
+        setWoodCount(pictureSetData.woodCount.toString());
+      }
 
       // Initialize classification data for each picture
       const initialData = {};
@@ -151,7 +157,10 @@ const ImageClassifier = () => {
         takenAt: classificationData[pic.id].takenAt || null,
       }));
 
-      await pictureService.classifyBulk(id, { classifications });
+      await pictureService.classifyBulk(id, {
+        classifications,
+        woodCount: woodCount ? parseInt(woodCount) : null,
+      });
 
       setSuccess(`${picturesToClassify.length} picture(s) classified successfully!`);
       setTimeout(() => {
@@ -296,6 +305,26 @@ const ImageClassifier = () => {
                 Apply to Selected ({selectedPictures.size})
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Wood Count Section */}
+        <div className="wood-count-card">
+          <div className="wood-count-header">
+            <h3>Installation Details</h3>
+            <p>This information applies to the entire picture set</p>
+          </div>
+          <div className="wood-count-input-group">
+            <label htmlFor="woodCount">Number of Wood Pieces Used</label>
+            <input
+              type="number"
+              id="woodCount"
+              min="0"
+              value={woodCount}
+              onChange={(e) => setWoodCount(e.target.value)}
+              placeholder="e.g., 12"
+              className="form-input wood-count-input"
+            />
           </div>
         </div>
 

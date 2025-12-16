@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { API_URL, getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import SEO from '../components/SEO';
@@ -7,32 +7,34 @@ import './CategoryView.css';
 
 const CategoryView = () => {
   const { categoryId } = useParams();
-  const [searchParams] = useSearchParams();
   const [category, setCategory] = useState(null);
   const [pictures, setPictures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedPictureIndex, setSelectedPictureIndex] = useState(null);
 
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [woodCountMin, setWoodCountMin] = useState('');
+  const [woodCountMax, setWoodCountMax] = useState('');
+
   useEffect(() => {
     loadCategoryPictures();
-  }, [categoryId, searchParams]);
+  }, [categoryId]);
 
-  const loadCategoryPictures = async () => {
+  const loadCategoryPictures = async (filters = {}) => {
     try {
       setLoading(true);
 
-      // Build query params from URL search params (filters from Browse page)
+      // Build query params from filter state
       const params = new URLSearchParams();
-      const districtId = searchParams.get('districtId');
-      const groupId = searchParams.get('groupId');
-      const dateFrom = searchParams.get('dateFrom');
-      const dateTo = searchParams.get('dateTo');
 
-      if (districtId) params.append('districtId', districtId);
-      if (groupId) params.append('groupId', groupId);
-      if (dateFrom) params.append('dateFrom', dateFrom);
-      if (dateTo) params.append('dateTo', dateTo);
+      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+      if (filters.woodCountMin) params.append('woodCountMin', filters.woodCountMin);
+      if (filters.woodCountMax) params.append('woodCountMax', filters.woodCountMax);
 
       const queryString = params.toString();
       const url = `${API_URL}/api/categories/${categoryId}/pictures${queryString ? `?${queryString}` : ''}`;
@@ -61,6 +63,20 @@ const CategoryView = () => {
   const handleClosePreviewer = () => {
     setSelectedPictureIndex(null);
   };
+
+  const handleApplyFilters = () => {
+    loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax });
+  };
+
+  const handleClearFilters = () => {
+    setDateFrom('');
+    setDateTo('');
+    setWoodCountMin('');
+    setWoodCountMax('');
+    loadCategoryPictures({});
+  };
+
+  const hasActiveFilters = dateFrom || dateTo || woodCountMin || woodCountMax;
 
   if (loading) {
     return (
@@ -134,6 +150,73 @@ const CategoryView = () => {
             {pictures.length} {pictures.length === 1 ? 'photo' : 'photos'}
           </p>
         </header>
+
+        {/* Filters Section */}
+        <div className="filters-section">
+          <button
+            className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <span className="filter-icon">⚙</span>
+            Filters
+            {hasActiveFilters && <span className="filter-badge">●</span>}
+          </button>
+
+          {showFilters && (
+            <div className="filters-panel">
+              <div className="filter-group">
+                <label>Date Range</label>
+                <div className="date-range-inputs">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    placeholder="From"
+                  />
+                  <span className="date-separator">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    placeholder="To"
+                  />
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label>Wood Count</label>
+                <div className="wood-count-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    value={woodCountMin}
+                    onChange={(e) => setWoodCountMin(e.target.value)}
+                    placeholder="Min"
+                  />
+                  <span className="wood-separator">-</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={woodCountMax}
+                    onChange={(e) => setWoodCountMax(e.target.value)}
+                    placeholder="Max"
+                  />
+                </div>
+              </div>
+
+              <div className="filter-actions">
+                <button className="btn-apply-filters" onClick={handleApplyFilters}>
+                  Apply Filters
+                </button>
+                {hasActiveFilters && (
+                  <button className="btn-clear-filters" onClick={handleClearFilters}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Pictures Grid */}
         {pictures.length === 0 ? (

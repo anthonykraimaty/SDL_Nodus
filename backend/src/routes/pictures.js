@@ -351,7 +351,7 @@ router.put('/:id/classify', authenticate, async (req, res) => {
       });
     }
 
-    const { categoryId, subCategoryId, description, location, latitude, longitude, tags } = req.body;
+    const { categoryId, subCategoryId, description, location, latitude, longitude, tags, woodCount } = req.body;
 
     const updateData = {
       status: 'CLASSIFIED',
@@ -365,6 +365,7 @@ router.put('/:id/classify', authenticate, async (req, res) => {
     if (location !== undefined) updateData.location = location;
     if (latitude !== undefined) updateData.latitude = parseFloat(latitude);
     if (longitude !== undefined) updateData.longitude = parseFloat(longitude);
+    if (woodCount !== undefined) updateData.woodCount = woodCount ? parseInt(woodCount) : null;
 
     // Handle tags
     if (tags && Array.isArray(tags)) {
@@ -416,7 +417,7 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const { classifications } = req.body;
+    const { classifications, woodCount } = req.body;
 
     if (!classifications || !Array.isArray(classifications)) {
       return res.status(400).json({ error: 'Classifications array is required' });
@@ -435,14 +436,20 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 
     await Promise.all(updatePromises);
 
-    // Update picture set status to CLASSIFIED
+    // Update picture set status to CLASSIFIED and optionally woodCount
+    const pictureSetUpdateData = {
+      status: 'CLASSIFIED',
+      classifiedById: req.user.id,
+      classifiedAt: new Date(),
+    };
+
+    if (woodCount !== undefined) {
+      pictureSetUpdateData.woodCount = woodCount ? parseInt(woodCount) : null;
+    }
+
     const updatedPictureSet = await prisma.pictureSet.update({
       where: { id: parseInt(req.params.id) },
-      data: {
-        status: 'CLASSIFIED',
-        classifiedById: req.user.id,
-        classifiedAt: new Date(),
-      },
+      data: pictureSetUpdateData,
       include: {
         category: true,
         pictures: {

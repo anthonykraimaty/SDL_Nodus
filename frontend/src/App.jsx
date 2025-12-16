@@ -22,6 +22,7 @@ import AdminGroups from './pages/AdminGroups';
 import AdminTroupes from './pages/AdminTroupes';
 import AdminPatrouilles from './pages/AdminPatrouilles';
 import AdminPictures from './pages/AdminPictures';
+import ProfileSettings from './pages/ProfileSettings';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
@@ -119,6 +120,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <PictureStatus />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="profile"
+              element={
+                <ProtectedRoute>
+                  <ProfileSettings />
                 </ProtectedRoute>
               }
             />

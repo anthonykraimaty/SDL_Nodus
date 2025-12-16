@@ -32,7 +32,8 @@
       "Bash(node scripts/generateSeedFromMongo.js:*)",
       "Bash(node -e:*)",
       "Bash(npm run build:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
