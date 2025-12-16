@@ -1,7 +1,9 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize, canModifyPicture, optionalAuth } from '../middleware/auth.js';
-import { upload, handleUploadError } from '../middleware/upload.js';
+import { upload, handleUploadError, processUpload } from '../middleware/upload.js';
+import { deleteFromR2, isR2Configured, uploadMultipleToR2 } from '../services/r2Storage.js';
+import fs from 'fs/promises';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -95,7 +97,10 @@ router.get('/', optionalAuth, async (req, res) => {
           category: true,
           subCategory: true,
           tags: true,
-          pictures: { orderBy: { displayOrder: 'asc' } },
+          pictures: {
+            orderBy: { displayOrder: 'asc' },
+            include: { category: true },
+          },
         },
         orderBy: { uploadedAt: 'desc' },
         skip,
@@ -137,7 +142,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
         category: true,
         subCategory: true,
         tags: true,
-        pictures: { orderBy: { displayOrder: 'asc' } },
+        pictures: {
+          orderBy: { displayOrder: 'asc' },
+          include: { category: true },
+        },
         approvedBy: { select: { id: true, name: true } },
         classifiedBy: { select: { id: true, name: true } },
       },
@@ -237,6 +245,27 @@ router.post(
       // Generate title: District_Group_Troupe_Set##
       const title = `${troupe.group.district.name}_${troupe.group.name}_${troupe.name}_Set${String(troupeSetCount).padStart(2, '0')}`;
 
+      // Handle file paths based on storage type (R2 or local)
+      let pictureData;
+
+      if (isR2Configured()) {
+        // Upload to R2
+        const r2Results = await uploadMultipleToR2(req.files);
+        pictureData = r2Results.map((result, index) => ({
+          filePath: result.url, // Full CDN URL for R2
+          displayOrder: index + 1,
+        }));
+      } else {
+        // Local storage
+        pictureData = req.files.map((file, index) => {
+          const relativePath = file.path.replace(/\\/g, '/').split('/uploads/').pop();
+          return {
+            filePath: `uploads/${relativePath}`,
+            displayOrder: index + 1,
+          };
+        });
+      }
+
       // Create picture set - status is PENDING by default
       const pictureSetData = {
         title,
@@ -246,14 +275,7 @@ router.post(
         troupeId: req.user.troupeId,
         patrouilleId: patrouilleId ? parseInt(patrouilleId) : null,
         pictures: {
-          create: req.files.map((file, index) => {
-            // Convert absolute path to relative path for serving
-            const relativePath = file.path.replace(/\\/g, '/').split('/uploads/').pop();
-            return {
-              filePath: `uploads/${relativePath}`,
-              displayOrder: index + 1,
-            };
-          }),
+          create: pictureData,
         },
       };
 
@@ -279,7 +301,6 @@ router.post(
     }
   }
 );
-
 // PUT /api/pictures/:id/classify - Classify picture set (owner or branche with district access)
 router.put('/:id/classify', authenticate, async (req, res) => {
   try {
@@ -424,7 +445,10 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       },
       include: {
         category: true,
-        pictures: { orderBy: { displayOrder: 'asc' } },
+        pictures: {
+          orderBy: { displayOrder: 'asc' },
+          include: { category: true },
+        },
       },
     });
 
@@ -441,7 +465,46 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 // POST /api/pictures/:id/approve - Approve picture set (branche only)
 router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
-    const { isHighlight } = req.body;
+    const { isHighlight, excludedPictureIds } = req.body;
+
+    // If there are excluded pictures, delete them first
+    if (excludedPictureIds && excludedPictureIds.length > 0) {
+      // Get the pictures to delete
+      const picturesToDelete = await prisma.picture.findMany({
+        where: {
+          id: { in: excludedPictureIds },
+          pictureSetId: parseInt(req.params.id),
+        },
+      });
+
+      // Delete from R2 if configured
+      if (isR2Configured()) {
+        for (const picture of picturesToDelete) {
+          try {
+            await deleteFromR2(picture.filePath);
+          } catch (err) {
+            console.error('Failed to delete from R2:', err);
+          }
+        }
+      } else {
+        // Delete local files
+        for (const picture of picturesToDelete) {
+          try {
+            await fs.unlink(picture.filePath);
+          } catch (err) {
+            console.error('Failed to delete local file:', err);
+          }
+        }
+      }
+
+      // Delete the picture records from database
+      await prisma.picture.deleteMany({
+        where: {
+          id: { in: excludedPictureIds },
+          pictureSetId: parseInt(req.params.id),
+        },
+      });
+    }
 
     const pictureSet = await prisma.pictureSet.update({
       where: { id: parseInt(req.params.id) },
@@ -453,7 +516,10 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       },
       include: {
         approvedBy: { select: { id: true, name: true } },
-        pictures: { orderBy: { displayOrder: 'asc' } },
+        pictures: {
+          orderBy: { displayOrder: 'asc' },
+          include: { category: true },
+        },
       },
     });
 
@@ -499,7 +565,9 @@ router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'
   }
 });
 
-// DELETE /api/pictures/:id - Delete picture set (owner or admin)
+// DELETE /api/pictures/:id - Delete picture set
+// - Owner can delete non-approved sets (PENDING, CLASSIFIED, REJECTED)
+// - Admin can delete any set (including APPROVED)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const pictureSet = await prisma.pictureSet.findUnique({
@@ -511,21 +579,124 @@ router.delete('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Picture set not found' });
     }
 
-    // Only owner or admin can delete
-    if (pictureSet.uploadedById !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+    const isOwner = pictureSet.uploadedById === req.user.id;
+    const isAdmin = req.user.role === 'ADMIN';
+    const isApproved = pictureSet.status === 'APPROVED';
+
+    // Check permissions
+    if (isApproved) {
+      // Only admin can delete approved sets
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Only administrators can delete approved picture sets' });
+      }
+    } else {
+      // Non-approved: owner or admin can delete
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
+
+    // Delete files from storage (R2 or local)
+    for (const picture of pictureSet.pictures) {
+      try {
+        if (picture.filePath.startsWith('http')) {
+          // R2 storage - delete from cloud
+          await deleteFromR2(picture.filePath);
+        } else {
+          // Local storage - delete from filesystem
+          await fs.unlink(picture.filePath).catch(() => {});
+        }
+      } catch (fileError) {
+        console.error(`Failed to delete file ${picture.filePath}:`, fileError);
+      }
     }
 
     await prisma.pictureSet.delete({
       where: { id: parseInt(req.params.id) },
     });
 
-    // TODO: Delete files from filesystem
-
     res.json({ message: 'Picture set deleted successfully' });
   } catch (error) {
     console.error('Delete picture set error:', error);
     res.status(500).json({ error: 'Failed to delete picture set' });
+  }
+});
+
+// DELETE /api/pictures/:id/picture/:pictureId - Delete individual picture from a set
+// - Owner can delete from non-approved sets
+// - Admin can delete from any set
+router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
+  try {
+    const { id, pictureId } = req.params;
+
+    const pictureSet = await prisma.pictureSet.findUnique({
+      where: { id: parseInt(id) },
+      include: { pictures: true },
+    });
+
+    if (!pictureSet) {
+      return res.status(404).json({ error: 'Picture set not found' });
+    }
+
+    const picture = pictureSet.pictures.find(p => p.id === parseInt(pictureId));
+    if (!picture) {
+      return res.status(404).json({ error: 'Picture not found in this set' });
+    }
+
+    const isOwner = pictureSet.uploadedById === req.user.id;
+    const isAdmin = req.user.role === 'ADMIN';
+    const isApproved = pictureSet.status === 'APPROVED';
+
+    // Check permissions
+    if (isApproved) {
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Only administrators can delete pictures from approved sets' });
+      }
+    } else {
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
+
+    // Prevent deleting last picture (set must have at least one picture)
+    if (pictureSet.pictures.length <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the last picture. Delete the entire set instead.' });
+    }
+
+    // Delete file from storage
+    try {
+      if (picture.filePath.startsWith('http')) {
+        await deleteFromR2(picture.filePath);
+      } else {
+        await fs.unlink(picture.filePath).catch(() => {});
+      }
+    } catch (fileError) {
+      console.error(`Failed to delete file ${picture.filePath}:`, fileError);
+    }
+
+    // Delete picture record
+    await prisma.picture.delete({
+      where: { id: parseInt(pictureId) },
+    });
+
+    // Reorder remaining pictures
+    const remainingPictures = pictureSet.pictures
+      .filter(p => p.id !== parseInt(pictureId))
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+
+    await Promise.all(
+      remainingPictures.map((pic, index) =>
+        prisma.picture.update({
+          where: { id: pic.id },
+          data: { displayOrder: index + 1 },
+        })
+      )
+    );
+
+    res.json({ message: 'Picture deleted successfully' });
+  } catch (error) {
+    console.error('Delete picture error:', error);
+    res.status(500).json({ error: 'Failed to delete picture' });
   }
 });
 

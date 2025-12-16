@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
+import { getImageUrl } from '../config/api';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -16,6 +17,8 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -68,6 +71,35 @@ const Dashboard = () => {
       setPictures(allPictures);
     } else {
       setPictures(allPictures.filter(p => p.status === status.toUpperCase()));
+    }
+  };
+
+  // Check if user can delete a picture set
+  const canDelete = (picture) => {
+    if (!user) return false;
+    const isOwner = picture.uploadedBy?.id === user.id;
+    const isAdmin = user.role === 'ADMIN';
+    const isApproved = picture.status === 'APPROVED';
+
+    // Admin can delete anything
+    if (isAdmin) return true;
+    // Owner can delete non-approved
+    if (isOwner && !isApproved) return true;
+    return false;
+  };
+
+  const handleDelete = async (pictureId) => {
+    try {
+      setDeleting(true);
+      await pictureService.delete(pictureId);
+      setDeleteConfirm(null);
+      // Reload dashboard data
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Failed to delete picture set:', err);
+      alert(err.error || 'Failed to delete picture set');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -171,13 +203,28 @@ const Dashboard = () => {
               {pictures.slice(0, 10).map((picture) => (
                 <div key={picture.id} className="picture-card">
                   <div className="picture-card-image">
-                    <img
-                      src={`http://localhost:3001/${picture.pictures?.[0]?.filePath || 'placeholder.jpg'}`}
-                      alt={picture.title}
-                    />
+                    <div className="picture-thumbnails-grid">
+                      {picture.pictures?.slice(0, 6).map((pic, index) => (
+                        <div key={pic.id} className="thumbnail-item">
+                          <img
+                            src={getImageUrl(pic.filePath)}
+                            alt={`${picture.title} - ${index + 1}`}
+                          />
+                        </div>
+                      ))}
+                      {/* Fill empty slots if less than 6 pictures */}
+                      {picture.pictures?.length < 6 &&
+                        Array.from({ length: Math.min(6, 6 - (picture.pictures?.length || 0)) }).map((_, i) => (
+                          <div key={`empty-${i}`} className="thumbnail-item empty"></div>
+                        ))
+                      }
+                    </div>
                     <div className="picture-card-type">
                       {picture.type === 'INSTALLATION_PHOTO' ? '📸' : '📐'}
                     </div>
+                    {picture.pictures?.length > 6 && (
+                      <div className="picture-card-more">+{picture.pictures.length - 6}</div>
+                    )}
                   </div>
                   <div className="picture-card-content">
                     <h4 className="picture-card-title">{picture.title}</h4>
@@ -189,15 +236,56 @@ const Dashboard = () => {
                         {new Date(picture.uploadedAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <Link to={`/picture/${picture.id}`} className="btn-view-card">
-                      View Details
-                    </Link>
+                    <div className="picture-card-actions">
+                      <Link to={`/picture/${picture.id}`} className="btn-view-card">
+                        View Details
+                      </Link>
+                      {canDelete(picture) && (
+                        <button
+                          className="btn-delete-card"
+                          onClick={() => setDeleteConfirm(picture)}
+                          title="Delete picture set"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
+            <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Delete Picture Set?</h3>
+              <p>
+                Are you sure you want to delete "<strong>{deleteConfirm.title}</strong>"?
+                This will permanently delete all {deleteConfirm.pictures?.length || 0} pictures.
+              </p>
+              <p className="warning-text">This action cannot be undone.</p>
+              <div className="modal-actions">
+                <button
+                  onClick={() => handleDelete(deleteConfirm.id)}
+                  className="btn-confirm-delete"
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="btn-cancel"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

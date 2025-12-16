@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
+import { getImageUrl } from '../config/api';
 import './ReviewQueue.css';
 
 const ReviewQueue = () => {
@@ -15,6 +16,8 @@ const ReviewQueue = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
+  // Track excluded pictures per set: { setId: Set of pictureIds }
+  const [excludedPictures, setExcludedPictures] = useState({});
 
   useEffect(() => {
     loadData();
@@ -25,6 +28,8 @@ const ReviewQueue = () => {
       setLoading(true);
       const data = await pictureService.getAll({ status: 'CLASSIFIED' });
       setPictureSets(data.pictures || []);
+      // Reset excluded pictures when data reloads
+      setExcludedPictures({});
     } catch (err) {
       console.error('Failed to load data:', err);
       setError('Failed to load classified pictures');
@@ -33,14 +38,47 @@ const ReviewQueue = () => {
     }
   };
 
+  const togglePictureExclusion = (setId, pictureId, e) => {
+    e.stopPropagation(); // Prevent opening the image preview
+    setExcludedPictures(prev => {
+      const setExcluded = new Set(prev[setId] || []);
+      if (setExcluded.has(pictureId)) {
+        setExcluded.delete(pictureId);
+      } else {
+        setExcluded.add(pictureId);
+      }
+      return { ...prev, [setId]: setExcluded };
+    });
+  };
+
+  const isPictureExcluded = (setId, pictureId) => {
+    return excludedPictures[setId]?.has(pictureId) || false;
+  };
+
+  const getIncludedCount = (set) => {
+    const excluded = excludedPictures[set.id]?.size || 0;
+    return (set.pictures?.length || 0) - excluded;
+  };
+
   const handleApprove = async (pictureSetId, asHighlight = false) => {
     try {
       setError('');
       setSuccess('');
 
-      await pictureService.approve(pictureSetId, asHighlight);
+      const excluded = excludedPictures[pictureSetId];
+      const excludedIds = excluded ? Array.from(excluded) : [];
 
-      setSuccess(asHighlight ? 'Picture set approved and marked as highlight!' : 'Picture set approved successfully!');
+      // Check if all pictures are excluded
+      const set = pictureSets.find(s => s.id === pictureSetId);
+      if (set && excludedIds.length >= set.pictures?.length) {
+        setError('Cannot approve: all pictures are excluded. Please include at least one picture or reject the set.');
+        return;
+      }
+
+      await pictureService.approve(pictureSetId, asHighlight, excludedIds);
+
+      const excludedMsg = excludedIds.length > 0 ? ` (${excludedIds.length} picture${excludedIds.length > 1 ? 's' : ''} excluded)` : '';
+      setSuccess(asHighlight ? `Picture set approved and marked as highlight!${excludedMsg}` : `Picture set approved successfully!${excludedMsg}`);
       await loadData();
     } catch (err) {
       console.error('Approval error:', err);
@@ -95,6 +133,7 @@ const ReviewQueue = () => {
         <div className="review-header">
           <h1>Review Queue</h1>
           <p>Review and approve classified pictures before they become publicly visible</p>
+          <p className="review-hint">Click on pictures to exclude them from approval</p>
           <div className="review-stats">
             <span className="stat-badge">{pictureSets.length} sets pending review</span>
           </div>
@@ -105,7 +144,7 @@ const ReviewQueue = () => {
 
         {pictureSets.length === 0 ? (
           <div className="empty-state">
-            <h2>✅ All Caught Up!</h2>
+            <h2>All Caught Up!</h2>
             <p>No classified pictures waiting for review</p>
           </div>
         ) : (
@@ -117,17 +156,17 @@ const ReviewQueue = () => {
                     <h2>{set.title}</h2>
                     <div className="set-metadata">
                       <span className="metadata-item">
-                        👤 {set.uploadedBy?.name || 'Unknown'}
+                        {set.uploadedBy?.name || 'Unknown'}
                       </span>
                       <span className="metadata-item">
-                        📁 {set.category?.name || 'No category'}
+                        {set.pictures?.length || 0} pictures
                       </span>
                       <span className="metadata-item">
-                        🏕️ {set.troupe?.name || 'No troupe'}
+                        {set.troupe?.name || 'No troupe'}
                       </span>
                       {set.patrouille && (
                         <span className="metadata-item">
-                          ⚜️ {set.patrouille.name}
+                          {set.patrouille.name}
                         </span>
                       )}
                     </div>
@@ -157,32 +196,38 @@ const ReviewQueue = () => {
 
                 <div className="pictures-preview">
                   <div className="preview-grid">
-                    {set.pictures?.slice(0, 6).map(picture => (
+                    {set.pictures?.map(picture => (
                       <div
                         key={picture.id}
-                        className="preview-image-wrapper"
-                        onClick={() => setSelectedImage(picture)}
+                        className={`preview-image-wrapper ${isPictureExcluded(set.id, picture.id) ? 'excluded' : ''}`}
+                        onClick={(e) => togglePictureExclusion(set.id, picture.id, e)}
+                        title={isPictureExcluded(set.id, picture.id) ? 'Click to include' : 'Click to exclude'}
                       >
                         <img
-                          src={`http://localhost:3001/${picture.filePath}`}
+                          src={getImageUrl(picture.filePath)}
                           alt={`Picture ${picture.displayOrder}`}
                           className="preview-image"
                         />
-                        {picture.categoryId && (
-                          <div className="picture-category-badge">
+                        {picture.category && (
+                          <div className="picture-category-label">{picture.category.name}</div>
+                        )}
+                        {isPictureExcluded(set.id, picture.id) ? (
+                          <div className="picture-excluded-badge">
+                            ✗
+                          </div>
+                        ) : (
+                          <div className="picture-included-badge">
                             ✓
                           </div>
                         )}
                       </div>
                     ))}
-                    {set.pictures && set.pictures.length > 6 && (
-                      <div className="preview-more">
-                        +{set.pictures.length - 6} more
-                      </div>
-                    )}
                   </div>
                   <p className="picture-count">
-                    {set.pictures?.length || 0} picture{set.pictures?.length !== 1 ? 's' : ''}
+                    {getIncludedCount(set)} of {set.pictures?.length || 0} picture{set.pictures?.length !== 1 ? 's' : ''} will be approved
+                    {excludedPictures[set.id]?.size > 0 && (
+                      <span className="excluded-count"> ({excludedPictures[set.id].size} excluded)</span>
+                    )}
                   </p>
                 </div>
 
@@ -190,26 +235,28 @@ const ReviewQueue = () => {
                   <button
                     onClick={() => handleApprove(set.id, false)}
                     className="btn-approve"
+                    disabled={getIncludedCount(set) === 0}
                   >
-                    ✓ Approve
+                    Approve {getIncludedCount(set) < set.pictures?.length ? `(${getIncludedCount(set)})` : ''}
                   </button>
                   <button
                     onClick={() => handleApprove(set.id, true)}
                     className="btn-highlight"
+                    disabled={getIncludedCount(set) === 0}
                   >
-                    ⭐ Approve as Highlight
+                    Approve as Highlight
                   </button>
                   <button
                     onClick={() => setShowRejectModal(set.id)}
                     className="btn-reject"
                   >
-                    ✗ Reject
+                    Reject
                   </button>
                   <button
                     onClick={() => navigate(`/classify/${set.id}`)}
                     className="btn-view-details"
                   >
-                    👁️ View Details
+                    View Details
                   </button>
                 </div>
               </div>
@@ -261,7 +308,7 @@ const ReviewQueue = () => {
                 ×
               </button>
               <img
-                src={`http://localhost:3001/${selectedImage.filePath}`}
+                src={getImageUrl(selectedImage.filePath)}
                 alt="Full size preview"
                 className="modal-image"
               />

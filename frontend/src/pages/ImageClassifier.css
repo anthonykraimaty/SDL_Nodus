@@ -170,6 +170,75 @@
   border-top-left-radius: var(--radius-sm);
 }
 
+/* Classification status badges */
+.picture-classified-badge,
+.picture-unclassified-badge {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+}
+
+.picture-classified-badge {
+  background: var(--success);
+  color: white;
+}
+
+.picture-unclassified-badge {
+  background: var(--warning, #ff9800);
+  color: white;
+}
+
+/* Header classified badge */
+.classified-badge {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+}
+
+/* Classification Progress */
+.classification-progress {
+  margin-bottom: var(--spacing-lg);
+  background: var(--glass-bg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--bg-medium);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success) 0%, #45a049 100%);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.progress-complete {
+  color: var(--success);
+  font-weight: 600;
+}
+
 .picture-controls {
   padding: var(--spacing-md);
   display: flex;

@@ -1,0 +1,55 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+
+            cd ${{ vars.DEPLOY_PATH }}
+
+            # Pull latest code
+            git pull origin main || git pull origin master
+
+            # Start/ensure PostgreSQL is running
+            docker compose up -d
+
+            # Wait for PostgreSQL to be healthy
+            echo "Waiting for PostgreSQL..."
+            sleep 5
+
+            # Rebuild and restart backend container
+            cd backend
+            docker compose down || true
+            docker compose build --no-cache
+            docker compose up -d
+            cd ..
+
+            # Build frontend (static files served by nginx/caddy)
+            cd frontend
+            npm ci
+            npm run build
+            cd ..
+
+            # Show status
+            docker ps
+
+            echo "Deployment completed successfully!"

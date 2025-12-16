@@ -138,6 +138,7 @@ model Category {
   subcategories          Category[]       @relation("CategoryHierarchy")
   pictureSets            PictureSet[]     @relation("PictureSetCategory")
   subCategoryPictureSets PictureSet[]     @relation("PictureSetSubCategory")
+  pictures               Picture[]        @relation("PictureCategory")
   monthlyCategories      MonthlyCategory[]
   isSchematicEnabled     Boolean          @default(false) // Enable/disable for schematic upload
   displayOrder           Int              @default(0)
@@ -234,6 +235,7 @@ model Picture {
   displayOrder  Int           @default(0)
   caption       String?
   categoryId    Int?
+  category      Category?     @relation("PictureCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   takenAt       DateTime?
 
   // Part of a picture set
@@ -248,6 +250,7 @@ model Picture {
 
   @@index([pictureSetId])
   @@index([displayOrder])
+  @@index([categoryId])
 }
 
 // Tagging system for additional classification

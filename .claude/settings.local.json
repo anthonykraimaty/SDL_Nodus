@@ -25,7 +25,14 @@
       "Bash(del \"K:\\Projects\\SDL\\nodus\\frontend\\src\\pages\\Admin.jsx.backup\")",
       "Bash(del \"K:\\Projects\\SDL\\nodus\\frontend\\src\\pages\\Browse.css\")",
       "Bash(timeout /t 2 /nobreak)",
-      "Bash(del \"K:\\Projects\\SDL\\nodus\\docker-compose.prod.yml\")"
+      "Bash(del \"K:\\Projects\\SDL\\nodus\\docker-compose.prod.yml\")",
+      "Bash(node --check:*)",
+      "Bash(npx mongosh:*)",
+      "Bash(node scripts/extractMongoData.js:*)",
+      "Bash(node scripts/generateSeedFromMongo.js:*)",
+      "Bash(node -e:*)",
+      "Bash(npm run build:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

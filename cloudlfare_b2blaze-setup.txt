@@ -1,0 +1,62 @@
+Environment Variables to Set:
+# Backblaze B2 (get from B2 Console > App Keys)
+B2_ENDPOINT=s3.us-west-004.backblazeb2.com
+B2_BUCKET_NAME=your-bucket-name
+B2_KEY_ID=your-key-id
+B2_APP_KEY=your-app-key
+
+# Cloudflare CDN URL (your domain pointing to B2)
+CDN_URL=https://images.yourdomain.com
+Next Steps for You:
+Create Backblaze B2 Account → https://www.backblaze.com/b2
+Create a Bucket (public, with appropriate name)
+Create Application Key (read/write access to bucket)
+Set up Cloudflare (change nameservers, add domain)
+Configure CNAME in Cloudflare: images.yourdomain.com → your-bucket.s3.us-west-004.backblazeb2.com
+Add environment variables to your production .env
+Run migration (optional): node scripts/migrateToB2.js --dry-run then without --dry-run
+
+
+What to Configure on Cloudflare
+Step 1: Add Your Domain to Cloudflare
+Go to https://dash.cloudflare.com
+Add your domain (e.g., yourdomain.com)
+Change nameservers at your registrar to Cloudflare's
+Step 2: Create a CNAME for Images
+In Cloudflare DNS settings, add:
+Type	Name	Target	Proxy
+CNAME	images	f003.backblazeb2.com	✅ Proxied (orange cloud)
+Replace f003 with your B2 region endpoint (you'll see it in B2 bucket details)
+Step 3: Create a Transform Rule (URL Rewrite)
+Go to Rules → Transform Rules → Rewrite URL: Rule name: B2 Bucket Rewrite When: (http.host eq "images.yourdomain.com") Rewrite to:
+Path: Rewrite to... Dynamic
+Expression: concat("/file/YOUR-BUCKET-NAME", http.request.uri.path)
+Step 4: Cache Rules (Optional but Recommended)
+Go to Rules → Cache Rules: When: (http.host eq "images.yourdomain.com") Cache eligibility: Eligible for cache Edge TTL: 1 year (images rarely change)
+Backblaze B2 Setup
+Create Account → https://www.backblaze.com/b2
+Create Bucket:
+Name: nodus-images (or your choice)
+Files in Bucket are: Public
+Create Application Key:
+Go to App Keys → Add a New Application Key
+Name: nodus-api
+Allow access to: Your bucket only
+Save the keyID and applicationKey (shown only once!)
+Get your endpoint:
+Look at your bucket's Endpoint (e.g., s3.us-west-004.backblazeb2.com)
+Your .env Configuration
+B2_ENDPOINT=s3.us-west-004.backblazeb2.com
+B2_BUCKET_NAME=nodus-images
+B2_KEY_ID=your-key-id-from-step-3
+B2_APP_KEY=your-app-key-from-step-3
+CDN_URL=https://images.yourdomain.com
+Flow Summary
+1. User uploads image
+2. Backend uploads to B2: s3.us-west-004.backblazeb2.com/nodus-images/pictures/2024/12/abc.jpg
+3. Database stores: https://images.yourdomain.com/pictures/2024/12/abc.jpg
+4. When viewed, Cloudflare:
+   - Rewrites URL to fetch from B2
+   - Caches the image globally
+   - Serves from nearest edge location
+   - FREE bandwidth (Bandwidth Alliance)

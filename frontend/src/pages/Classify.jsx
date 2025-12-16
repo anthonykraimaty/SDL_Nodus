@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService } from '../services/api';
+import { getImageUrl } from '../config/api';
 import './Classify.css';
 
 const Classify = () => {
@@ -151,7 +152,7 @@ const Classify = () => {
                     <div key={picture.id} className="picture-card">
                       <div className="picture-preview">
                         <img
-                          src={`http://localhost:3001/${picture.filePath}`}
+                          src={getImageUrl(picture.filePath)}
                           alt={`Picture ${picture.displayOrder}`}
                           onClick={() => setSelectedPicture(picture)}
                         />
@@ -259,7 +260,7 @@ const Classify = () => {
                 ×
               </button>
               <img
-                src={`http://localhost:3001/${selectedPicture.filePath}`}
+                src={getImageUrl(selectedPicture.filePath)}
                 alt="Full size preview"
                 className="modal-image"
               />

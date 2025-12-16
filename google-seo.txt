@@ -1,0 +1,30 @@
+To Deploy:
+# Backend - add sitemap routes
+cd backend
+docker-compose down
+docker-compose up -d --build
+
+# Frontend - rebuild with SEO changes
+cd frontend
+npm run build
+sudo cp -r dist/* /var/www/nodus/
+
+# Update Nginx config for sitemap routing
+sudo nginx -t && sudo systemctl reload nginx
+Google Search Console
+After deploying, submit your sitemap to Google:
+Go to https://search.google.com/search-console
+Add property: https://nodus.scoutsduliban.org
+Submit sitemap: https://nodus.scoutsduliban.org/api/sitemap.xml
+
+
+Nginx Configuration for SEO
+Add these rules to your Nginx config for proper sitemap/robots serving:
+# Serve sitemap and robots from backend API
+location /sitemap.xml {
+    proxy_pass http://localhost:5020/api/sitemap.xml;
+}
+
+location /robots.txt {
+    proxy_pass http://localhost:5020/api/robots.txt;
+}

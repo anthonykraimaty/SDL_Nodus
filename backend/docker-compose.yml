@@ -1,7 +1,15 @@
 version: '3.8'
 
-# Backend Node.js API - Production
-# Requires PostgreSQL from root docker-compose.yml to be running
+# ===========================================
+# NODUS - Backend API Server
+# ===========================================
+# Prerequisites: PostgreSQL must be running (from root docker-compose.yml)
+#
+# Usage:
+#   docker compose up -d              # Start backend
+#   docker compose down               # Stop backend
+#   docker compose build --no-cache   # Rebuild after code changes
+#   docker compose logs -f backend    # View logs
 
 services:
   backend:
@@ -12,34 +20,17 @@ services:
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-5020}:3001"
-    environment:
-      # Database connection
-      - DATABASE_URL=${DATABASE_URL:-postgresql://nodus_user:nodus_password@nodus_postgres:5432/nodus_db?schema=public}
-
-      # Server configuration
-      - PORT=3001
-      - NODE_ENV=${NODE_ENV:-production}
-
-      # CORS - CHANGE THIS in production
-      - CLIENT_URL=${CLIENT_URL:-http://localhost:5173}
-
-      # JWT Authentication - CHANGE THIS in production
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+    env_file:
+      - .env
     volumes:
       - uploads_data:/app/uploads
     networks:
       - nodus_network
-    depends_on:
-      - postgres_connector
-
-  # Dummy service to connect to external network
-  postgres_connector:
-    image: alpine:latest
-    container_name: nodus_postgres_connector
-    command: echo "Connected to nodus_network"
-    networks:
-      - nodus_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   nodus_network:

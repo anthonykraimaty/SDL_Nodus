@@ -83,6 +83,79 @@ export const api = {
     }
     return response.json();
   },
+
+  /**
+   * Upload with progress tracking using XMLHttpRequest
+   * @param {string} endpoint - API endpoint
+   * @param {FormData} formData - Form data to upload
+   * @param {function} onProgress - Progress callback (receives { loaded, total, percent })
+   * @param {AbortSignal} signal - Optional abort signal for cancellation
+   * @returns {Promise} - Resolves with response JSON
+   */
+  uploadWithProgress(endpoint, formData, onProgress, signal) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Handle abort signal
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          xhr.abort();
+          reject(new Error('Upload cancelled'));
+        });
+      }
+
+      // Progress event
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          onProgress({
+            loaded: event.loaded,
+            total: event.total,
+            percent: Math.round((event.loaded / event.total) * 100),
+          });
+        }
+      });
+
+      // Load complete
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch {
+            resolve({ success: true });
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.error || `Upload failed with status ${xhr.status}`));
+          } catch {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        }
+      });
+
+      // Error event
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload'));
+      });
+
+      // Abort event
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload cancelled'));
+      });
+
+      // Open and send
+      xhr.open('POST', `${API_URL}${endpoint}`);
+
+      // Set auth header
+      const token = getAuthToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.send(formData);
+    });
+  },
 };
 
 // Authentication
@@ -101,11 +174,14 @@ export const pictureService = {
   },
   getById: (id) => api.get(`/api/pictures/${id}`, true), // Send auth token
   upload: (formData) => api.upload('/api/pictures', formData),
+  uploadWithProgress: (formData, onProgress, signal) =>
+    api.uploadWithProgress('/api/pictures', formData, onProgress, signal),
   classify: (id, data) => api.put(`/api/pictures/${id}/classify`, data, true),
   classifyBulk: (id, data) => api.put(`/api/pictures/${id}/classify-bulk`, data, true),
-  approve: (id, isHighlight = false) => api.post(`/api/pictures/${id}/approve`, { isHighlight }, true),
+  approve: (id, isHighlight = false, excludedPictureIds = []) => api.post(`/api/pictures/${id}/approve`, { isHighlight, excludedPictureIds }, true),
   reject: (id, rejectionReason) => api.post(`/api/pictures/${id}/reject`, { rejectionReason }, true),
   delete: (id) => api.delete(`/api/pictures/${id}`, true),
+  deletePicture: (setId, pictureId) => api.delete(`/api/pictures/${setId}/picture/${pictureId}`, true),
 };
 
 // Categories

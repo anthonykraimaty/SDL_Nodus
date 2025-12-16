@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { announcementService, pictureService } from '../services/api';
+import { getImageUrl } from '../config/api';
+import SEO from '../components/SEO';
 import './Landing.css';
 
 const Landing = () => {
@@ -57,10 +59,23 @@ const Landing = () => {
     );
   }
 
+  // Get current highlight for SEO image
+  const currentHighlight = highlights[currentSlide];
+  const ogImage = currentHighlight?.pictures?.[0]?.filePath
+    ? getImageUrl(currentHighlight.pictures[0].filePath)
+    : null;
+
   return (
     <div className="landing">
+      <SEO
+        title="Accueil"
+        description="Nodus - Plateforme de partage de photos d'installations scoutes des Scouts du Liban. Parcourez des milliers de photos de camps, constructions et schémas."
+        image={ogImage}
+        url="/"
+        keywords={['scouts du liban', 'installations scoutes', 'photos camp', 'froissartage', 'pionnier']}
+      />
       {/* Hero Carousel */}
-      <section className="hero-carousel">
+      <section className="hero-carousel" aria-label="Photos en vedette">
         <div className="container">
           <div className="carousel-wrapper">
             {highlights.length > 0 ? (
@@ -68,43 +83,45 @@ const Landing = () => {
                 <div className="carousel-content">
                   {highlights[currentSlide].pictures && highlights[currentSlide].pictures.length > 0 ? (
                     <img
-                      src={`http://localhost:3001/${highlights[currentSlide].pictures[0].filePath}`}
-                      alt={highlights[currentSlide].title}
+                      src={getImageUrl(highlights[currentSlide].pictures[0].filePath)}
+                      alt={`Installation scout ${highlights[currentSlide].title || ''} - ${highlights[currentSlide].troupe?.group?.district?.name || ''} ${highlights[currentSlide].troupe?.group?.name || ''} - Scouts du Liban`}
                       className="carousel-image"
                     />
                   ) : (
-                    <div className="carousel-placeholder">
-                      <span>📸</span>
+                    <div className="carousel-placeholder" role="img" aria-label="Photo en vedette">
+                      <span aria-hidden="true">📸</span>
                     </div>
                   )}
                   <div className="carousel-overlay">
                     <h2>{highlights[currentSlide].title}</h2>
-                    <p>{highlights[currentSlide].description || 'No description available'}</p>
+                    <p>{highlights[currentSlide].description || 'Installation scoute'}</p>
                     <Link to={`/picture/${highlights[currentSlide].id}`} className="btn-view">
-                      View Details
+                      Voir les détails
                     </Link>
                   </div>
                 </div>
-                <button className="carousel-btn carousel-btn-prev" onClick={prevSlide}>
+                <button className="carousel-btn carousel-btn-prev" onClick={prevSlide} aria-label="Photo précédente">
                   ‹
                 </button>
-                <button className="carousel-btn carousel-btn-next" onClick={nextSlide}>
+                <button className="carousel-btn carousel-btn-next" onClick={nextSlide} aria-label="Photo suivante">
                   ›
                 </button>
-                <div className="carousel-indicators">
+                <nav className="carousel-indicators" aria-label="Navigation du carousel">
                   {highlights.map((_, index) => (
                     <button
                       key={index}
                       className={`indicator ${index === currentSlide ? 'active' : ''}`}
                       onClick={() => setCurrentSlide(index)}
+                      aria-label={`Photo ${index + 1}`}
+                      aria-current={index === currentSlide ? 'true' : 'false'}
                     />
                   ))}
-                </div>
+                </nav>
               </>
             ) : (
               <div className="carousel-empty">
-                <h2>🏕️ Welcome to Nodus</h2>
-                <p>Installation, Noeuds et plus</p>
+                <h2>🏕️ Bienvenue sur Nodus</h2>
+                <p>Installations, Noeuds et plus</p>
               </div>
             )}
           </div>

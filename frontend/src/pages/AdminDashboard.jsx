@@ -139,6 +139,12 @@ const AdminDashboard = () => {
               <h3>Organizations</h3>
               <p>Manage districts, groups, and troupes</p>
             </Link>
+
+            <Link to="/admin/pictures" className="action-card">
+              <span className="action-icon">🖼️</span>
+              <h3>Pictures</h3>
+              <p>View and delete picture sets</p>
+            </Link>
           </div>
         </div>
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_URL } from '../config/api';
+import { API_URL, getImageUrl } from '../config/api';
 import { categoryService } from '../services/api';
+import SEO from '../components/SEO';
 import './Browse.css';
 
 const Browse = () => {
@@ -124,15 +125,41 @@ const Browse = () => {
     ? groups.filter(g => g.districtId === parseInt(districtFilter))
     : groups;
 
+  // Get selected district/group names for SEO
+  const selectedDistrictName = districtFilter
+    ? districts.find(d => d.id === parseInt(districtFilter))?.name
+    : null;
+  const selectedGroupName = groupFilter
+    ? groups.find(g => g.id === parseInt(groupFilter))?.name
+    : null;
+
+  const seoTitle = selectedGroupName
+    ? `Installations - ${selectedGroupName}`
+    : selectedDistrictName
+      ? `Installations - ${selectedDistrictName}`
+      : 'Parcourir les Installations Scoutes';
+
+  const seoDescription = selectedGroupName
+    ? `Photos d'installations scoutes du ${selectedGroupName}. Découvrez les constructions et aménagements de camp.`
+    : selectedDistrictName
+      ? `Photos d'installations scoutes du ${selectedDistrictName}. Parcourez les catégories de constructions scoutes.`
+      : 'Parcourez toutes les catégories d\'installations scoutes: mâts, tentes, ponts, tours et plus. Photos et schémas des Scouts du Liban.';
+
   return (
     <div className="browse">
+      <SEO
+        title={seoTitle}
+        description={seoDescription}
+        url="/browse"
+        keywords={['installations scoutes', 'photos camp', 'constructions', selectedDistrictName, selectedGroupName].filter(Boolean)}
+      />
       <div className="container">
-        <div className="browse-header">
-          <h1>Browse Installations</h1>
+        <header className="browse-header">
+          <h1>Parcourir les Installations</h1>
           <p className="subtitle">
-            Explore scout installations organized by category
+            Explorez les installations scoutes organisées par catégorie
           </p>
-        </div>
+        </header>
 
         <div className="browse-layout">
           {/* Main Content */}
@@ -193,46 +220,49 @@ const Browse = () => {
                 </p>
               </div>
             ) : (
-              <div className="categories-grid">
+              <section className="categories-grid" aria-label="Categories d'installations">
                 {filteredCategories.map((category) => (
-                  <Link
-                    key={category.id}
-                    to={`/category/${category.id}?${new URLSearchParams({
-                      ...(districtFilter && { districtId: districtFilter }),
-                      ...(groupFilter && { groupId: groupFilter }),
-                      ...(dateFromFilter && { dateFrom: dateFromFilter }),
-                      ...(dateToFilter && { dateTo: dateToFilter }),
-                    }).toString()}`}
-                    className="category-card"
-                  >
-                    <div className="category-image">
-                      {category.mainPicture ? (
-                        <img
-                          src={`${API_URL}/${category.mainPicture.filePath}`}
-                          alt={category.name}
-                        />
-                      ) : (
-                        <div className="placeholder-image">
-                          <span className="placeholder-icon">
-                            {category.type === 'INSTALLATION_PHOTO' ? '📸' : '📐'}
+                  <article key={category.id} className="category-card-wrapper">
+                    <Link
+                      to={`/category/${category.id}?${new URLSearchParams({
+                        ...(districtFilter && { districtId: districtFilter }),
+                        ...(groupFilter && { groupId: groupFilter }),
+                        ...(dateFromFilter && { dateFrom: dateFromFilter }),
+                        ...(dateToFilter && { dateTo: dateToFilter }),
+                      }).toString()}`}
+                      className="category-card"
+                      aria-label={`Voir les installations de type ${category.name}`}
+                    >
+                      <figure className="category-image">
+                        {category.mainPicture ? (
+                          <img
+                            src={getImageUrl(category.mainPicture.filePath)}
+                            alt={`Installation scout ${category.name}${selectedDistrictName ? ` - ${selectedDistrictName}` : ''}${selectedGroupName ? ` - ${selectedGroupName}` : ''} - Scouts du Liban`}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="placeholder-image" role="img" aria-label={`Catégorie ${category.name}`}>
+                            <span className="placeholder-icon" aria-hidden="true">
+                              {category.type === 'INSTALLATION_PHOTO' ? '📸' : '📐'}
+                            </span>
+                          </div>
+                        )}
+                        <figcaption className="category-overlay">
+                          <span className="category-count">
+                            {category._count?.pictures || 0} {category._count?.pictures === 1 ? 'photo' : 'photos'}
                           </span>
-                        </div>
-                      )}
-                      <div className="category-overlay">
-                        <div className="category-count">
-                          {category._count?.pictureSets || 0} {category._count?.pictureSets === 1 ? 'set' : 'sets'}
-                        </div>
+                        </figcaption>
+                      </figure>
+                      <div className="category-info">
+                        <h2>{category.name}</h2>
+                        {category.description && (
+                          <p className="category-desc">{category.description}</p>
+                        )}
                       </div>
-                    </div>
-                    <div className="category-info">
-                      <h3>{category.name}</h3>
-                      {category.description && (
-                        <p className="category-desc">{category.description}</p>
-                      )}
-                    </div>
-                  </Link>
+                    </Link>
+                  </article>
                 ))}
-              </div>
+              </section>
             )}
           </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService } from '../services/api';
+import { getImageUrl } from '../config/api';
 import './ImageClassifier.css';
 
 const ImageClassifier = () => {
@@ -110,6 +111,15 @@ const ImageClassifier = () => {
     setSuccess('Bulk classification applied! Click "Save All Classifications" to save.');
   };
 
+  // Count classified pictures
+  const getClassifiedCount = () => {
+    return pictureSet?.pictures?.filter(pic => classificationData[pic.id]?.categoryId).length || 0;
+  };
+
+  const getUnclassifiedCount = () => {
+    return (pictureSet?.pictures?.length || 0) - getClassifiedCount();
+  };
+
   const handleSaveAll = async () => {
     try {
       setError('');
@@ -121,8 +131,17 @@ const ImageClassifier = () => {
       );
 
       if (picturesToClassify.length === 0) {
-        alert('Please assign categories to at least one picture');
+        setError('Please assign categories to at least one picture');
         return;
+      }
+
+      // Warn if not all pictures are classified
+      const unclassifiedCount = pictureSet.pictures.length - picturesToClassify.length;
+      if (unclassifiedCount > 0) {
+        const proceed = window.confirm(
+          `${unclassifiedCount} picture(s) are not classified and will be excluded from approval.\n\nDo you want to continue?`
+        );
+        if (!proceed) return;
       }
 
       // Classify each picture individually
@@ -134,7 +153,7 @@ const ImageClassifier = () => {
 
       await pictureService.classifyBulk(id, { classifications });
 
-      setSuccess('All classifications saved successfully!');
+      setSuccess(`${picturesToClassify.length} picture(s) classified successfully!`);
       setTimeout(() => {
         navigate('/classify');
       }, 1500);
@@ -180,7 +199,27 @@ const ImageClassifier = () => {
           </div>
           <div className="header-info">
             <span className="badge">{pictureSet.pictures?.length || 0} pictures</span>
+            <span className="badge classified-badge">
+              {getClassifiedCount()} / {pictureSet.pictures?.length || 0} classified
+            </span>
             <span className="badge">{selectedPictures.size} selected</span>
+          </div>
+        </div>
+
+        {/* Classification Progress */}
+        <div className="classification-progress">
+          <div className="progress-bar">
+            <div
+              className="progress-fill"
+              style={{ width: `${(getClassifiedCount() / (pictureSet.pictures?.length || 1)) * 100}%` }}
+            ></div>
+          </div>
+          <div className="progress-text">
+            {getClassifiedCount() === pictureSet.pictures?.length ? (
+              <span className="progress-complete">All pictures classified - ready to save!</span>
+            ) : (
+              <span>{getUnclassifiedCount()} picture(s) still need classification</span>
+            )}
           </div>
         </div>
 
@@ -275,13 +314,18 @@ const ImageClassifier = () => {
                   onChange={() => togglePictureSelection(picture.id)}
                 />
                 <img
-                  src={`http://localhost:3001/${picture.filePath}`}
+                  src={getImageUrl(picture.filePath)}
                   alt={`Picture ${picture.displayOrder}`}
                   onClick={() => setSelectedImage(picture)}
                 />
                 <div className="picture-overlay">
                   <span>#{picture.displayOrder}</span>
                 </div>
+                {classificationData[picture.id]?.categoryId ? (
+                  <div className="picture-classified-badge">✓</div>
+                ) : (
+                  <div className="picture-unclassified-badge">!</div>
+                )}
               </div>
 
               <div className="picture-controls">
@@ -373,7 +417,7 @@ const ImageClassifier = () => {
                 ×
               </button>
               <img
-                src={`http://localhost:3001/${selectedImage.filePath}`}
+                src={getImageUrl(selectedImage.filePath)}
                 alt="Full size preview"
                 className="modal-image"
               />

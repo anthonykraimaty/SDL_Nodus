@@ -21,6 +21,7 @@ import AdminDistricts from './pages/AdminDistricts';
 import AdminGroups from './pages/AdminGroups';
 import AdminTroupes from './pages/AdminTroupes';
 import AdminPatrouilles from './pages/AdminPatrouilles';
+import AdminPictures from './pages/AdminPictures';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
@@ -144,6 +145,7 @@ function App() {
             <Route path="groups" element={<AdminGroups />} />
             <Route path="troupes" element={<AdminTroupes />} />
             <Route path="patrouilles" element={<AdminPatrouilles />} />
+            <Route path="pictures" element={<AdminPictures />} />
           </Route>
         </Routes>
       </AuthProvider>

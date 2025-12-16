@@ -1,12 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import './Upload.css';
 
+// Helper to format bytes
+const formatBytes = (bytes) => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 const Upload = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const abortControllerRef = useRef(null);
 
   const [formData, setFormData] = useState({
     type: 'INSTALLATION_PHOTO',
@@ -19,6 +29,13 @@ const Upload = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Progress state
+  const [uploadProgress, setUploadProgress] = useState({
+    percent: 0,
+    loaded: 0,
+    total: 0,
+  });
 
   useEffect(() => {
     // Load patrouilles from user's troupe
@@ -69,6 +86,10 @@ const Upload = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setUploadProgress({ percent: 0, loaded: 0, total: 0 });
+
+    // Create abort controller for cancellation
+    abortControllerRef.current = new AbortController();
 
     try {
       if (!files || files.length === 0) {
@@ -92,16 +113,34 @@ const Upload = () => {
         uploadData.append('patrouilleId', formData.patrouilleId);
       }
 
-      const result = await pictureService.upload(uploadData);
+      // Use upload with progress tracking
+      await pictureService.uploadWithProgress(
+        uploadData,
+        (progress) => {
+          setUploadProgress(progress);
+        },
+        abortControllerRef.current.signal
+      );
 
       setSuccess(true);
       setTimeout(() => {
         navigate('/dashboard');
       }, 2000);
     } catch (err) {
-      setError(err.message || 'Failed to upload pictures');
+      if (err.message !== 'Upload cancelled') {
+        setError(err.message || 'Failed to upload pictures');
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setLoading(false);
+      setUploadProgress({ percent: 0, loaded: 0, total: 0 });
     }
   };
 
@@ -241,12 +280,38 @@ const Upload = () => {
               </ul>
             </div>
 
+            {/* Progress Bar - shown during upload */}
+            {loading && (
+              <div className="upload-progress-container">
+                <div className="upload-progress-header">
+                  <span className="upload-progress-title">Uploading {files.length} file{files.length !== 1 ? 's' : ''}...</span>
+                  <span className="upload-progress-percent">{uploadProgress.percent}%</span>
+                </div>
+                <div className="upload-progress-bar">
+                  <div
+                    className="upload-progress-fill"
+                    style={{ width: `${uploadProgress.percent}%` }}
+                  />
+                </div>
+                <div className="upload-progress-details">
+                  <span>{formatBytes(uploadProgress.loaded)} / {formatBytes(uploadProgress.total)}</span>
+                  <button
+                    type="button"
+                    className="btn-cancel-upload"
+                    onClick={handleCancelUpload}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               className="btn-submit primary"
-              disabled={loading}
+              disabled={loading || files.length === 0}
             >
-              {loading ? 'Uploading...' : `Upload ${files.length || 0} Picture${files.length !== 1 ? 's' : ''}`}
+              {loading ? `Uploading... ${uploadProgress.percent}%` : `Upload ${files.length || 0} Picture${files.length !== 1 ? 's' : ''}`}
             </button>
           </form>
         </div>

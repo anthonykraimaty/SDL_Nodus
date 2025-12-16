@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { API_URL } from '../config/api';
+import { API_URL, getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
+import SEO from '../components/SEO';
 import './CategoryView.css';
 
 const CategoryView = () => {
@@ -84,61 +85,101 @@ const CategoryView = () => {
     );
   }
 
+  // Generate descriptive alt text for images
+  const getImageAlt = (picture, index) => {
+    const parts = [];
+
+    if (category?.name) parts.push(category.name);
+    if (picture.troupe?.group?.district?.name) parts.push(picture.troupe.group.district.name);
+    if (picture.troupe?.group?.name) parts.push(picture.troupe.group.name);
+    if (picture.troupe?.name) parts.push(picture.troupe.name);
+    if (picture.pictureSet?.location) parts.push(picture.pictureSet.location);
+
+    if (parts.length === 0) {
+      return `Installation scout - Photo ${index + 1} - Scouts du Liban`;
+    }
+
+    return `${parts.join(' - ')} - Scouts du Liban`;
+  };
+
+  // First picture for OG image
+  const firstPicture = pictures[0];
+  const ogImage = firstPicture ? getImageUrl(firstPicture.filePath) : null;
+
+  // SEO description
+  const seoDescription = category
+    ? `${pictures.length} photos d'installations ${category.name} des Scouts du Liban. Découvrez les constructions et aménagements de camp scout.`
+    : 'Photos d\'installations scoutes des Scouts du Liban';
+
   return (
     <div className="category-view">
+      <SEO
+        title={category?.name ? `${category.name} - Installations Scoutes` : 'Catégorie'}
+        description={seoDescription}
+        image={ogImage}
+        url={`/category/${categoryId}`}
+        keywords={[category?.name, 'installations scoutes', 'photos camp', 'constructions scoutes'].filter(Boolean)}
+      />
       <div className="container">
         {/* Header */}
-        <div className="category-header">
-          <Link to="/browse" className="btn-back">
-            ← Back to Categories
-          </Link>
+        <header className="category-header">
+          <nav aria-label="Breadcrumb">
+            <Link to="/browse" className="btn-back">
+              ← Retour aux Catégories
+            </Link>
+          </nav>
           <h1>{category?.name}</h1>
           {category?.description && <p className="category-description">{category.description}</p>}
           <p className="pictures-count">
-            {pictures.length} {pictures.length === 1 ? 'picture' : 'pictures'}
+            {pictures.length} {pictures.length === 1 ? 'photo' : 'photos'}
           </p>
-        </div>
+        </header>
 
         {/* Pictures Grid */}
         {pictures.length === 0 ? (
           <div className="empty-state">
-            <p>No pictures found in this category yet.</p>
+            <p>Aucune photo trouvée dans cette catégorie.</p>
             <Link to="/browse" className="btn-primary">
-              Browse Other Categories
+              Parcourir d'autres Catégories
             </Link>
           </div>
         ) : (
-          <div className="pictures-grid">
+          <section className="pictures-grid" aria-label={`Photos de ${category?.name}`}>
             {pictures.map((picture, index) => (
-              <div
+              <article
                 key={picture.id}
                 className="picture-thumbnail"
                 onClick={() => handlePictureClick(index)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Voir ${getImageAlt(picture, index)}`}
+                onKeyDown={(e) => e.key === 'Enter' && handlePictureClick(index)}
               >
-                <div className="thumbnail-image">
+                <figure className="thumbnail-image">
                   <img
-                    src={`${API_URL}/${picture.filePath}`}
-                    alt={picture.caption || `Picture ${index + 1}`}
+                    src={getImageUrl(picture.filePath)}
+                    alt={getImageAlt(picture, index)}
                     loading="lazy"
                   />
-                </div>
-                <div className="thumbnail-overlay">
-                  <div className="thumbnail-info">
-                    {picture.troupe && (
-                      <div className="thumbnail-troupe">
-                        {picture.troupe.name}
-                      </div>
-                    )}
-                    {picture.pictureSet?.location && (
-                      <div className="thumbnail-location">
-                        📍 {picture.pictureSet.location}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                  <figcaption className="thumbnail-overlay">
+                    <div className="thumbnail-info">
+                      {picture.troupe && (
+                        <>
+                          {picture.troupe.group?.name && (
+                            <span className="thumbnail-group">{picture.troupe.group.name}</span>
+                          )}
+                          <span className="thumbnail-troupe">{picture.troupe.name}</span>
+                        </>
+                      )}
+                      {picture.pictureSet?.location && (
+                        <span className="thumbnail-location">{picture.pictureSet.location}</span>
+                      )}
+                    </div>
+                  </figcaption>
+                </figure>
+              </article>
             ))}
-          </div>
+          </section>
         )}
       </div>
 

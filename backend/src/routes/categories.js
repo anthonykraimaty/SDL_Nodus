@@ -56,24 +56,21 @@ router.get('/', async (req, res) => {
       orderBy: { displayOrder: 'asc' },
     });
 
-    // For each category, count picture sets matching the filters
-    // This is optimized to avoid loading all picture sets into memory
+    // For each category, count pictures matching the filters
+    // Pictures are now categorized individually, not at the set level
     const categoriesWithCounts = await Promise.all(
       categories.map(async (category) => {
-        const count = await prisma.pictureSet.count({
+        const count = await prisma.picture.count({
           where: {
-            ...pictureSetWhere,
-            OR: [
-              { categoryId: category.id },
-              { subCategoryId: category.id },
-            ],
+            categoryId: category.id,
+            pictureSet: pictureSetWhere,
           },
         });
 
         return {
           ...category,
           _count: {
-            pictureSets: count,
+            pictures: count,
           },
         };
       })
@@ -440,22 +437,18 @@ router.get('/:id/pictures', async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    // Build where clause for filtering
-    const where = {
+    // Build where clause for picture set filtering
+    const pictureSetWhere = {
       status: 'APPROVED',
-      OR: [
-        { categoryId: parseInt(id) },
-        { subCategoryId: parseInt(id) },
-      ],
     };
 
     // Apply filters
     if (groupId) {
-      where.troupe = {
+      pictureSetWhere.troupe = {
         groupId: parseInt(groupId),
       };
     } else if (districtId) {
-      where.troupe = {
+      pictureSetWhere.troupe = {
         group: {
           districtId: parseInt(districtId),
         },
@@ -464,66 +457,67 @@ router.get('/:id/pictures', async (req, res) => {
 
     // Filter by upload date range
     if (dateFrom || dateTo) {
-      where.uploadedAt = {};
-      if (dateFrom) where.uploadedAt.gte = new Date(dateFrom);
+      pictureSetWhere.uploadedAt = {};
+      if (dateFrom) pictureSetWhere.uploadedAt.gte = new Date(dateFrom);
       if (dateTo) {
         const endDate = new Date(dateTo);
         endDate.setHours(23, 59, 59, 999); // Include the entire end date
-        where.uploadedAt.lte = endDate;
+        pictureSetWhere.uploadedAt.lte = endDate;
       }
     }
 
-    // Get all approved picture sets in this category or subcategory
-    const pictureSets = await prisma.pictureSet.findMany({
-      where,
+    // Get pictures that belong to this category (per-picture category)
+    const pictures = await prisma.picture.findMany({
+      where: {
+        categoryId: parseInt(id),
+        pictureSet: pictureSetWhere,
+      },
       include: {
-        pictures: {
-          orderBy: { displayOrder: 'asc' },
-        },
-        troupe: {
+        category: true,
+        pictureSet: {
           include: {
-            group: {
+            troupe: {
               include: {
-                district: true,
+                group: {
+                  include: {
+                    district: true,
+                  },
+                },
+              },
+            },
+            patrouille: true,
+            uploadedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
               },
             },
           },
         },
-        patrouille: true,
-        category: true,
-        subCategory: true,
-        uploadedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
       },
       orderBy: {
-        uploadedAt: 'desc',
+        pictureSet: {
+          uploadedAt: 'desc',
+        },
       },
     });
 
-    // Extract all pictures from picture sets
-    const pictures = pictureSets.flatMap(set =>
-      set.pictures.map(pic => ({
-        ...pic,
-        pictureSet: {
-          id: set.id,
-          title: set.title,
-          description: set.description,
-          location: set.location,
-          uploadedAt: set.uploadedAt,
-        },
-        troupe: set.troupe,
-        patrouille: set.patrouille,
-        category: set.category,
-        subCategory: set.subCategory,
-      }))
-    );
+    // Transform to expected format
+    const transformedPictures = pictures.map(pic => ({
+      ...pic,
+      troupe: pic.pictureSet.troupe,
+      patrouille: pic.pictureSet.patrouille,
+      pictureSet: {
+        id: pic.pictureSet.id,
+        title: pic.pictureSet.title,
+        description: pic.pictureSet.description,
+        location: pic.pictureSet.location,
+        uploadedAt: pic.pictureSet.uploadedAt,
+      },
+    }));
 
-    res.json({ category, pictures });
+    res.json({ category, pictures: transformedPictures });
   } catch (error) {
     console.error('Get category pictures error:', error);
     res.status(500).json({ error: 'Failed to fetch category pictures' });

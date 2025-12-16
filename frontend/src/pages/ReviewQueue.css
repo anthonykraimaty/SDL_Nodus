@@ -24,6 +24,12 @@
   font-size: 1.1rem;
 }
 
+.review-hint {
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-style: italic;
+}
+
 .review-stats {
   display: flex;
   gap: var(--spacing-md);
@@ -172,6 +178,84 @@
   font-weight: 700;
   font-size: 0.8rem;
   box-shadow: var(--shadow-md);
+}
+
+.picture-category-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: var(--spacing-lg) var(--spacing-xs) var(--spacing-xs);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Included/Excluded badges */
+.picture-included-badge,
+.picture-excluded-badge {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s ease;
+}
+
+.picture-included-badge {
+  background: var(--success);
+  color: white;
+}
+
+.picture-excluded-badge {
+  background: var(--error);
+  color: white;
+}
+
+/* Excluded picture styling */
+.preview-image-wrapper.excluded {
+  border-color: var(--error);
+  opacity: 0.6;
+}
+
+.preview-image-wrapper.excluded .preview-image {
+  filter: grayscale(50%);
+}
+
+.preview-image-wrapper.excluded:hover {
+  border-color: var(--success);
+  opacity: 0.9;
+}
+
+.excluded-count {
+  color: var(--error);
+  font-weight: 600;
+}
+
+/* Disabled button styling */
+.btn-approve:disabled,
+.btn-highlight:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-approve:disabled:hover,
+.btn-highlight:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .preview-more {

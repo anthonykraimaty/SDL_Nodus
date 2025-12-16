@@ -1,7 +1,12 @@
 version: '3.8'
 
-# PostgreSQL Database - Standalone
-# Can be used for both development and production
+# ===========================================
+# NODUS - PostgreSQL Database
+# ===========================================
+# Usage:
+#   docker compose up -d              # Start PostgreSQL
+#   docker compose down               # Stop PostgreSQL
+#   docker compose logs -f postgres   # View logs
 
 services:
   postgres:
@@ -9,9 +14,8 @@ services:
     container_name: nodus_postgres
     restart: unless-stopped
     environment:
-      # IMPORTANT: Change these credentials in production
       POSTGRES_USER: ${POSTGRES_USER:-nodus_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nodus_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kaftaaa}
       POSTGRES_DB: ${POSTGRES_DB:-nodus_db}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"

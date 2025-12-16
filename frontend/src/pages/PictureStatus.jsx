@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
+import { getImageUrl } from '../config/api';
 import './PictureStatus.css';
 
 const PictureStatus = () => {
@@ -12,6 +13,9 @@ const PictureStatus = () => {
   const [pictureSet, setPictureSet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pictureToDelete, setPictureToDelete] = useState(null);
 
   useEffect(() => {
     loadPictureSet();
@@ -27,6 +31,62 @@ const PictureStatus = () => {
       setError('Failed to load picture set');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Check if user can delete this set
+  const canDelete = () => {
+    if (!user || !pictureSet) return false;
+    const isOwner = pictureSet.uploadedById === user.id;
+    const isAdmin = user.role === 'ADMIN';
+    const isApproved = pictureSet.status === 'APPROVED';
+
+    // Admin can delete anything, owner can delete non-approved
+    if (isAdmin) return true;
+    if (isOwner && !isApproved) return true;
+    return false;
+  };
+
+  // Check if user can delete individual pictures
+  const canDeletePictures = () => {
+    if (!user || !pictureSet) return false;
+    const isOwner = pictureSet.uploadedById === user.id;
+    const isAdmin = user.role === 'ADMIN';
+    const isApproved = pictureSet.status === 'APPROVED';
+
+    if (isAdmin) return true;
+    if (isOwner && !isApproved) return true;
+    return false;
+  };
+
+  const handleDeleteSet = async () => {
+    if (!canDelete()) return;
+
+    try {
+      setDeleting(true);
+      await pictureService.delete(pictureSet.id);
+      navigate('/dashboard', { state: { message: 'Picture set deleted successfully' } });
+    } catch (err) {
+      console.error('Failed to delete picture set:', err);
+      setError(err.error || 'Failed to delete picture set');
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleDeletePicture = async (pictureId) => {
+    if (!canDeletePictures()) return;
+
+    try {
+      setDeleting(true);
+      await pictureService.deletePicture(pictureSet.id, pictureId);
+      setPictureToDelete(null);
+      await loadPictureSet(); // Reload to get updated pictures
+    } catch (err) {
+      console.error('Failed to delete picture:', err);
+      setError(err.error || 'Failed to delete picture');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -178,8 +238,16 @@ const PictureStatus = () => {
               <span>{pictureSet.type === 'INSTALLATION_PHOTO' ? '📸 Installation Photo' : '📐 Schematic'}</span>
             </div>
             <div className="metadata-item">
-              <strong>Category:</strong>
-              <span>{pictureSet.category?.name || 'Not assigned'}</span>
+              <strong>Classification:</strong>
+              <span>
+                {(() => {
+                  const classified = pictureSet.pictures?.filter(p => p.categoryId).length || 0;
+                  const total = pictureSet.pictures?.length || 0;
+                  if (classified === 0) return 'No pictures classified';
+                  if (classified === total) return `All ${total} pictures classified`;
+                  return `${classified} of ${total} pictures classified`;
+                })()}
+              </span>
             </div>
             <div className="metadata-item">
               <strong>Troupe:</strong>
@@ -245,15 +313,34 @@ const PictureStatus = () => {
             {pictureSet.pictures?.map((picture) => (
               <div key={picture.id} className="picture-preview-card">
                 <img
-                  src={`http://localhost:3001/${picture.filePath}`}
+                  src={getImageUrl(picture.filePath)}
                   alt={`Picture ${picture.displayOrder}`}
                 />
                 <div className="picture-info">
                   <span className="picture-number">#{picture.displayOrder}</span>
-                  {picture.categoryId && (
-                    <span className="picture-classified">✓</span>
+                  {picture.category ? (
+                    <span className="picture-category-name">{picture.category.name}</span>
+                  ) : (
+                    <span className="picture-not-classified">Not classified</span>
                   )}
                 </div>
+                {picture.takenAt && (
+                  <div className="picture-date">
+                    {new Date(picture.takenAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  </div>
+                )}
+                {canDeletePictures() && pictureSet.pictures.length > 1 && (
+                  <button
+                    className="btn-delete-picture"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPictureToDelete(picture);
+                    }}
+                    title="Delete this picture"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -302,7 +389,81 @@ const PictureStatus = () => {
               🌐 View in Browse
             </button>
           )}
+
+          {/* Delete Set Button */}
+          {canDelete() && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="btn-action danger"
+              disabled={deleting}
+            >
+              🗑️ Delete Set
+            </button>
+          )}
         </div>
+
+        {/* Delete Set Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+            <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Delete Picture Set?</h3>
+              <p>
+                Are you sure you want to delete "<strong>{pictureSet.title}</strong>"?
+                This will permanently delete all {pictureSet.pictures?.length || 0} pictures.
+              </p>
+              <p className="warning-text">This action cannot be undone.</p>
+              <div className="modal-actions">
+                <button
+                  onClick={handleDeleteSet}
+                  className="btn-confirm-delete"
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="btn-cancel"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Picture Confirmation Modal */}
+        {pictureToDelete && (
+          <div className="modal-overlay" onClick={() => setPictureToDelete(null)}>
+            <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Delete Picture?</h3>
+              <div className="delete-preview">
+                <img
+                  src={getImageUrl(pictureToDelete.filePath)}
+                  alt="Picture to delete"
+                />
+              </div>
+              <p>Are you sure you want to delete picture #{pictureToDelete.displayOrder}?</p>
+              <p className="warning-text">This action cannot be undone.</p>
+              <div className="modal-actions">
+                <button
+                  onClick={() => handleDeletePicture(pictureToDelete.id)}
+                  className="btn-confirm-delete"
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+                <button
+                  onClick={() => setPictureToDelete(null)}
+                  className="btn-cancel"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
