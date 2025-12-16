@@ -10,6 +10,8 @@ const ReviewQueue = () => {
   const navigate = useNavigate();
 
   const [pictureSets, setPictureSets] = useState([]);
+  const [rejectedSets, setRejectedSets] = useState([]);
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'rejected'
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -26,13 +28,17 @@ const ReviewQueue = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await pictureService.getAll({ status: 'CLASSIFIED' });
-      setPictureSets(data.pictures || []);
+      const [classifiedData, rejectedData] = await Promise.all([
+        pictureService.getAll({ status: 'CLASSIFIED' }),
+        pictureService.getAll({ status: 'REJECTED' })
+      ]);
+      setPictureSets(classifiedData.pictures || []);
+      setRejectedSets(rejectedData.pictures || []);
       // Reset excluded pictures when data reloads
       setExcludedPictures({});
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError('Failed to load classified pictures');
+      setError('Failed to load pictures');
     } finally {
       setLoading(false);
     }
@@ -127,6 +133,9 @@ const ReviewQueue = () => {
     );
   }
 
+  // Get current sets based on active tab
+  const currentSets = activeTab === 'pending' ? pictureSets : rejectedSets;
+
   return (
     <div className="review-queue-page">
       <div className="container">
@@ -134,22 +143,37 @@ const ReviewQueue = () => {
           <h1>Review Queue</h1>
           <p>Review and approve classified pictures before they become publicly visible</p>
           <p className="review-hint">Click on pictures to exclude them from approval</p>
-          <div className="review-stats">
-            <span className="stat-badge">{pictureSets.length} sets pending review</span>
-          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="review-tabs">
+          <button
+            className={`review-tab ${activeTab === 'pending' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pending')}
+          >
+            Pending Review
+            {pictureSets.length > 0 && <span className="tab-badge">{pictureSets.length}</span>}
+          </button>
+          <button
+            className={`review-tab ${activeTab === 'rejected' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rejected')}
+          >
+            Rejected
+            {rejectedSets.length > 0 && <span className="tab-badge rejected">{rejectedSets.length}</span>}
+          </button>
         </div>
 
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
-        {pictureSets.length === 0 ? (
+        {currentSets.length === 0 ? (
           <div className="empty-state">
-            <h2>All Caught Up!</h2>
-            <p>No classified pictures waiting for review</p>
+            <h2>{activeTab === 'pending' ? 'All Caught Up!' : 'No Rejected Sets'}</h2>
+            <p>{activeTab === 'pending' ? 'No classified pictures waiting for review' : 'No rejected picture sets to re-review'}</p>
           </div>
         ) : (
           <div className="review-sets">
-            {pictureSets.map(set => (
+            {currentSets.map(set => (
               <div key={set.id} className="review-set-card">
                 <div className="set-info">
                   <div className="set-header">
@@ -192,6 +216,14 @@ const ReviewQueue = () => {
                       <strong>Classified by:</strong> {set.classifiedBy?.name || 'Unknown'}
                     </div>
                   </div>
+
+                  {/* Show rejection reason for rejected sets */}
+                  {activeTab === 'rejected' && set.rejectionReason && (
+                    <div className="rejection-reason-box">
+                      <strong>Rejection Reason:</strong>
+                      <p>{set.rejectionReason}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pictures-preview">
@@ -237,21 +269,23 @@ const ReviewQueue = () => {
                     className="btn-approve"
                     disabled={getIncludedCount(set) === 0}
                   >
-                    Approve {getIncludedCount(set) < set.pictures?.length ? `(${getIncludedCount(set)})` : ''}
+                    {activeTab === 'rejected' ? 'Re-Approve' : 'Approve'} {getIncludedCount(set) < set.pictures?.length ? `(${getIncludedCount(set)})` : ''}
                   </button>
                   <button
                     onClick={() => handleApprove(set.id, true)}
                     className="btn-highlight"
                     disabled={getIncludedCount(set) === 0}
                   >
-                    Approve as Highlight
+                    {activeTab === 'rejected' ? 'Re-Approve as Highlight' : 'Approve as Highlight'}
                   </button>
-                  <button
-                    onClick={() => setShowRejectModal(set.id)}
-                    className="btn-reject"
-                  >
-                    Reject
-                  </button>
+                  {activeTab === 'pending' && (
+                    <button
+                      onClick={() => setShowRejectModal(set.id)}
+                      className="btn-reject"
+                    >
+                      Reject
+                    </button>
+                  )}
                   <button
                     onClick={() => navigate(`/classify/${set.id}`)}
                     className="btn-view-details"

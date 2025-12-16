@@ -30,6 +30,70 @@
   font-style: italic;
 }
 
+/* Review Tabs */
+.review-tabs {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xl);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: var(--spacing-sm);
+}
+
+.review-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  position: relative;
+}
+
+.review-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-medium);
+}
+
+.review-tab.active {
+  color: var(--accent);
+  background: var(--bg-medium);
+}
+
+.review-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--spacing-sm);
+  background: var(--accent);
+  color: var(--primary-dark);
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.tab-badge.rejected {
+  background: var(--error);
+  color: white;
+}
+
 .review-stats {
   display: flex;
   gap: var(--spacing-md);
@@ -122,6 +186,32 @@
 .detail-item strong {
   color: var(--text-primary);
   margin-right: var(--spacing-xs);
+}
+
+/* Rejection Reason Box */
+.rejection-reason-box {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--error);
+}
+
+.rejection-reason-box strong {
+  color: var(--error);
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rejection-reason-box p {
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.5;
+  font-style: italic;
 }
 
 /* Pictures Preview */
