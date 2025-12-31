@@ -8,8 +8,10 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting seed...\n');
 
-  // Hash password for users
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  // Hash passwords for different user types
+  const ctPassword = await bcrypt.hash('password123', 10);
+  const branchePassword = await bcrypt.hash('branche123', 10);
+  const adminPassword = await bcrypt.hash('password123', 10);
 
   // 1. Create Districts
   console.log('Creating districts...');
@@ -138,7 +140,7 @@ async function main() {
     update: {},
     create: {
       email: 'admin@nodus.com',
-      password: hashedPassword,
+      password: adminPassword,
       name: 'Admin User',
       role: 'ADMIN',
       forcePasswordChange: false,
@@ -175,7 +177,7 @@ async function main() {
       update: { name: branche.name, role: 'BRANCHE_ECLAIREURS' },
       create: {
         email: branche.email.toLowerCase(),
-        password: hashedPassword,
+        password: branchePassword,
         name: branche.name,
         role: 'BRANCHE_ECLAIREURS',
         forcePasswordChange: true,
@@ -255,7 +257,7 @@ async function main() {
           await prisma.user.create({
             data: {
               email: ct.email.toLowerCase(),
-              password: hashedPassword,
+              password: ctPassword,
               name: ct.name,
               role: 'CHEF_TROUPE',
               troupeId: troupeExact.id,
@@ -278,7 +280,7 @@ async function main() {
       await prisma.user.create({
         data: {
           email: ct.email.toLowerCase(),
-          password: hashedPassword,
+          password: ctPassword,
           name: ct.name,
           role: 'CHEF_TROUPE',
           troupeId: troupe.id,
@@ -319,7 +321,7 @@ async function main() {
       await prisma.user.create({
         data: {
           email: email,
-          password: hashedPassword,
+          password: ctPassword,
           name: 'CT Placeholder', // Default name - to be filled later
           role: 'CHEF_TROUPE',
           troupeId: dbTroupeId,
@@ -360,7 +362,7 @@ async function main() {
   console.log('='.repeat(50));
   console.log('\nDefault credentials:');
   console.log('  Admin: admin@nodus.com / password123');
-  console.log('  Branche: 16 users with real emails / password123');
+  console.log('  Branche: 16 users with real emails / branche123');
   console.log('  Chef Troupe: Real emails from CT.xlsx or ct.txxx@nodus.temp / password123');
   console.log('  All Branche and CT users have forcePasswordChange: true');
 }
