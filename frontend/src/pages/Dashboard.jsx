@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService } from '../services/api';
-import { getImageUrl } from '../config/api';
+import { pictureService, schematicService, categoryService } from '../services/api';
+import { getImageUrl, API_URL } from '../config/api';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [pictures, setPictures] = useState([]);
   const [allPictures, setAllPictures] = useState([]);
   const [stats, setStats] = useState({
+    total: 0,
     pending: 0,
     classified: 0,
     approved: 0,
@@ -19,6 +21,13 @@ const Dashboard = () => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [schematicStats, setSchematicStats] = useState({
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    total: 0,
+  });
+  const [categoryStats, setCategoryStats] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -26,37 +35,98 @@ const Dashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      const params = {};
+      const token = localStorage.getItem('token');
 
       // For Chef Troupe, show their own pictures
       if (user?.role === 'CHEF_TROUPE') {
-        // This would need backend support to filter by user
         const data = await pictureService.getAll({ limit: 50 });
         const userPictures = data.pictures.filter(p => p.uploadedBy?.id === user.id);
         setAllPictures(userPictures);
         setPictures(userPictures);
 
-        // Calculate stats
+        const pending = userPictures.filter(p => p.status === 'PENDING').length;
+        const classified = userPictures.filter(p => p.status === 'CLASSIFIED').length;
+        const approved = userPictures.filter(p => p.status === 'APPROVED').length;
+        const rejected = userPictures.filter(p => p.status === 'REJECTED').length;
+
         setStats({
-          pending: userPictures.filter(p => p.status === 'PENDING').length,
-          classified: userPictures.filter(p => p.status === 'CLASSIFIED').length,
-          approved: userPictures.filter(p => p.status === 'APPROVED').length,
-          rejected: userPictures.filter(p => p.status === 'REJECTED').length,
+          total: pending + classified + approved + rejected,
+          pending,
+          classified,
+          approved,
+          rejected,
         });
       }
 
-      // For Branche, show pictures needing review
+      // For Branche, show pictures needing review with detailed stats
       if (user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') {
         const data = await pictureService.getAll({ limit: 50 });
         setAllPictures(data.pictures);
         setPictures(data.pictures);
 
+        // Get accurate counts from API
+        const [pendingRes, classifiedRes, approvedRes, rejectedRes] = await Promise.all([
+          fetch(`${API_URL}/api/pictures?status=PENDING&limit=1`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/api/pictures?status=CLASSIFIED&limit=1`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/api/pictures?status=APPROVED&limit=1`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/api/pictures?status=REJECTED&limit=1`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }),
+        ]);
+
+        const [pendingData, classifiedData, approvedData, rejectedData] = await Promise.all([
+          pendingRes.json(),
+          classifiedRes.json(),
+          approvedRes.json(),
+          rejectedRes.json(),
+        ]);
+
+        const pending = pendingData.pagination?.total || 0;
+        const classified = classifiedData.pagination?.total || 0;
+        const approved = approvedData.pagination?.total || 0;
+        const rejected = rejectedData.pagination?.total || 0;
+
         setStats({
-          pending: data.pictures.filter(p => p.status === 'PENDING').length,
-          classified: data.pictures.filter(p => p.status === 'CLASSIFIED').length,
-          approved: data.pictures.filter(p => p.status === 'APPROVED').length,
-          rejected: data.pictures.filter(p => p.status === 'REJECTED').length,
+          total: pending + classified + approved + rejected,
+          pending,
+          classified,
+          approved,
+          rejected,
         });
+
+        // Load category stats for Branche users
+        try {
+          const categories = await categoryService.getAll();
+          const categoryPictureCounts = await Promise.all(
+            categories.slice(0, 8).map(async (cat) => {
+              const res = await fetch(`${API_URL}/api/pictures?categoryId=${cat.id}&status=APPROVED&limit=1`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              const catData = await res.json();
+              return {
+                name: cat.name,
+                count: catData.pagination?.total || 0,
+              };
+            })
+          );
+          setCategoryStats(categoryPictureCounts.sort((a, b) => b.count - a.count));
+        } catch (err) {
+          console.error('Failed to load category stats:', err);
+        }
+      }
+
+      // Load schematic stats for all authenticated users
+      try {
+        const schematicData = await schematicService.getStats();
+        setSchematicStats(schematicData);
+      } catch (err) {
+        console.error('Failed to load schematic stats:', err);
       }
     } catch (error) {
       console.error('Failed to load dashboard:', error);
@@ -121,15 +191,84 @@ const Dashboard = () => {
               Welcome back, {user?.name}
             </p>
           </div>
+        </div>
+
+        {/* Quick Actions - Pictures */}
+        <div className="quick-actions">
           {user?.role === 'CHEF_TROUPE' && (
-            <Link to="/upload" className="btn-upload primary">
-              Upload Picture
+            <Link to="/upload" className="action-card upload-action">
+              <div className="action-icon">📤</div>
+              <div className="action-content">
+                <h3>Upload Pictures</h3>
+                <p>Add new installation photos</p>
+              </div>
+            </Link>
+          )}
+          {(user?.role === 'CHEF_TROUPE' || user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+            <Link to="/classify" className="action-card classify-action">
+              <div className="action-icon">🏷️</div>
+              <div className="action-content">
+                <h3>Classify Pictures</h3>
+                <p>Add categories and details to pending pictures</p>
+              </div>
+            </Link>
+          )}
+          {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+            <Link to="/review" className="action-card review-action">
+              <div className="action-icon">✅</div>
+              <div className="action-content">
+                <h3>Review Queue</h3>
+                <p>Approve or reject classified pictures</p>
+              </div>
+            </Link>
+          )}
+        </div>
+
+        {/* Separator */}
+        <div className="quick-actions-separator"></div>
+
+        {/* Quick Actions - Schematics */}
+        <div className="quick-actions">
+          {user?.role === 'CHEF_TROUPE' && (
+            <Link to="/schematics/upload" className="action-card schematic-action">
+              <div className="action-icon">📐</div>
+              <div className="action-content">
+                <h3>Upload Schematic</h3>
+                <p>Add patrouille hand-drawn schematics</p>
+              </div>
+            </Link>
+          )}
+          <Link to="/schematics/progress" className="action-card progress-action">
+            <div className="action-icon">📊</div>
+            <div className="action-content">
+              <h3>Schematic Progress</h3>
+              <p>Track patrouille completion</p>
+            </div>
+          </Link>
+          {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+            <Link to="/schematics/review" className="action-card schematic-review-action">
+              <div className="action-icon">📋</div>
+              <div className="action-content">
+                <h3>Review Schematics</h3>
+                <p>{schematicStats.pending} pending approval</p>
+              </div>
             </Link>
           )}
         </div>
 
         {/* Stats Cards */}
-        <div className="stats-grid">
+        <div className="stats-grid stats-grid-5">
+          <div
+            className={`stat-card ${activeFilter === 'all' ? 'active' : ''}`}
+            onClick={() => filterByStatus('all')}
+          >
+            <div className="stat-icon total">🖼️</div>
+            <div className="stat-info">
+              <h3>{stats.total}</h3>
+              <p>Total</p>
+            </div>
+          </div>
+
           <div
             className={`stat-card ${activeFilter === 'pending' ? 'active' : ''}`}
             onClick={() => filterByStatus('pending')}
@@ -174,6 +313,35 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Category Chart - Only for Branche users */}
+        {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && categoryStats.length > 0 && (
+          <div className="chart-section">
+            <div className="section-header">
+              <h3>Pictures by Category</h3>
+              <span className="section-subtitle">Top categories by approved pictures</span>
+            </div>
+            <div className="category-chart">
+              {categoryStats.map((cat, index) => {
+                const maxCount = Math.max(...categoryStats.map(c => c.count), 1);
+                return (
+                  <div key={index} className="chart-bar-row">
+                    <span className="chart-label" title={cat.name}>
+                      {cat.name.length > 18 ? cat.name.substring(0, 18) + '...' : cat.name}
+                    </span>
+                    <div className="chart-bar-container">
+                      <div
+                        className="chart-bar"
+                        style={{ width: `${(cat.count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                    <span className="chart-value">{cat.count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Recent Pictures */}
         <div className="recent-pictures">

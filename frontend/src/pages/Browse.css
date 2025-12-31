@@ -299,6 +299,13 @@
   gap: var(--spacing-xl, 2rem);
 }
 
+.category-card-wrapper {
+  display: block;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
 .category-card {
   position: relative;
   background: var(--bg-medium, #2a2a2a);
@@ -322,6 +329,9 @@
   aspect-ratio: 4/3;
   overflow: hidden;
   background: var(--bg-light, #3a3a3a);
+  margin: 0;
+  padding: 0;
+  border: none;
 }
 
 .category-image img {
@@ -588,8 +598,56 @@
   }
 
   .categories-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md, 1rem);
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-sm, 0.5rem);
+  }
+
+  .category-card-wrapper {
+    border: none;
+    border-left: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .category-card {
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-md, 8px);
+  }
+
+  .category-image {
+    aspect-ratio: 1/1;
+  }
+
+  .category-info {
+    padding: var(--spacing-sm, 0.5rem);
+  }
+
+  .category-info h2 {
+    font-size: 0.85rem;
+    margin-bottom: 0;
+    line-height: 1.2;
+  }
+
+  .category-desc {
+    display: none;
+  }
+
+  .category-count {
+    font-size: 0.65rem;
+    padding: 2px 5px;
+  }
+
+  .category-overlay {
+    padding: var(--spacing-xs, 0.25rem);
+  }
+
+  .placeholder-icon-svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .placeholder-text {
+    font-size: 0.7rem;
   }
 
   .category-card:hover {
@@ -608,16 +666,57 @@
   }
 
   .type-filters {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs, 0.25rem);
   }
 
   .type-filter {
-    width: 100%;
+    flex: 1;
+    min-width: auto;
+    padding: var(--spacing-xs, 0.25rem) var(--spacing-sm, 0.5rem);
+    font-size: 0.8rem;
   }
 
-  .category-info h3 {
-    font-size: 1.25rem;
+  .categories-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs, 0.25rem);
+  }
+
+  .category-card-wrapper {
+    border: none;
+    border-left: none;
+  }
+
+  .category-card {
+    border-radius: var(--radius-sm, 6px);
+  }
+
+  .category-info {
+    padding: var(--spacing-xs, 0.25rem);
+  }
+
+  .category-info h2 {
+    font-size: 0.7rem;
+    line-height: 1.2;
+  }
+
+  .category-overlay {
+    padding: 2px;
+  }
+
+  .category-count {
+    font-size: 0.55rem;
+    padding: 1px 4px;
+  }
+
+  .placeholder-icon-svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .placeholder-text {
+    font-size: 0.6rem;
   }
 
   .filter-sidebar {

@@ -1,11 +1,40 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
+import path from 'path';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
-const upload = multer({ dest: 'uploads/temp/' });
+
+// Secure multer configuration for CSV imports
+const csvStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/temp/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const csvFileFilter = (req, file, cb) => {
+  // Only allow CSV files
+  const allowedTypes = /csv|text\/csv|application\/vnd\.ms-excel/;
+  const extname = /\.csv$/i.test(file.originalname);
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype || extname) {
+    return cb(null, true);
+  }
+  cb(new Error('Only CSV files are allowed'));
+};
+
+const upload = multer({
+  storage: csvStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: csvFileFilter,
+});
 
 // GET /api/groups - Get all groups (public for filters)
 router.get('/', async (req, res) => {

@@ -37,6 +37,13 @@ enum AnnouncementType {
   UPCOMING
 }
 
+enum SchematicStatus {
+  PENDING         // Not started
+  SUBMITTED       // Uploaded, awaiting review
+  APPROVED        // Approved by Branche
+  REJECTED        // Rejected, needs re-upload
+}
+
 // Organizational hierarchy
 model District {
   id                    Int                    @id @default(autoincrement())
@@ -77,15 +84,16 @@ model Troupe {
 }
 
 model Patrouille {
-  id          Int          @id @default(autoincrement())
-  name        String
-  totem       String
-  cri         String
-  troupeId    Int
-  troupe      Troupe       @relation(fields: [troupeId], references: [id], onDelete: Cascade)
-  pictureSets PictureSet[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                 Int                  @id @default(autoincrement())
+  name               String
+  totem              String
+  cri                String
+  troupeId           Int
+  troupe             Troupe               @relation(fields: [troupeId], references: [id], onDelete: Cascade)
+  pictureSets        PictureSet[]
+  schematicProgress  SchematicProgress[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([troupeId])
 }
@@ -141,6 +149,8 @@ model Category {
   pictures               Picture[]        @relation("PictureCategory")
   monthlyCategories      MonthlyCategory[]
   isSchematicEnabled     Boolean          @default(false) // Enable/disable for schematic upload
+  isUploadDisabled       Boolean          @default(false) // Disable uploads for this category
+  isHiddenFromBrowse     Boolean          @default(false) // Hide from main Browse page
   displayOrder           Int              @default(0)
   mainPictureId          Int?             // Main picture to display for this category
   mainPicture            Picture?         @relation("CategoryMainPicture", fields: [mainPictureId], references: [id], onDelete: SetNull)
@@ -190,6 +200,12 @@ model PictureSet {
   subCategoryId Int?
   subCategory   Category?     @relation("PictureSetSubCategory", fields: [subCategoryId], references: [id], onDelete: SetNull)
 
+  // Schematic-specific fields
+  schematicCategoryId Int?
+  schematicCategory   SchematicCategory? @relation(fields: [schematicCategoryId], references: [id], onDelete: SetNull)
+  imageHash           String?            // MD5 hash for duplicate detection
+  schematicProgress   SchematicProgress[] @relation("SchematicProgressPictureSet")
+
   // Classification and approval
   classifiedById Int?
   classifiedBy   User?        @relation("PictureSetClassifier", fields: [classifiedById], references: [id], onDelete: SetNull)
@@ -223,6 +239,8 @@ model PictureSet {
   @@index([patrouilleId])
   @@index([categoryId])
   @@index([subCategoryId])
+  @@index([schematicCategoryId])
+  @@index([imageHash])
   @@index([status])
   @@index([type])
   @@index([isHighlight])
@@ -238,6 +256,7 @@ model Picture {
   categoryId    Int?
   category      Category?     @relation("PictureCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   takenAt       DateTime?
+  woodCount     Int?          // Number of wood pieces used for this specific installation
 
   // Part of a picture set
   pictureSetId  Int
@@ -277,4 +296,50 @@ model Announcement {
   updatedAt    DateTime         @updatedAt
 
   @@index([type, isActive, validFrom, validTo])
+}
+
+// Schematic category structure (predefined sets and items)
+model SchematicCategory {
+  id          Int      @id @default(autoincrement())
+  setName     String   // e.g., "Coin couchage et Abri"
+  setOrder    Int      // Display order for the set (1-7)
+  itemName    String   // e.g., "Tente", "Hutte"
+  itemOrder   Int      // Display order within set
+
+  // Relations
+  pictureSets       PictureSet[]
+  progressRecords   SchematicProgress[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([setName, itemName])
+  @@index([setName])
+  @@index([setOrder, itemOrder])
+}
+
+// Track progress for each patrouille per schematic item
+model SchematicProgress {
+  id                    Int               @id @default(autoincrement())
+  patrouilleId          Int
+  patrouille            Patrouille        @relation(fields: [patrouilleId], references: [id], onDelete: Cascade)
+  schematicCategoryId   Int
+  schematicCategory     SchematicCategory @relation(fields: [schematicCategoryId], references: [id], onDelete: Cascade)
+
+  // Status tracking
+  status                SchematicStatus   @default(PENDING)
+
+  // Related picture set (the uploaded schematic)
+  pictureSetId          Int?
+  pictureSet            PictureSet?       @relation("SchematicProgressPictureSet", fields: [pictureSetId], references: [id], onDelete: SetNull)
+
+  // Timestamps
+  completedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([patrouilleId, schematicCategoryId])
+  @@index([patrouilleId])
+  @@index([schematicCategoryId])
+  @@index([status])
 }

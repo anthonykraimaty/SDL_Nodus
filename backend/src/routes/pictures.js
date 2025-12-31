@@ -424,9 +424,15 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
     }
 
     // Update each picture with its classification
-    const updatePromises = classifications.map(({ pictureId, categoryId, takenAt }) => {
+    const updatePromises = classifications.map(({ pictureId, categoryId, takenAt, woodCount: picWoodCount }) => {
       const updateData = { categoryId: parseInt(categoryId) };
       if (takenAt) updateData.takenAt = new Date(takenAt);
+      // Handle woodCount - convert to int or null (empty string should be null)
+      if (picWoodCount !== undefined && picWoodCount !== null && picWoodCount !== '') {
+        updateData.woodCount = parseInt(picWoodCount);
+      } else {
+        updateData.woodCount = null;
+      }
 
       return prisma.picture.update({
         where: { id: parseInt(pictureId) },
@@ -603,18 +609,21 @@ router.delete('/:id', authenticate, async (req, res) => {
       }
     }
 
-    // Delete files from storage (R2 or local)
+    // Delete files from storage (B2 or local)
     for (const picture of pictureSet.pictures) {
       try {
+        console.log(`Deleting file: ${picture.filePath}`);
         if (picture.filePath.startsWith('http')) {
-          // R2 storage - delete from cloud
+          // B2 storage - delete from cloud
           await deleteFromR2(picture.filePath);
+          console.log(`Successfully deleted from B2: ${picture.filePath}`);
         } else {
           // Local storage - delete from filesystem
           await fs.unlink(picture.filePath).catch(() => {});
+          console.log(`Successfully deleted local file: ${picture.filePath}`);
         }
       } catch (fileError) {
-        console.error(`Failed to delete file ${picture.filePath}:`, fileError);
+        console.error(`Failed to delete file ${picture.filePath}:`, fileError.message);
       }
     }
 

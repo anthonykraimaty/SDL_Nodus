@@ -20,7 +20,7 @@ const ImageClassifier = () => {
   const [bulkCategory, setBulkCategory] = useState('');
   const [bulkMonth, setBulkMonth] = useState('');
   const [bulkYear, setBulkYear] = useState('');
-  const [woodCount, setWoodCount] = useState('');
+  const [bulkWoodCount, setBulkWoodCount] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
@@ -38,17 +38,13 @@ const ImageClassifier = () => {
       setPictureSet(pictureSetData);
       setCategories(categoriesData);
 
-      // Initialize wood count from picture set
-      if (pictureSetData.woodCount) {
-        setWoodCount(pictureSetData.woodCount.toString());
-      }
-
-      // Initialize classification data for each picture
+      // Initialize classification data for each picture (including woodCount)
       const initialData = {};
       pictureSetData.pictures?.forEach(pic => {
         initialData[pic.id] = {
           categoryId: pic.categoryId || '',
           takenAt: pic.takenAt ? new Date(pic.takenAt).toISOString().split('T')[0] : '',
+          woodCount: pic.woodCount ? pic.woodCount.toString() : '',
         };
       });
       setClassificationData(initialData);
@@ -103,6 +99,7 @@ const ImageClassifier = () => {
         takenAt: (bulkMonth && bulkYear)
           ? `${bulkYear}-${bulkMonth.padStart(2, '0')}-01`
           : classificationData[pictureId]?.takenAt || '',
+        woodCount: bulkWoodCount || classificationData[pictureId]?.woodCount || '',
       };
     });
 
@@ -114,6 +111,7 @@ const ImageClassifier = () => {
     setBulkCategory('');
     setBulkMonth('');
     setBulkYear('');
+    setBulkWoodCount('');
     setSuccess('Bulk classification applied! Click "Save All Classifications" to save.');
   };
 
@@ -150,16 +148,16 @@ const ImageClassifier = () => {
         if (!proceed) return;
       }
 
-      // Classify each picture individually
+      // Classify each picture individually (including per-picture woodCount)
       const classifications = picturesToClassify.map(pic => ({
         pictureId: pic.id,
         categoryId: classificationData[pic.id].categoryId,
         takenAt: classificationData[pic.id].takenAt || null,
+        woodCount: classificationData[pic.id].woodCount || null,
       }));
 
       await pictureService.classifyBulk(id, {
         classifications,
-        woodCount: woodCount ? parseInt(woodCount) : null,
       });
 
       setSuccess(`${picturesToClassify.length} picture(s) classified successfully!`);
@@ -297,6 +295,18 @@ const ImageClassifier = () => {
                 </select>
               </div>
 
+              <div className="form-group">
+                <label>Nombre de bois</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={bulkWoodCount}
+                  onChange={(e) => setBulkWoodCount(e.target.value)}
+                  placeholder="e.g., 12"
+                  className="form-input bulk-wood-input"
+                />
+              </div>
+
               <button
                 onClick={applyBulkClassification}
                 className="btn-primary"
@@ -305,26 +315,6 @@ const ImageClassifier = () => {
                 Apply to Selected ({selectedPictures.size})
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Wood Count Section */}
-        <div className="wood-count-card">
-          <div className="wood-count-header">
-            <h3>Installation Details</h3>
-            <p>This information applies to the entire picture set</p>
-          </div>
-          <div className="wood-count-input-group">
-            <label htmlFor="woodCount">Number of Wood Pieces Used</label>
-            <input
-              type="number"
-              id="woodCount"
-              min="0"
-              value={woodCount}
-              onChange={(e) => setWoodCount(e.target.value)}
-              placeholder="e.g., 12"
-              className="form-input wood-count-input"
-            />
           </div>
         </div>
 
@@ -425,6 +415,18 @@ const ImageClassifier = () => {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Nombre de bois</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={classificationData[picture.id]?.woodCount || ''}
+                    onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
+                    placeholder="e.g., 12"
+                    className="form-input picture-wood-input"
+                  />
                 </div>
               </div>
             </div>

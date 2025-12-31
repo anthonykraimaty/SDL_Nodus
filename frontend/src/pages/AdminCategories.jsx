@@ -10,6 +10,10 @@ const AdminCategories = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categoryStats, setCategoryStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // category to delete
   const [newCategory, setNewCategory] = useState({
     name: '',
     description: '',
@@ -121,14 +125,19 @@ const AdminCategories = () => {
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
+  const handleDeleteClick = (category, e) => {
+    if (e) e.stopPropagation();
+    setDeleteConfirm(category);
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deleteConfirm) return;
 
     try {
       setError('');
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`${API_URL}/api/categories/${categoryId}`, {
+      const response = await fetch(`${API_URL}/api/categories/${deleteConfirm.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -141,6 +150,58 @@ const AdminCategories = () => {
       }
 
       setSuccess('Category deleted successfully');
+      setSelectedCategory(null);
+      setDeleteConfirm(null);
+      loadCategories();
+    } catch (err) {
+      setError(err.message);
+      setDeleteConfirm(null);
+    }
+  };
+
+  const handleCategoryClick = async (category) => {
+    setSelectedCategory(category);
+    setLoadingStats(true);
+    setCategoryStats(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/categories/${category.id}/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCategoryStats(data.stats);
+      }
+    } catch (err) {
+      console.error('Failed to load category stats:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const handleUpdateCategorySettings = async (setting, value) => {
+    if (!selectedCategory) return;
+
+    try {
+      setError('');
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${API_URL}/api/categories/${selectedCategory.id}/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ [setting]: value }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update category settings');
+
+      const updatedCategory = await response.json();
+      setSelectedCategory(updatedCategory);
+      setSuccess(`Category ${setting === 'isUploadDisabled' ? (value ? 'uploads disabled' : 'uploads enabled') : (value ? 'hidden from browse' : 'visible in browse')}`);
       loadCategories();
     } catch (err) {
       setError(err.message);
@@ -187,73 +248,63 @@ const AdminCategories = () => {
               Categories for installation photos - Always available for upload
             </p>
 
-            <div className="categories-list">
-              {categories.length === 0 ? (
-                <div className="empty-state">
-                  <p>No categories yet. Create your first category!</p>
-                </div>
-              ) : (
-                categories.map((category) => (
-                  <div key={category.id} className="category-item">
-                    <div className="category-info">
+            {categories.length === 0 ? (
+              <div className="empty-state">
+                <p>No categories yet. Create your first category!</p>
+              </div>
+            ) : (
+              <div className="photo-categories-grid">
+                {categories.map((category) => (
+                  <div
+                    key={category.id}
+                    className={`photo-category-card ${category.isUploadDisabled ? 'upload-disabled' : ''} ${category.isHiddenFromBrowse ? 'hidden-from-browse' : ''}`}
+                    onClick={() => handleCategoryClick(category)}
+                  >
+                    <div className="photo-category-header">
                       <h4>{category.name}</h4>
-                      {category.description && (
-                        <p className="category-description">{category.description}</p>
-                      )}
-                      {category.subcategories && category.subcategories.length > 0 && (
-                        <span className="subcategory-count">
-                          {category.subcategories.length} subcategories
-                        </span>
-                      )}
-                    </div>
-                    <div className="category-actions">
-                      <span className="status-badge always-active">Always Active</span>
                       <button
-                        onClick={() => handleDeleteCategory(category.id)}
-                        className="btn-delete"
+                        onClick={(e) => handleDeleteClick(category, e)}
+                        className="btn-delete-small"
                         title="Delete category"
                       >
-                        🗑️
+                        ×
                       </button>
                     </div>
+                    <div className="photo-category-badges">
+                      {category.isUploadDisabled && (
+                        <span className="mini-badge disabled">No Upload</span>
+                      )}
+                      {category.isHiddenFromBrowse && (
+                        <span className="mini-badge hidden">Hidden</span>
+                      )}
+                    </div>
+                    {category._count?.pictures > 0 && (
+                      <span className="picture-count">{category._count.pictures} pics</span>
+                    )}
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Schematics Section */}
           <section className="category-section">
             <h3>📐 Schematics Upload</h3>
             <p className="section-description">
-              Enable/disable categories for schematic uploads
+              Click to enable/disable categories for schematic uploads
             </p>
 
-            <div className="categories-list">
+            <div className="schematic-categories-grid">
               {categories.map((category) => (
-                <div key={category.id} className="category-item">
-                  <div className="category-info">
-                    <h4>{category.name}</h4>
-                    {category.description && (
-                      <p className="category-description">{category.description}</p>
-                    )}
-                  </div>
-                  <div className="category-actions">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={category.isSchematicEnabled || false}
-                        onChange={() =>
-                          handleToggleSchematic(category.id, category.isSchematicEnabled)
-                        }
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                    <span className={`status-badge ${category.isSchematicEnabled ? 'enabled' : 'disabled'}`}>
-                      {category.isSchematicEnabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                </div>
+                <button
+                  key={category.id}
+                  className={`schematic-category-chip ${category.isSchematicEnabled ? 'enabled' : 'disabled'}`}
+                  onClick={() => handleToggleSchematic(category.id, category.isSchematicEnabled)}
+                  title={category.description || category.name}
+                >
+                  <span className="chip-name">{category.name}</span>
+                  <span className="chip-toggle">{category.isSchematicEnabled ? '✓' : '○'}</span>
+                </button>
               ))}
             </div>
           </section>
@@ -324,6 +375,113 @@ const AdminCategories = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Category Details Modal */}
+      {selectedCategory && (
+        <div className="modal-overlay" onClick={() => setSelectedCategory(null)}>
+          <div className="category-details-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="cdm-header">
+              <h3>{selectedCategory.name}</h3>
+              <button className="cdm-close" onClick={() => setSelectedCategory(null)}>×</button>
+            </div>
+
+            {/* Statistics */}
+            <div className="cdm-section">
+              <div className="cdm-label">Statistics</div>
+              {loadingStats ? (
+                <div className="cdm-loading">Loading...</div>
+              ) : categoryStats ? (
+                <div className="cdm-stats">
+                  <div className="cdm-stat">
+                    <span className="cdm-stat-value">{categoryStats.total}</span>
+                    <span className="cdm-stat-label">Total</span>
+                  </div>
+                  <div className="cdm-stat pending">
+                    <span className="cdm-stat-value">{categoryStats.pending}</span>
+                    <span className="cdm-stat-label">Pending</span>
+                  </div>
+                  <div className="cdm-stat classified">
+                    <span className="cdm-stat-value">{categoryStats.classified}</span>
+                    <span className="cdm-stat-label">Classified</span>
+                  </div>
+                  <div className="cdm-stat approved">
+                    <span className="cdm-stat-value">{categoryStats.approved}</span>
+                    <span className="cdm-stat-label">Approved</span>
+                  </div>
+                  <div className="cdm-stat rejected">
+                    <span className="cdm-stat-value">{categoryStats.rejected}</span>
+                    <span className="cdm-stat-label">Rejected</span>
+                  </div>
+                  <div className="cdm-stat recent">
+                    <span className="cdm-stat-value">{categoryStats.recentUploads}</span>
+                    <span className="cdm-stat-label">7 Days</span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Settings */}
+            <div className="cdm-section">
+              <div className="cdm-label">Settings</div>
+              <div className="cdm-settings">
+                <label className="cdm-setting">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategory.isUploadDisabled || false}
+                    onChange={(e) => handleUpdateCategorySettings('isUploadDisabled', e.target.checked)}
+                  />
+                  <span>Disable Uploads</span>
+                </label>
+                <label className="cdm-setting">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategory.isHiddenFromBrowse || false}
+                    onChange={(e) => handleUpdateCategorySettings('isHiddenFromBrowse', e.target.checked)}
+                  />
+                  <span>Hide from Browse</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="cdm-actions">
+              <button
+                className="cdm-btn cdm-btn-delete"
+                onClick={() => handleDeleteClick(selectedCategory)}
+              >
+                Delete
+              </button>
+              <button className="cdm-btn cdm-btn-close" onClick={() => setSelectedCategory(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
+          <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dcm-header">
+              <h3>Delete Category</h3>
+            </div>
+            <div className="dcm-body">
+              <p>Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?</p>
+              <p className="dcm-warning">This action cannot be undone.</p>
+            </div>
+            <div className="dcm-actions">
+              <button className="dcm-btn dcm-btn-cancel" onClick={() => setDeleteConfirm(null)}>
+                Cancel
+              </button>
+              <button className="dcm-btn dcm-btn-delete" onClick={handleDeleteCategory}>
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

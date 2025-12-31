@@ -99,9 +99,52 @@
 
 .bulk-inputs {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
   gap: var(--spacing-md);
   align-items: end;
+}
+
+.bulk-wood-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.bulk-wood-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.1);
+}
+
+.bulk-wood-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Per-picture wood input */
+.picture-wood-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.picture-wood-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.1);
+}
+
+.picture-wood-input::placeholder {
+  color: var(--text-secondary);
 }
 
 /* Wood Count Card */

@@ -23,6 +23,9 @@ import AdminTroupes from './pages/AdminTroupes';
 import AdminPatrouilles from './pages/AdminPatrouilles';
 import AdminPictures from './pages/AdminPictures';
 import ProfileSettings from './pages/ProfileSettings';
+import SchematicUpload from './pages/SchematicUpload';
+import SchematicReview from './pages/SchematicReview';
+import SchematicProgress from './pages/SchematicProgress';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
@@ -67,6 +70,7 @@ function App() {
             <Route index element={<Landing />} />
             <Route path="browse" element={<Browse />} />
             <Route path="category/:categoryId" element={<CategoryView />} />
+            <Route path="schematics" element={<SchematicProgress />} />
             <Route path="login" element={<Login />} />
 
             {/* Protected Routes */}
@@ -129,6 +133,34 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ProfileSettings />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Schematic Routes */}
+            <Route
+              path="schematics/upload"
+              element={
+                <ProtectedRoute allowedRoles={['CHEF_TROUPE']}>
+                  <SchematicUpload />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="schematics/review"
+              element={
+                <ProtectedRoute allowedRoles={['BRANCHE_ECLAIREURS', 'ADMIN']}>
+                  <SchematicReview />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="schematics/progress"
+              element={
+                <ProtectedRoute>
+                  <SchematicProgress />
                 </ProtectedRoute>
               }
             />

@@ -40,29 +40,11 @@ const Navbar = () => {
 
           {isAuthenticated() ? (
             <>
-              {user?.role === 'ADMIN' ? (
-                <>
-                  <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Admin Panel</Link>
-                  <ProfileDropdown closeMobileMenu={closeMobileMenu} />
-                </>
-              ) : (
-                <>
-                  {user?.role === 'CHEF_TROUPE' && (
-                    <>
-                      <Link to="/upload" className="nav-link" onClick={closeMobileMenu}>Upload</Link>
-                      <Link to="/classify" className="nav-link" onClick={closeMobileMenu}>Classify</Link>
-                    </>
-                  )}
-                  {user?.role === 'BRANCHE_ECLAIREURS' && (
-                    <>
-                      <Link to="/classify" className="nav-link" onClick={closeMobileMenu}>Classify</Link>
-                      <Link to="/review" className="nav-link" onClick={closeMobileMenu}>Review Queue</Link>
-                    </>
-                  )}
-                  <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Dashboard</Link>
-                  <ProfileDropdown closeMobileMenu={closeMobileMenu} />
-                </>
+              {user?.role === 'ADMIN' && (
+                <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Admin Panel</Link>
               )}
+              <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Dashboard</Link>
+              <ProfileDropdown closeMobileMenu={closeMobileMenu} />
             </>
           ) : (
             <Link to="/login" className="btn-login" onClick={closeMobileMenu}>

@@ -265,33 +265,48 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  backdrop-filter: blur(4px);
 }
 
 .delete-modal {
   background: var(--bg-medium);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-xl);
-  max-width: 450px;
+  border-radius: 16px;
+  padding: var(--spacing-xl) var(--spacing-xxl);
+  max-width: 480px;
   width: 100%;
+  border: 2px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
 .delete-modal h3 {
   color: var(--error);
   margin: 0 0 var(--spacing-lg) 0;
   font-size: 1.5rem;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--border);
 }
 
 .delete-info {
   background: var(--bg-dark);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
+  border-radius: 10px;
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  border: 1px solid var(--border);
 }
 
 .delete-info p {
-  margin: var(--spacing-xs) 0;
+  margin: var(--spacing-sm) 0;
   color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.delete-info p:first-child {
+  margin-top: 0;
+}
+
+.delete-info p:last-child {
+  margin-bottom: 0;
 }
 
 .delete-info strong {
@@ -302,22 +317,30 @@
   color: var(--error);
   font-weight: 600;
   font-size: 0.9rem;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-md);
+  background: rgba(244, 67, 54, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
 .modal-actions {
   display: flex;
   gap: var(--spacing-md);
   justify-content: flex-end;
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 2px solid var(--border);
 }
 
 .btn-confirm-delete {
-  padding: var(--spacing-sm) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-xl);
   background: var(--error);
   color: white;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   font-weight: 600;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -332,18 +355,20 @@
 }
 
 .btn-cancel {
-  padding: var(--spacing-sm) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-xl);
   background: var(--bg-dark);
   color: var(--text-primary);
   border: 2px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   font-weight: 600;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-cancel:hover:not(:disabled) {
   border-color: var(--accent);
+  background: var(--bg-light);
 }
 
 /* Responsive */

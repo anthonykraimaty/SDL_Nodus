@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { isTokenBlacklisted } from '../utils/tokenBlacklist.js';
 
 const prisma = new PrismaClient();
 
@@ -10,6 +11,11 @@ export const authenticate = async (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Check if token is blacklisted (logged out)
+    if (isTokenBlacklisted(token)) {
+      return res.status(401).json({ error: 'Token has been invalidated' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -24,8 +30,10 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid or inactive user' });
     }
 
-    // Attach user to request object
+    // Attach user and token to request object
     req.user = user;
+    req.token = token;
+    req.tokenExp = decoded.exp;
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token' });
@@ -40,11 +48,8 @@ export const authorize = (...roles) => {
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        error: 'Insufficient permissions',
-        required: roles,
-        current: req.user.role
-      });
+      // Don't expose role requirements in production
+      return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
     next();

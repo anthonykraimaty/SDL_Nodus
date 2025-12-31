@@ -11,7 +11,15 @@ router.get('/', async (req, res) => {
     const { type, parentId, districtId, groupId, dateFrom, dateTo } = req.query;
 
     const categoryWhere = {};
-    if (type) categoryWhere.type = type;
+    // For SCHEMATIC type, also include categories with isSchematicEnabled=true
+    if (type === 'SCHEMATIC') {
+      categoryWhere.OR = [
+        { type: 'SCHEMATIC' },
+        { isSchematicEnabled: true }
+      ];
+    } else if (type) {
+      categoryWhere.type = type;
+    }
     if (parentId) categoryWhere.parentId = parentId === 'null' ? null : parseInt(parentId);
 
     // Build picture set filter for counting
@@ -313,6 +321,112 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
   } catch (error) {
     console.error('Delete category error:', error);
     res.status(500).json({ error: 'Failed to delete category' });
+  }
+});
+
+// GET /api/categories/:id/stats - Get category statistics (admin only)
+router.get('/:id/stats', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if category exists
+    const category = await prisma.category.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        subcategories: true,
+      },
+    });
+
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // Get picture counts by status
+    const [total, pending, classified, approved, rejected] = await Promise.all([
+      prisma.pictureSet.count({
+        where: { categoryId: parseInt(id) },
+      }),
+      prisma.pictureSet.count({
+        where: { categoryId: parseInt(id), status: 'PENDING' },
+      }),
+      prisma.pictureSet.count({
+        where: { categoryId: parseInt(id), status: 'CLASSIFIED' },
+      }),
+      prisma.pictureSet.count({
+        where: { categoryId: parseInt(id), status: 'APPROVED' },
+      }),
+      prisma.pictureSet.count({
+        where: { categoryId: parseInt(id), status: 'REJECTED' },
+      }),
+    ]);
+
+    // Get recent uploads (last 7 days)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const recentUploads = await prisma.pictureSet.count({
+      where: {
+        categoryId: parseInt(id),
+        uploadedAt: { gte: weekAgo },
+      },
+    });
+
+    res.json({
+      category,
+      stats: {
+        total,
+        pending,
+        classified,
+        approved,
+        rejected,
+        recentUploads,
+      },
+    });
+  } catch (error) {
+    console.error('Get category stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch category statistics' });
+  }
+});
+
+// PATCH /api/categories/:id/settings - Update category visibility settings (admin only)
+router.patch('/:id/settings', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isUploadDisabled, isHiddenFromBrowse } = req.body;
+
+    // Check if category exists
+    const existingCategory = await prisma.category.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingCategory) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // Prepare update data
+    const updateData = {};
+    if (typeof isUploadDisabled === 'boolean') {
+      updateData.isUploadDisabled = isUploadDisabled;
+    }
+    if (typeof isHiddenFromBrowse === 'boolean') {
+      updateData.isHiddenFromBrowse = isHiddenFromBrowse;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No valid settings provided' });
+    }
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: parseInt(id) },
+      data: updateData,
+      include: {
+        subcategories: true,
+      },
+    });
+
+    res.json(updatedCategory);
+  } catch (error) {
+    console.error('Update category settings error:', error);
+    res.status(500).json({ error: 'Failed to update category settings' });
   }
 });
 

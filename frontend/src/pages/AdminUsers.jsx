@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
@@ -6,6 +7,7 @@ import './AdminUsers.css';
 
 const AdminUsers = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState([]);
   const [troupes, setTroupes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,16 @@ const AdminUsers = () => {
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+  // Initialize search term from URL params (for role filter)
+  useEffect(() => {
+    const roleParam = searchParams.get('role');
+    if (roleParam) {
+      // Keep the underscore so it matches the role in the database
+      setSearchTerm(roleParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadData();
@@ -330,6 +342,22 @@ const AdminUsers = () => {
     XLSX.writeFile(wb, 'users_template.xlsx');
   };
 
+  const exportUsers = () => {
+    const exportData = filteredUsers.map(u => ({
+      District: u.troupe?.group?.district?.name || '',
+      Groupe: u.troupe?.group?.name || '',
+      Troupe: u.troupe?.name || '',
+      Name: u.name || '',
+      Email: u.email || '',
+      Role: u.role || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Users');
+    XLSX.writeFile(wb, 'users_export.xlsx');
+  };
+
   // Filter users based on search term
   const filteredUsers = users.filter(u => {
     if (!searchTerm) return true;
@@ -339,9 +367,59 @@ const AdminUsers = () => {
       u.name?.toLowerCase().includes(search) ||
       u.email?.toLowerCase().includes(search) ||
       u.role?.toLowerCase().includes(search) ||
-      u.troupe?.name?.toLowerCase().includes(search)
+      u.troupe?.name?.toLowerCase().includes(search) ||
+      u.troupe?.group?.name?.toLowerCase().includes(search)
     );
   });
+
+  // Sort users
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    let aValue, bValue;
+
+    switch (sortConfig.key) {
+      case 'name':
+        aValue = a.name?.toLowerCase() || '';
+        bValue = b.name?.toLowerCase() || '';
+        break;
+      case 'email':
+        aValue = a.email?.toLowerCase() || '';
+        bValue = b.email?.toLowerCase() || '';
+        break;
+      case 'role':
+        aValue = a.role?.toLowerCase() || '';
+        bValue = b.role?.toLowerCase() || '';
+        break;
+      case 'group':
+        aValue = a.troupe?.group?.name?.toLowerCase() || '';
+        bValue = b.troupe?.group?.name?.toLowerCase() || '';
+        break;
+      case 'status':
+        aValue = a.isActive ? 'active' : 'inactive';
+        bValue = b.isActive ? 'active' : 'inactive';
+        break;
+      default:
+        aValue = '';
+        bValue = '';
+    }
+
+    if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Handle sort
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Get sort indicator
+  const getSortIndicator = (key) => {
+    if (sortConfig.key !== key) return '↕';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
 
   if (loading) {
     return (
@@ -359,6 +437,9 @@ const AdminUsers = () => {
         <div className="page-header">
           <h1>User Management</h1>
           <div className="header-actions">
+            <button onClick={exportUsers} className="btn-secondary">
+              Export Data
+            </button>
             <button onClick={downloadTemplate} className="btn-secondary">
               Download Template
             </button>
@@ -385,7 +466,7 @@ const AdminUsers = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Search by name, email, role, or troupe..."
+            placeholder="Search by name, email, role, group, or troupe..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -449,16 +530,26 @@ const AdminUsers = () => {
           <table className="users-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Troupe</th>
-                <th>Status</th>
+                <th className="sortable" onClick={() => handleSort('name')}>
+                  Name <span className="sort-indicator">{getSortIndicator('name')}</span>
+                </th>
+                <th className="sortable" onClick={() => handleSort('email')}>
+                  Email <span className="sort-indicator">{getSortIndicator('email')}</span>
+                </th>
+                <th className="sortable" onClick={() => handleSort('role')}>
+                  Role <span className="sort-indicator">{getSortIndicator('role')}</span>
+                </th>
+                <th className="sortable" onClick={() => handleSort('group')}>
+                  Group / Troupe <span className="sort-indicator">{getSortIndicator('group')}</span>
+                </th>
+                <th className="sortable" onClick={() => handleSort('status')}>
+                  Status <span className="sort-indicator">{getSortIndicator('status')}</span>
+                </th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u) => (
+              {sortedUsers.map((u) => (
                 <tr key={u.id}>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
@@ -467,7 +558,14 @@ const AdminUsers = () => {
                       {u.role.replace('_', ' ')}
                     </span>
                   </td>
-                  <td>{u.troupe?.name || '-'}</td>
+                  <td>
+                    {u.troupe ? (
+                      <>
+                        <span className="group-name">{u.troupe.group?.name || '-'}</span>
+                        <span className="troupe-name">{u.troupe.name}</span>
+                      </>
+                    ) : '-'}
+                  </td>
                   <td>
                     <span className={`status-badge ${u.isActive ? 'active' : 'inactive'}`}>
                       {u.isActive ? 'Active' : 'Inactive'}
@@ -567,7 +665,7 @@ const AdminUsers = () => {
                       <option value="">Select Group</option>
                       {getGroupsForDistrict(selectedDistrict).map(group => (
                         <option key={group.id} value={group.id}>
-                          {group.name} ({group.code})
+                          {group.name}
                         </option>
                       ))}
                     </select>
@@ -584,7 +682,7 @@ const AdminUsers = () => {
                       <option value="">Select Troupe</option>
                       {troupes.filter(t => t.groupId === parseInt(selectedGroup)).map(troupe => (
                         <option key={troupe.id} value={troupe.id}>
-                          {troupe.name} ({troupe.code})
+                          {troupe.name}
                         </option>
                       ))}
                     </select>

@@ -2,9 +2,29 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { hashPassword } from '../utils/auth.js';
+import { sanitizeInput } from '../utils/sanitize.js';
+import { sensitiveLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Password complexity validation
+const validatePasswordComplexity = (password) => {
+  const errors = [];
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters long');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+  return errors;
+};
 
 // Get all users (ADMIN only)
 router.get('/users', authenticate, authorize('ADMIN'), async (req, res) => {
@@ -60,18 +80,37 @@ router.get('/troupes', authenticate, authorize('ADMIN'), async (req, res) => {
 });
 
 // Create new user (ADMIN only)
-router.post('/users', authenticate, authorize('ADMIN'), async (req, res) => {
+router.post('/users', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {
-    const { name, email, password, role, troupeId, isActive } = req.body;
+    const { email, password, role, troupeId, isActive } = req.body;
+    const name = sanitizeInput(req.body.name);
 
     // Validate required fields
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Name, email, password, and role are required' });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate password complexity
+    const passwordErrors = validatePasswordComplexity(password);
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({ error: passwordErrors.join('. ') });
+    }
+
+    // Validate role
+    const validRoles = ['ADMIN', 'CHEF_TROUPE', 'BRANCHE_ECLAIREURS'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase().trim() },
     });
 
     if (existingUser) {
@@ -84,7 +123,7 @@ router.post('/users', authenticate, authorize('ADMIN'), async (req, res) => {
     // Prepare user data
     const userData = {
       name,
-      email,
+      email: email.toLowerCase().trim(),
       password: hashedPassword,
       role,
       isActive: isActive !== undefined ? isActive : true,
@@ -119,10 +158,11 @@ router.post('/users', authenticate, authorize('ADMIN'), async (req, res) => {
 });
 
 // Update user (ADMIN only)
-router.put('/users/:id', authenticate, authorize('ADMIN'), async (req, res) => {
+router.put('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, password, role, troupeId, isActive, forcePasswordChange } = req.body;
+    const { email, password, role, troupeId, isActive, forcePasswordChange } = req.body;
+    const name = req.body.name ? sanitizeInput(req.body.name) : undefined;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -190,7 +230,7 @@ router.put('/users/:id', authenticate, authorize('ADMIN'), async (req, res) => {
 });
 
 // Delete user (ADMIN only)
-router.delete('/users/:id', authenticate, authorize('ADMIN'), async (req, res) => {
+router.delete('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -220,7 +260,7 @@ router.delete('/users/:id', authenticate, authorize('ADMIN'), async (req, res) =
 });
 
 // Bulk import users from Excel
-router.post('/users/import', authenticate, authorize('ADMIN'), async (req, res) => {
+router.post('/users/import', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {
     const { users } = req.body;
 

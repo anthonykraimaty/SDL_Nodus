@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
+import { generalLimiter } from './middleware/rateLimiter.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -17,6 +19,7 @@ import districtRoutes from './routes/districts.js';
 import groupRoutes from './routes/groups.js';
 import troupeRoutes from './routes/troupes.js';
 import patrouilleRoutes from './routes/patrouilles.js';
+import schematicRoutes from './routes/schematics.js';
 import sitemapRoutes from './routes/sitemap.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,19 +31,38 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Security middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow images to be loaded cross-origin
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+    },
+  },
+}));
+
+// CORS configuration
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean);
+
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    // Allow all localhost origins in development
-    if (origin.startsWith('http://localhost:')) {
+    // Check against allowed origins list
+    if (allowedOrigins.some(allowed => origin === allowed)) {
       return callback(null, true);
     }
 
-    // In production, check against CLIENT_URL
-    if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) {
+    // In development, allow localhost with any port
+    if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:')) {
       return callback(null, true);
     }
 
@@ -48,8 +70,12 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting - apply to all routes
+app.use(generalLimiter);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -71,6 +97,7 @@ app.use('/api/districts', districtRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/troupes', troupeRoutes);
 app.use('/api/patrouilles', patrouilleRoutes);
+app.use('/api/schematics', schematicRoutes);
 app.use('/api', sitemapRoutes); // Sitemap and robots.txt
 
 // 404 handler

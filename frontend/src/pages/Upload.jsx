@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import './Upload.css';
@@ -18,14 +18,8 @@ const Upload = () => {
   const navigate = useNavigate();
   const abortControllerRef = useRef(null);
 
-  const [formData, setFormData] = useState({
-    type: 'INSTALLATION_PHOTO',
-    patrouilleId: '',
-  });
-
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
-  const [patrouilles, setPatrouilles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -36,23 +30,6 @@ const Upload = () => {
     loaded: 0,
     total: 0,
   });
-
-  useEffect(() => {
-    // Load patrouilles from user's troupe
-    if (user?.troupe?.patrouilles) {
-      setPatrouilles(user.troupe.patrouilles);
-    }
-  }, [user]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-      // Reset patrouille when switching to installation photo
-      ...(name === 'type' && value === 'INSTALLATION_PHOTO' ? { patrouilleId: '' } : {}),
-    }));
-  };
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -96,11 +73,6 @@ const Upload = () => {
         throw new Error('Please select at least one file');
       }
 
-      // Validate patrouille for schematics
-      if (formData.type === 'SCHEMATIC' && !formData.patrouilleId) {
-        throw new Error('Patrouille is required for schematics');
-      }
-
       const uploadData = new FormData();
 
       // Append all files
@@ -108,10 +80,8 @@ const Upload = () => {
         uploadData.append('pictures', file);
       });
 
-      uploadData.append('type', formData.type);
-      if (formData.patrouilleId) {
-        uploadData.append('patrouilleId', formData.patrouilleId);
-      }
+      // Always upload as installation photo - schematics use separate flow
+      uploadData.append('type', 'INSTALLATION_PHOTO');
 
       // Use upload with progress tracking
       await pictureService.uploadWithProgress(
@@ -173,9 +143,10 @@ const Upload = () => {
       <div className="container">
         <div className="upload-container">
           <div className="upload-header">
-            <h2>Upload Pictures</h2>
-            <p>Upload installation photos or schematics (up to 100 pictures at once)</p>
+            <h2>Upload Installation Photos</h2>
+            <p>Upload installation photos (up to 100 pictures at once)</p>
             <p className="text-muted">Title will be automatically generated. Other details can be added during classification.</p>
+            <p className="text-muted">For schematics, use the <Link to="/schematics/upload">Schematic Upload</Link> page instead.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="upload-form">
@@ -232,43 +203,6 @@ const Upload = () => {
                 />
               </div>
             </div>
-
-            {/* Type */}
-            <div className="form-group">
-              <label htmlFor="type">Type *</label>
-              <select
-                id="type"
-                name="type"
-                value={formData.type}
-                onChange={handleInputChange}
-                required
-              >
-                <option value="INSTALLATION_PHOTO">📸 Installation Photo</option>
-                <option value="SCHEMATIC">📐 Schematic</option>
-              </select>
-            </div>
-
-            {/* Patrouille - Only for Schematics */}
-            {formData.type === 'SCHEMATIC' && (
-              <div className="form-group">
-                <label htmlFor="patrouilleId">Patrouille *</label>
-                <select
-                  id="patrouilleId"
-                  name="patrouilleId"
-                  value={formData.patrouilleId}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Select a patrouille</option>
-                  {patrouilles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      ⚜️ {p.name} - {p.totem}
-                    </option>
-                  ))}
-                </select>
-                <p className="field-help">Schematics must be associated with a patrouille</p>
-              </div>
-            )}
 
             <div className="info-box">
               <strong>ℹ️ What happens next?</strong>

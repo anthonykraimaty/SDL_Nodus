@@ -31,8 +31,20 @@ router.get('/participation', authenticate, async (req, res) => {
       _count: { id: true },
     });
 
-    // Get patrouille details
+    // Build patrouille filter based on user role
+    const patrouilleWhere = {};
+    if (req.user.role === 'CHEF_TROUPE') {
+      // Chef Troupe can only see their own troupe's patrouilles
+      patrouilleWhere.troupeId = req.user.troupeId;
+    } else if (groupId) {
+      patrouilleWhere.troupe = { groupId: parseInt(groupId) };
+    } else if (troupeId) {
+      patrouilleWhere.troupeId = parseInt(troupeId);
+    }
+
+    // Get patrouille details (filtered by role)
     const patrouilles = await prisma.patrouille.findMany({
+      where: patrouilleWhere,
       include: {
         troupe: {
           include: { group: true },

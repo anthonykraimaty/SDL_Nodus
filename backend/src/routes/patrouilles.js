@@ -37,6 +37,34 @@ router.get('/', authenticate, authorize('ADMIN'), async (req, res) => {
   }
 });
 
+// Get patrouilles for current user's troupe (CHEF_TROUPE)
+router.get('/my-troupe', authenticate, async (req, res) => {
+  try {
+    // Only CHEF_TROUPE can use this endpoint
+    if (req.user.role !== 'CHEF_TROUPE' && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!req.user.troupeId) {
+      return res.status(400).json({ error: 'User is not assigned to a troupe' });
+    }
+
+    const patrouilles = await prisma.patrouille.findMany({
+      where: {
+        troupeId: req.user.troupeId,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    res.json(patrouilles);
+  } catch (error) {
+    console.error('Failed to fetch troupe patrouilles:', error);
+    res.status(500).json({ error: 'Failed to fetch patrouilles' });
+  }
+});
+
 // Get single patrouille
 router.get('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
   try {

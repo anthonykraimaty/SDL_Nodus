@@ -217,3 +217,43 @@ export const analyticsService = {
   },
   getPictureStats: () => api.get('/api/analytics/pictures/stats', true),
 };
+
+// Schematics
+export const schematicService = {
+  // Public
+  getCategories: () => api.get('/api/schematics/categories'),
+  getGallery: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/schematics/gallery${query ? '?' + query : ''}`);
+  },
+
+  // Authenticated
+  getProgress: (patrouilleId) => api.get(`/api/schematics/progress/${patrouilleId}`, true),
+  getTroupeProgress: (troupeId) => api.get(`/api/schematics/progress/troupe/${troupeId}`, true),
+  getAllProgress: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/schematics/progress/all${query ? '?' + query : ''}`, true);
+  },
+  getStats: () => api.get('/api/schematics/stats', true),
+
+  // Chef Troupe
+  upload: (formData) => api.upload('/api/schematics/upload', formData),
+  uploadWithProgress: (formData, onProgress, signal) =>
+    api.uploadWithProgress('/api/schematics/upload', formData, onProgress, signal),
+
+  // Branche/Admin
+  getPending: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/schematics/pending${query ? '?' + query : ''}`, true);
+  },
+  approve: (id) => api.post(`/api/schematics/${id}/approve`, {}, true),
+  reject: (id, reason) => api.post(`/api/schematics/${id}/reject`, { reason }, true),
+
+  // Delete
+  delete: (id) => api.delete(`/api/schematics/${id}`, true),
+};
+
+// Patrouilles
+export const patrouilleService = {
+  getMyTroupe: () => api.get('/api/patrouilles/my-troupe', true),
+};

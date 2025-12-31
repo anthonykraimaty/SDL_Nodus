@@ -23,14 +23,15 @@ const Classify = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Load all pending and classified picture sets
+      // Load all pending installation photos (not schematics - those use separate workflow)
       const [pictureSetsData, categoriesData] = await Promise.all([
-        pictureService.getAll({ status: 'PENDING' }),
+        pictureService.getAll({ status: 'PENDING', type: 'INSTALLATION_PHOTO' }),
         categoryService.getAll({}),
       ]);
 
       setPictureSets(pictureSetsData.pictures || []);
-      setCategories(categoriesData);
+      // Filter out categories where uploads are disabled
+      setCategories(categoriesData.filter(cat => !cat.isUploadDisabled));
 
       // Initialize classification data for each picture
       const initialData = {};

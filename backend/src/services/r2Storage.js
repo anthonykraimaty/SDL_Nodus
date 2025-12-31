@@ -2,32 +2,32 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 import path from 'path';
 import crypto from 'crypto';
 
-// Cloudflare R2 Configuration
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_BUCKET = process.env.R2_BUCKET_NAME;
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // Your R2 public bucket URL or custom domain
+// Backblaze B2 Configuration (S3-compatible API)
+const B2_ENDPOINT = process.env.B2_ENDPOINT; // e.g., s3.us-west-004.backblazeb2.com
+const B2_BUCKET = process.env.B2_BUCKET_NAME;
+const B2_KEY_ID = process.env.B2_KEY_ID;
+const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY;
+const B2_PUBLIC_URL = process.env.B2_PUBLIC_URL; // Your B2 friendly URL or CDN
 
-// Initialize S3 client for Cloudflare R2
-const s3Client = R2_ACCOUNT_ID ? new S3Client({
-  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  region: 'auto', // R2 uses 'auto' for region
+// Initialize S3 client for Backblaze B2
+const s3Client = B2_ENDPOINT ? new S3Client({
+  endpoint: `https://${B2_ENDPOINT}`,
+  region: 'us-west-004', // Extract from endpoint or use default
   credentials: {
-    accessKeyId: R2_ACCESS_KEY_ID,
-    secretAccessKey: R2_SECRET_ACCESS_KEY,
+    accessKeyId: B2_KEY_ID,
+    secretAccessKey: B2_APPLICATION_KEY,
   },
 }) : null;
 
 /**
- * Check if R2 storage is configured
+ * Check if B2 storage is configured
  */
 export const isR2Configured = () => {
-  return !!(R2_ACCOUNT_ID && R2_BUCKET && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY);
+  return !!(B2_ENDPOINT && B2_BUCKET && B2_KEY_ID && B2_APPLICATION_KEY);
 };
 
 /**
- * Generate a unique file key for R2 storage
+ * Generate a unique file key for B2 storage
  */
 const generateFileKey = (originalFilename) => {
   const now = new Date();
@@ -40,7 +40,7 @@ const generateFileKey = (originalFilename) => {
 };
 
 /**
- * Upload a file to Cloudflare R2
+ * Upload a file to Backblaze B2
  * @param {Buffer} fileBuffer - The file buffer
  * @param {string} originalFilename - Original filename for extension
  * @param {string} mimeType - File MIME type
@@ -48,13 +48,13 @@ const generateFileKey = (originalFilename) => {
  */
 export const uploadToR2 = async (fileBuffer, originalFilename, mimeType) => {
   if (!isR2Configured()) {
-    throw new Error('R2 storage is not configured');
+    throw new Error('B2 storage is not configured');
   }
 
   const fileKey = generateFileKey(originalFilename);
 
   const command = new PutObjectCommand({
-    Bucket: R2_BUCKET,
+    Bucket: B2_BUCKET,
     Key: fileKey,
     Body: fileBuffer,
     ContentType: mimeType,
@@ -65,9 +65,10 @@ export const uploadToR2 = async (fileBuffer, originalFilename, mimeType) => {
   await s3Client.send(command);
 
   // Return the public URL
-  const url = R2_PUBLIC_URL
-    ? `${R2_PUBLIC_URL}/${fileKey}`
-    : `https://${R2_BUCKET}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${fileKey}`;
+  // B2 friendly URL format: https://f004.backblazeb2.com/file/bucket-name/key
+  const url = B2_PUBLIC_URL
+    ? `${B2_PUBLIC_URL}/${fileKey}`
+    : `https://${B2_ENDPOINT}/file/${B2_BUCKET}/${fileKey}`;
 
   return {
     key: fileKey,
@@ -76,23 +77,31 @@ export const uploadToR2 = async (fileBuffer, originalFilename, mimeType) => {
 };
 
 /**
- * Delete a file from Cloudflare R2
- * @param {string} fileKey - The file key in R2 or full URL
+ * Delete a file from Backblaze B2
+ * @param {string} fileKey - The file key in B2 or full URL
  */
 export const deleteFromR2 = async (fileKey) => {
   if (!isR2Configured()) {
-    throw new Error('R2 storage is not configured');
+    throw new Error('B2 storage is not configured');
   }
 
   // Extract key from full URL if needed
   let key = fileKey;
   if (fileKey.startsWith('http')) {
     const url = new URL(fileKey);
-    key = url.pathname.replace(/^\//, ''); // Remove leading slash
+    // B2 friendly URL format: /file/bucket-name/key
+    // We need to extract just the key part
+    const pathname = url.pathname;
+    const match = pathname.match(/^\/file\/[^/]+\/(.+)$/);
+    if (match) {
+      key = match[1]; // Extract key after /file/bucket-name/
+    } else {
+      key = pathname.replace(/^\//, ''); // Fallback: just remove leading slash
+    }
   }
 
   const command = new DeleteObjectCommand({
-    Bucket: R2_BUCKET,
+    Bucket: B2_BUCKET,
     Key: key,
   });
 
@@ -101,7 +110,7 @@ export const deleteFromR2 = async (fileKey) => {
 
 /**
  * Get the public URL for a file
- * @param {string} fileKey - The file key in R2
+ * @param {string} fileKey - The file key in B2
  * @returns {string} The public URL
  */
 export const getPublicUrl = (fileKey) => {
@@ -113,22 +122,22 @@ export const getPublicUrl = (fileKey) => {
   }
 
   // Return public URL
-  if (R2_PUBLIC_URL) {
-    return `${R2_PUBLIC_URL}/${fileKey}`;
+  if (B2_PUBLIC_URL) {
+    return `${B2_PUBLIC_URL}/${fileKey}`;
   }
 
-  // Fallback to direct R2 URL
-  return `https://${R2_BUCKET}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${fileKey}`;
+  // Fallback to direct B2 URL
+  return `https://${B2_ENDPOINT}/file/${B2_BUCKET}/${fileKey}`;
 };
 
 /**
- * Upload multiple files to Cloudflare R2
+ * Upload multiple files to Backblaze B2
  * @param {Array<{buffer: Buffer, originalname: string, mimetype: string}>} files - Array of file objects
  * @returns {Promise<Array<{key: string, url: string}>>}
  */
 export const uploadMultipleToR2 = async (files) => {
   if (!isR2Configured()) {
-    throw new Error('R2 storage is not configured');
+    throw new Error('B2 storage is not configured');
   }
 
   const uploadPromises = files.map(file =>

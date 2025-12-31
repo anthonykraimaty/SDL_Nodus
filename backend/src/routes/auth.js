@@ -1,28 +1,68 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword, comparePassword, generateToken } from '../utils/auth.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { sanitizeInput } from '../utils/sanitize.js';
+import { authLimiter, passwordChangeLimiter } from '../middleware/rateLimiter.js';
+import { blacklistToken } from '../utils/tokenBlacklist.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// POST /api/auth/register - Register new user (admin only in production)
-router.post('/register', async (req, res) => {
+// Password complexity validation
+const validatePasswordComplexity = (password) => {
+  const errors = [];
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters long');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+  return errors;
+};
+
+// POST /api/auth/register - Register new user (admin only)
+router.post('/register', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
-    const { email, password, name, role, troupeId } = req.body;
+    const { email, password, role, troupeId } = req.body;
+    const name = sanitizeInput(req.body.name);
 
     // Validate required fields
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Email, password, and name are required' });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate password complexity
+    const passwordErrors = validatePasswordComplexity(password);
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({ error: passwordErrors.join('. ') });
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase().trim() },
     });
 
     if (existingUser) {
       return res.status(400).json({ error: 'User with this email already exists' });
+    }
+
+    // Validate role
+    const validRoles = ['ADMIN', 'CHEF_TROUPE', 'BRANCHE_ECLAIREURS'];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
     }
 
     // Validate role-specific requirements
@@ -36,7 +76,7 @@ router.post('/register', async (req, res) => {
     // Create user
     const user = await prisma.user.create({
       data: {
-        email,
+        email: email.toLowerCase().trim(),
         password: hashedPassword,
         name,
         role: role || 'CHEF_TROUPE',
@@ -68,8 +108,8 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// POST /api/auth/login - Login
-router.post('/login', async (req, res) => {
+// POST /api/auth/login - Login (rate limited)
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -88,6 +128,7 @@ router.post('/login', async (req, res) => {
                 district: true,
               },
             },
+            patrouilles: true,
           },
         },
       },
@@ -155,15 +196,20 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/auth/logout - Logout (client-side token removal)
+// POST /api/auth/logout - Logout (invalidates token)
 router.post('/logout', authenticate, (req, res) => {
+  // Add token to blacklist
+  if (req.token && req.tokenExp) {
+    blacklistToken(req.token, req.tokenExp);
+  }
   res.json({ message: 'Logout successful' });
 });
 
 // PUT /api/auth/profile - Update profile (name and/or email)
 router.put('/profile', authenticate, async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { email } = req.body;
+    const name = req.body.name ? sanitizeInput(req.body.name) : null;
 
     // Validate that at least one field is provided
     if ((!name || !name.trim()) && (!email || !email.trim())) {
@@ -172,7 +218,7 @@ router.put('/profile', authenticate, async (req, res) => {
 
     const updateData = {};
 
-    // Handle name update
+    // Handle name update (already sanitized)
     if (name && name.trim()) {
       updateData.name = name.trim();
     }
@@ -233,8 +279,8 @@ router.put('/profile', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/auth/change-password - Change password
-router.post('/change-password', authenticate, async (req, res) => {
+// POST /api/auth/change-password - Change password (rate limited)
+router.post('/change-password', authenticate, passwordChangeLimiter, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -242,8 +288,10 @@ router.post('/change-password', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Current password and new password are required' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    // Validate password complexity
+    const passwordErrors = validatePasswordComplexity(newPassword);
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({ error: passwordErrors.join('. ') });
     }
 
     // Get user with password

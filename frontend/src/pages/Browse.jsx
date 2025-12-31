@@ -4,6 +4,15 @@ import { API_URL, getImageUrl } from '../config/api';
 import SEO from '../components/SEO';
 import './Browse.css';
 
+// Normalize text by removing accents (é->e, â->a, etc.)
+const normalizeText = (text) => {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+};
+
 const Browse = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,8 +20,8 @@ const Browse = () => {
   // Filter states
   const [typeFilter, setTypeFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('default'); // 'default', 'name', 'photos'
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
+  const [sortBy, setSortBy] = useState('photos'); // 'default', 'name', 'photos'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
 
   useEffect(() => {
     loadCategories();
@@ -36,8 +45,8 @@ const Browse = () => {
       }
 
       const data = await response.json();
-      // Only show parent categories (not subcategories)
-      const parentCategories = data.filter(cat => !cat.parentId);
+      // Only show parent categories (not subcategories) and exclude hidden ones
+      const parentCategories = data.filter(cat => !cat.parentId && !cat.isHiddenFromBrowse);
       setCategories(parentCategories);
     } catch (error) {
       console.error('Failed to load categories:', error);
@@ -54,11 +63,12 @@ const Browse = () => {
   const getFilteredAndSortedCategories = () => {
     let result = categories;
 
-    // Filter by search term
+    // Filter by search term (accent-insensitive)
     if (searchTerm) {
+      const normalizedSearch = normalizeText(searchTerm);
       result = result.filter(cat =>
-        cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cat.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        normalizeText(cat.name).includes(normalizedSearch) ||
+        normalizeText(cat.description).includes(normalizedSearch)
       );
     }
 
@@ -74,7 +84,7 @@ const Browse = () => {
         return sortOrder === 'asc' ? comparison : -comparison;
       });
     }
-    // 'default' keeps the original displayOrder from API
+    // 'default' keeps the original displayOrder from API (admin-configured order)
 
     return result;
   };
@@ -190,7 +200,9 @@ const Browse = () => {
               <p>
                 {searchTerm
                   ? 'No categories found matching your search'
-                  : 'No categories found'}
+                  : typeFilter === 'SCHEMATIC'
+                    ? 'No schematic categories available yet'
+                    : 'No categories found'}
               </p>
             </div>
           ) : (

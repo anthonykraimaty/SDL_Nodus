@@ -179,6 +179,7 @@
 @media (max-width: 768px) {
   .profile-dropdown {
     width: 100%;
+    position: static;
   }
 
   .profile-trigger {
@@ -193,24 +194,14 @@
   }
 
   .profile-menu {
-    position: fixed;
-    top: auto;
-    bottom: 0;
-    left: 0;
+    position: relative;
+    top: 0;
     right: 0;
-    border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-    animation: slideUp 0.3s ease;
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(100%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    left: 0;
+    width: 100%;
+    margin-top: 8px;
+    border-radius: var(--radius-md, 8px);
+    animation: dropdownFadeIn 0.2s ease;
   }
 }
 

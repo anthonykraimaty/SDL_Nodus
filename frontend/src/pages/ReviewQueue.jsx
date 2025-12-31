@@ -28,9 +28,10 @@ const ReviewQueue = () => {
   const loadData = async () => {
     try {
       setLoading(true);
+      // Only load installation photos - schematics have their own review page
       const [classifiedData, rejectedData] = await Promise.all([
-        pictureService.getAll({ status: 'CLASSIFIED' }),
-        pictureService.getAll({ status: 'REJECTED' })
+        pictureService.getAll({ status: 'CLASSIFIED', type: 'INSTALLATION_PHOTO' }),
+        pictureService.getAll({ status: 'REJECTED', type: 'INSTALLATION_PHOTO' })
       ]);
       setPictureSets(classifiedData.pictures || []);
       setRejectedSets(rejectedData.pictures || []);

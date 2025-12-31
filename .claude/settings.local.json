@@ -36,7 +36,12 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd profile settings, wood count filter, and consolidate docker-compose\n\nFeatures:\n- Add profile dropdown menu with avatar in navbar\n- Add profile settings page (change name, email, password)\n- Add wood count field to picture sets for filtering\n- Add date and wood count filters in CategoryView\n- Remove filter sidebar from Browse page (moved to category view)\n\nBackend:\n- Add PUT /api/auth/profile endpoint for updating name/email\n- Add email validation and duplicate check\n- Add woodCount field to PictureSet model\n- Support woodCount filtering in category pictures API\n\nDocker:\n- Consolidate docker-compose.yml with both postgres and backend\n- Use internal Docker network for database connection\n- Remove external PostgreSQL port binding for security\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git push:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nFix deployment: update deploy script and remove deprecated docker version\n\n- Add --legacy-peer-deps to npm ci for React 19 compatibility\n- Simplify deploy script to use consolidated docker-compose.yml\n- Remove deprecated ''version'' attribute from docker-compose.yml\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix deployment: update deploy script and remove deprecated docker version\n\n- Add --legacy-peer-deps to npm ci for React 19 compatibility\n- Simplify deploy script to use consolidated docker-compose.yml\n- Remove deprecated ''version'' attribute from docker-compose.yml\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(node prisma/seedSchematicCategories.js:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(del \"K:\\\\Projects\\\\SDL\\\\nodus\\\\frontend\\\\src\\\\pages\\\\SchematicGallery.jsx\")",
+      "Bash(del \"K:\\\\Projects\\\\SDL\\\\nodus\\\\frontend\\\\src\\\\pages\\\\SchematicGallery.css\")",
+      "Bash(node prisma/seedCTs.js:*)"
     ],
     "deny": [],
     "ask": []
