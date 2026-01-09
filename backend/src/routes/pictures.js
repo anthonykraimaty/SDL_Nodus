@@ -580,6 +580,7 @@ router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'
 
 // DELETE /api/pictures/:id - Delete picture set
 // - Owner can delete non-approved sets (PENDING, CLASSIFIED, REJECTED)
+// - Branche can delete non-approved sets (PENDING, CLASSIFIED, REJECTED)
 // - Admin can delete any set (including APPROVED)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
@@ -594,6 +595,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     const isOwner = pictureSet.uploadedById === req.user.id;
     const isAdmin = req.user.role === 'ADMIN';
+    const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
     const isApproved = pictureSet.status === 'APPROVED';
 
     // Check permissions
@@ -603,8 +605,8 @@ router.delete('/:id', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Only administrators can delete approved picture sets' });
       }
     } else {
-      // Non-approved: owner or admin can delete
-      if (!isOwner && !isAdmin) {
+      // Non-approved: owner, branche, or admin can delete
+      if (!isOwner && !isBranche && !isAdmin) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
     }
@@ -640,6 +642,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 
 // DELETE /api/pictures/:id/picture/:pictureId - Delete individual picture from a set
 // - Owner can delete from non-approved sets
+// - Branche can delete from non-approved sets
 // - Admin can delete from any set
 router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
   try {
@@ -661,6 +664,7 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
 
     const isOwner = pictureSet.uploadedById === req.user.id;
     const isAdmin = req.user.role === 'ADMIN';
+    const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
     const isApproved = pictureSet.status === 'APPROVED';
 
     // Check permissions
@@ -669,7 +673,7 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Only administrators can delete pictures from approved sets' });
       }
     } else {
-      if (!isOwner && !isAdmin) {
+      if (!isOwner && !isBranche && !isAdmin) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
     }
