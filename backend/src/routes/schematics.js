@@ -882,4 +882,95 @@ router.get('/stats', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/schematics/stats/by-category - Get schematic counts by category (Branche/Admin)
+router.get(
+  '/stats/by-category',
+  authenticate,
+  authorize('BRANCHE_ECLAIREURS', 'ADMIN'),
+  async (req, res) => {
+    try {
+      // Get all schematic categories grouped by setName
+      const categories = await prisma.schematicCategory.findMany({
+        orderBy: [{ setOrder: 'asc' }, { itemOrder: 'asc' }],
+      });
+
+      // Get counts for each category
+      const categoryStats = await Promise.all(
+        categories.map(async (cat) => {
+          const [total, approved, pending, rejected] = await Promise.all([
+            prisma.pictureSet.count({
+              where: {
+                type: 'SCHEMATIC',
+                schematicCategoryId: cat.id,
+              },
+            }),
+            prisma.pictureSet.count({
+              where: {
+                type: 'SCHEMATIC',
+                schematicCategoryId: cat.id,
+                status: 'APPROVED',
+              },
+            }),
+            prisma.pictureSet.count({
+              where: {
+                type: 'SCHEMATIC',
+                schematicCategoryId: cat.id,
+                status: 'PENDING',
+              },
+            }),
+            prisma.pictureSet.count({
+              where: {
+                type: 'SCHEMATIC',
+                schematicCategoryId: cat.id,
+                status: 'REJECTED',
+              },
+            }),
+          ]);
+
+          return {
+            id: cat.id,
+            setName: cat.setName,
+            itemName: cat.itemName,
+            setOrder: cat.setOrder,
+            itemOrder: cat.itemOrder,
+            total,
+            approved,
+            pending,
+            rejected,
+          };
+        })
+      );
+
+      // Group by setName for easier display
+      const bySet = categoryStats.reduce((acc, cat) => {
+        if (!acc[cat.setName]) {
+          acc[cat.setName] = {
+            setName: cat.setName,
+            setOrder: cat.setOrder,
+            items: [],
+            totalUploads: 0,
+            totalApproved: 0,
+            totalPending: 0,
+          };
+        }
+        acc[cat.setName].items.push(cat);
+        acc[cat.setName].totalUploads += cat.total;
+        acc[cat.setName].totalApproved += cat.approved;
+        acc[cat.setName].totalPending += cat.pending;
+        return acc;
+      }, {});
+
+      const sets = Object.values(bySet).sort((a, b) => a.setOrder - b.setOrder);
+
+      res.json({
+        sets,
+        categories: categoryStats,
+      });
+    } catch (error) {
+      console.error('Error fetching category stats:', error);
+      res.status(500).json({ error: 'Failed to fetch category statistics' });
+    }
+  }
+);
+
 export default router;

@@ -235,6 +235,7 @@ export const schematicService = {
     return api.get(`/api/schematics/progress/all${query ? '?' + query : ''}`, true);
   },
   getStats: () => api.get('/api/schematics/stats', true),
+  getCategoryStats: () => api.get('/api/schematics/stats/by-category', true),
 
   // Chef Troupe
   upload: (formData) => api.upload('/api/schematics/upload', formData),

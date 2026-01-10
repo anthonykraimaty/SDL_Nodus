@@ -16,6 +16,8 @@ const SchematicProgress = () => {
   const [troupeProgress, setTroupeProgress] = useState(null);
   const [allProgress, setAllProgress] = useState(null);
   const [detailProgress, setDetailProgress] = useState(null);
+  const [categoryStats, setCategoryStats] = useState(null);
+  const [expandedCategorySets, setExpandedCategorySets] = useState({});
   const [selectedPatrouille, setSelectedPatrouille] = useState(initialPatrouille);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -46,6 +48,13 @@ const SchematicProgress = () => {
     }));
   };
 
+  const toggleCategorySet = (setName) => {
+    setExpandedCategorySets((prev) => ({
+      ...prev,
+      [setName]: !prev[setName],
+    }));
+  };
+
   useEffect(() => {
     if (initialPatrouille) {
       setSelectedPatrouille(initialPatrouille);
@@ -59,6 +68,7 @@ const SchematicProgress = () => {
     } else if (['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role)) {
       setView('all');
       loadAllProgress();
+      loadCategoryStats();
     } else {
       // Public user - show gallery by default
       setView('gallery');
@@ -106,6 +116,15 @@ const SchematicProgress = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategoryStats = async () => {
+    try {
+      const data = await schematicService.getCategoryStats();
+      setCategoryStats(data);
+    } catch (err) {
+      console.error('Failed to load category stats:', err);
     }
   };
 
@@ -222,6 +241,7 @@ const SchematicProgress = () => {
       loadTroupeProgress(user.troupeId);
     } else if (newView === 'all') {
       loadAllProgress();
+      loadCategoryStats();
     } else if (newView === 'gallery') {
       loadGalleryCategories();
       loadGallerySchematics();
@@ -369,6 +389,57 @@ const SchematicProgress = () => {
               <span>{allProgress.patrouilles.length} patrouilles total</span>
             </div>
 
+            {/* Category Stats Section for Branche/Admin */}
+            {categoryStats && categoryStats.sets && (
+              <div className="category-stats-section">
+                <h3>Uploads by Category</h3>
+                <div className="category-stats-accordion">
+                  {categoryStats.sets.map((set) => {
+                    const isExpanded = expandedCategorySets[set.setName];
+                    return (
+                      <div key={set.setName} className="category-stats-set">
+                        <button
+                          type="button"
+                          className={`category-stats-header ${isExpanded ? 'expanded' : ''}`}
+                          onClick={() => toggleCategorySet(set.setName)}
+                        >
+                          <span className="set-name">{set.setName}</span>
+                          <span className="set-totals">
+                            <span className="total-approved">{set.totalApproved} approved</span>
+                            {set.totalPending > 0 && (
+                              <span className="total-pending">{set.totalPending} pending</span>
+                            )}
+                            <span className="total-uploads">{set.totalUploads} total</span>
+                          </span>
+                          <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="category-stats-items">
+                            {set.items.map((item) => (
+                              <div key={item.id} className="category-stats-item">
+                                <span className="item-name">{item.itemName}</span>
+                                <div className="item-counts">
+                                  <span className="count approved" title="Approved">{item.approved}</span>
+                                  {item.pending > 0 && (
+                                    <span className="count pending" title="Pending">{item.pending}</span>
+                                  )}
+                                  {item.rejected > 0 && (
+                                    <span className="count rejected" title="Rejected">{item.rejected}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <h3 className="patrouilles-list-title">Patrouilles Ranking</h3>
             <div className="patrouilles-list">
               {allProgress.patrouilles.map((item, index) => (
                 <div
