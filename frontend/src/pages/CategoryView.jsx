@@ -94,7 +94,7 @@ const CategoryView = () => {
         <div className="container">
           <div className="error-message">{error}</div>
           <Link to="/browse" className="btn-back">
-            ← Back to Browse
+            ← Retour à Explorer
           </Link>
         </div>
       </div>
@@ -158,33 +158,33 @@ const CategoryView = () => {
             onClick={() => setShowFilters(!showFilters)}
           >
             <span className="filter-icon">⚙</span>
-            Filters
+            Filtres
             {hasActiveFilters && <span className="filter-badge">●</span>}
           </button>
 
           {showFilters && (
             <div className="filters-panel">
               <div className="filter-group">
-                <label>Date Range</label>
+                <label>Période</label>
                 <div className="date-range-inputs">
                   <input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    placeholder="From"
+                    placeholder="Du"
                   />
-                  <span className="date-separator">to</span>
+                  <span className="date-separator">au</span>
                   <input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    placeholder="To"
+                    placeholder="Au"
                   />
                 </div>
               </div>
 
               <div className="filter-group">
-                <label>Wood Count</label>
+                <label>Nombre de bois</label>
                 <div className="wood-count-inputs">
                   <input
                     type="number"
@@ -206,11 +206,11 @@ const CategoryView = () => {
 
               <div className="filter-actions">
                 <button className="btn-apply-filters" onClick={handleApplyFilters}>
-                  Apply Filters
+                  Appliquer
                 </button>
                 {hasActiveFilters && (
                   <button className="btn-clear-filters" onClick={handleClearFilters}>
-                    Clear
+                    Effacer
                   </button>
                 )}
               </div>

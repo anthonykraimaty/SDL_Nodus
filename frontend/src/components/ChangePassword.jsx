@@ -15,12 +15,12 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
 
     // Validation
     if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters long');
+      setError('Le nouveau mot de passe doit contenir au moins 6 caractères');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match');
+      setError('Les mots de passe ne correspondent pas');
       return;
     }
 
@@ -43,7 +43,7 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to change password');
+        throw new Error(data.error || 'Échec du changement de mot de passe');
       }
 
       onSuccess();
@@ -58,8 +58,8 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
     <div className="change-password-overlay">
       <div className="change-password-modal">
         <div className="change-password-header">
-          <h2>Change Password Required</h2>
-          <p>Your administrator has requested that you change your password</p>
+          <h2>Changement de mot de passe requis</h2>
+          <p>Votre administrateur vous demande de changer votre mot de passe</p>
         </div>
 
         <form onSubmit={handleSubmit} className="change-password-form">
@@ -70,38 +70,38 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
           )}
 
           <div className="form-group">
-            <label htmlFor="currentPassword">Current Password</label>
+            <label htmlFor="currentPassword">Mot de passe actuel</label>
             <input
               type="password"
               id="currentPassword"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
+              placeholder="Entrez votre mot de passe actuel"
               required
               autoFocus
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="newPassword">New Password</label>
+            <label htmlFor="newPassword">Nouveau mot de passe</label>
             <input
               type="password"
               id="newPassword"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password (min 6 characters)"
+              placeholder="Entrez le nouveau mot de passe (min 6 caractères)"
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm New Password</label>
+            <label htmlFor="confirmPassword">Confirmer le nouveau mot de passe</label>
             <input
               type="password"
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
+              placeholder="Confirmez le nouveau mot de passe"
               required
             />
           </div>
@@ -112,7 +112,7 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
               className="btn-primary"
               disabled={loading}
             >
-              {loading ? 'Changing Password...' : 'Change Password'}
+              {loading ? 'Changement en cours...' : 'Changer le mot de passe'}
             </button>
             {onCancel && (
               <button
@@ -121,7 +121,7 @@ const ChangePassword = ({ onSuccess, onCancel }) => {
                 className="btn-secondary"
                 disabled={loading}
               >
-                Cancel
+                Annuler
               </button>
             )}
           </div>

@@ -29,7 +29,7 @@ const Login = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.message || 'Failed to login');
+      setError(err.message || 'Échec de connexion');
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ const Login = () => {
     // Logout user if they cancel password change
     localStorage.removeItem('token');
     setShowChangePassword(false);
-    setError('Password change is required to continue');
+    setError('Le changement de mot de passe est requis pour continuer');
   };
 
   return (
@@ -52,9 +52,11 @@ const Login = () => {
       <div className="container">
         <div className="login-container">
           <div className="login-header">
-            <div className="login-icon">🏕️</div>
-            <h2>Welcome to Nodus</h2>
-            <p>Login to manage your scout installations</p>
+            <div className="login-icon">
+              <img src="/logo_nodus-transparent.png" alt="Nodus" className="login-logo" />
+            </div>
+            <h2>Bienvenue à Nodus</h2>
+            <p>Connectez-vous pour gérer vos installations scoutes</p>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
@@ -71,20 +73,20 @@ const Login = () => {
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@example.com"
+                placeholder="votre.email@exemple.com"
                 required
                 autoFocus
               />
             </div>
 
             <div className="form-group">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">Mot de passe</label>
               <input
                 type="password"
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="Entrez votre mot de passe"
                 required
               />
             </div>
@@ -94,13 +96,13 @@ const Login = () => {
               className="btn-login-submit primary"
               disabled={loading}
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Connexion...' : 'Me connecter'}
             </button>
           </form>
 
           <div className="login-footer">
             <p className="text-muted">
-              Don't have an account? Contact your administrator.
+              Pas sûr de votre compte ? Contactez votre commissaire.
             </p>
           </div>
         </div>

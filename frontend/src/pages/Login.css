@@ -22,8 +22,13 @@
 }
 
 .login-icon {
-  font-size: 4rem;
   margin-bottom: var(--spacing-md);
+}
+
+.login-logo {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
 }
 
 .login-header h2 {

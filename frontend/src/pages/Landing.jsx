@@ -166,7 +166,7 @@ const Landing = () => {
         <div className="hero-content">
           <div className="hero-text">
             <div className="hero-badge">
-              <span>Scouts du Liban</span>
+              <span>Les Scouts du Liban</span>
             </div>
             <h1 className="hero-title">
               <span className="title-letter" style={{ '--delay': '0s' }}>N</span>
@@ -301,7 +301,7 @@ const Landing = () => {
           <div className="heritage-content">
             <div className="heritage-main">
               <span className="section-tag">Le Savoir-Faire</span>
-              <h2 className="section-title">L'Art de L'installation</h2>
+              <h2 className="section-title">L'Art de l'Installation</h2>
               <div className="title-underline" style={{ margin: '0 0 2rem 0' }}></div>
               
             </div>
@@ -316,7 +316,7 @@ const Landing = () => {
                 </div>
                 <h4>Les Brelages</h4>
                 <p>
-                  <strong>Brelage carré</strong> pour les angles droits, <strong>diagonal</strong>
+                  <strong>Brelage carré</strong> pour les angles droits, <strong> diagonal</strong>
                   pour les croisements, et <strong>en huit</strong> pour les assemblages parallèles.
                   Chaque technique garantit solidité et durabilité.
                 </p>
@@ -434,7 +434,7 @@ const Landing = () => {
               <h3>Transmission</h3>
               <p>
                 Partager nos connaissances et notre passion pour que ces traditions
-                perdurent à travers les générations futures.
+                se transmettent aux générations futures.
               </p>
             </div>
           </div>
@@ -459,7 +459,7 @@ const Landing = () => {
                 </svg>
               </div>
               <h3>Galerie Photos</h3>
-              <p>Explorez des milliers de photos d'installations scoutes, organisées par catégorie et groupes.</p>
+              <p>Explorez des milliers de photos d'installations scoutes, organisées par catégorie et par groupes.</p>
               <div className="feature-link">
                 <Link to="/browse">Explorer</Link>
               </div>

@@ -35,20 +35,20 @@ const Navbar = () => {
         </button>
 
         <div className={`navbar-links ${mobileMenuOpen ? 'open' : ''}`}>
-          <Link to="/" className="nav-link" onClick={closeMobileMenu}>Home</Link>
-          <Link to="/browse" className="nav-link" onClick={closeMobileMenu}>Browse</Link>
+          <Link to="/" className="nav-link" onClick={closeMobileMenu}>Accueil</Link>
+          <Link to="/browse" className="nav-link" onClick={closeMobileMenu}>Explorer</Link>
 
           {isAuthenticated() ? (
             <>
               {user?.role === 'ADMIN' && (
-                <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Admin Panel</Link>
+                <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Administration</Link>
               )}
-              <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Dashboard</Link>
+              <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Tableau de bord</Link>
               <ProfileDropdown closeMobileMenu={closeMobileMenu} />
             </>
           ) : (
             <Link to="/login" className="btn-login" onClick={closeMobileMenu}>
-              Login
+              Connexion
             </Link>
           )}
         </div>

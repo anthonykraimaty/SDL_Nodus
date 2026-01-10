@@ -116,7 +116,7 @@ const Browse = () => {
             <input
               type="text"
               className="search-input"
-              placeholder="Search categories..."
+              placeholder="Rechercher..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -124,7 +124,7 @@ const Browse = () => {
               <button
                 className="clear-search"
                 onClick={() => setSearchTerm('')}
-                aria-label="Clear search"
+                aria-label="Effacer la recherche"
               >
                 ✕
               </button>
@@ -137,7 +137,7 @@ const Browse = () => {
               className={`type-filter ${typeFilter === '' ? 'active' : ''}`}
               onClick={() => handleTypeFilter('')}
             >
-              All
+              Tout
             </button>
             <button
               className={`type-filter ${typeFilter === 'INSTALLATION_PHOTO' ? 'active' : ''}`}
@@ -149,18 +149,18 @@ const Browse = () => {
               className={`type-filter ${typeFilter === 'SCHEMATIC' ? 'active' : ''}`}
               onClick={() => handleTypeFilter('SCHEMATIC')}
             >
-              📐 Schematics
+              📐 Schémas
             </button>
           </div>
 
           {/* Sort Options */}
           <div className="sort-options">
-            <span className="sort-label">Sort:</span>
+            <span className="sort-label">Trier:</span>
             <button
               className={`sort-btn ${sortBy === 'default' ? 'active' : ''}`}
               onClick={() => setSortBy('default')}
             >
-              Default
+              Défaut
             </button>
             <button
               className={`sort-btn ${sortBy === 'name' ? 'active' : ''}`}
@@ -173,7 +173,7 @@ const Browse = () => {
                 }
               }}
             >
-              Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+              Nom {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
             </button>
             <button
               className={`sort-btn ${sortBy === 'photos' ? 'active' : ''}`}
@@ -199,10 +199,10 @@ const Browse = () => {
             <div className="empty-state">
               <p>
                 {searchTerm
-                  ? 'No categories found matching your search'
+                  ? 'Aucune catégorie trouvée pour cette recherche'
                   : typeFilter === 'SCHEMATIC'
-                    ? 'No schematic categories available yet'
-                    : 'No categories found'}
+                    ? 'Aucune catégorie de schémas disponible'
+                    : 'Aucune catégorie trouvée'}
               </p>
             </div>
           ) : (
@@ -235,7 +235,7 @@ const Browse = () => {
                               <circle cx="8.5" cy="8.5" r="1.5" />
                               <path d="M21 15l-5-5L5 21" />
                             </svg>
-                            <span className="placeholder-text">No images yet</span>
+                            <span className="placeholder-text">Pas encore d'images</span>
                           </div>
                         </div>
                       )}
