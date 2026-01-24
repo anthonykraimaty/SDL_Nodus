@@ -52,11 +52,15 @@ router.get('/', optionalAuth, async (req, res) => {
 
         const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
 
-        where.troupe = {
-          group: {
-            districtId: { in: allowedDistrictIds },
-          },
-        };
+        // If branche has specific district access, filter by those districts
+        // Otherwise (no district access entries), they can see all districts
+        if (allowedDistrictIds.length > 0) {
+          where.troupe = {
+            group: {
+              districtId: { in: allowedDistrictIds },
+            },
+          };
+        }
 
         if (status) where.status = status;
       } else if (req.user.role === 'ADMIN') {
@@ -340,7 +344,8 @@ router.put('/:id/classify', authenticate, async (req, res) => {
       const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
       const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
 
-      canModify = allowedDistrictIds.includes(pictureDistrictId);
+      // If no district access entries, branche can access all districts
+      canModify = allowedDistrictIds.length === 0 || allowedDistrictIds.includes(pictureDistrictId);
     }
 
     if (!canModify) {
