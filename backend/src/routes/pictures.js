@@ -458,6 +458,12 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       pictureSetUpdateData.woodCount = woodCount ? parseInt(woodCount) : null;
     }
 
+    // Set the PictureSet categoryId from the first picture's category
+    // This allows the Browse page to filter by pictureSet.categoryId
+    if (classifications.length > 0 && classifications[0].categoryId) {
+      pictureSetUpdateData.categoryId = parseInt(classifications[0].categoryId);
+    }
+
     const updatedPictureSet = await prisma.pictureSet.update({
       where: { id: parseInt(req.params.id) },
       data: pictureSetUpdateData,
