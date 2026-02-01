@@ -10,6 +10,11 @@ router.get('/', async (req, res) => {
   try {
     const districts = await prisma.district.findMany({
       include: {
+        groups: {
+          orderBy: {
+            name: 'asc',
+          },
+        },
         _count: {
           select: {
             groups: true,
