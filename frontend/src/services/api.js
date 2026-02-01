@@ -192,7 +192,7 @@ export const pictureService = {
   },
   updateIndividualPicture: (pictureId, data) => api.put(`/api/pictures/individual/${pictureId}`, data, true),
   deleteIndividualPicture: (pictureId) => api.delete(`/api/pictures/individual/${pictureId}`, true),
-  // Edit picture image (crop/rotate)
+  // Edit picture image (crop/rotate/blur)
   editImage: async (pictureId, imageBlob) => {
     const formData = new FormData();
     formData.append('picture', imageBlob, 'edited-image.jpg');
@@ -204,6 +204,29 @@ export const pictureService = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
       throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
+  // Restore original image (undo all edits)
+  restoreOriginal: async (pictureId) => {
+    const response = await fetch(`${API_URL}/api/pictures/${pictureId}/restore-original`, {
+      method: 'POST',
+      headers: getHeaders(true),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
+  // Check if picture has original available for restoration
+  hasOriginal: async (pictureId) => {
+    const response = await fetch(`${API_URL}/api/pictures/${pictureId}/has-original`, {
+      method: 'GET',
+      headers: getHeaders(true),
+    });
+    if (!response.ok) {
+      return { hasOriginal: false };
     }
     return response.json();
   },

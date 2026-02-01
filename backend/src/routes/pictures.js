@@ -1115,16 +1115,27 @@ router.put(
         });
       }
 
-      // Delete old file from storage
       const oldFilePath = picture.filePath;
-      try {
-        if (oldFilePath.startsWith('http')) {
-          await deleteFromR2(oldFilePath);
-        } else {
-          await fs.unlink(oldFilePath).catch(() => {});
+      let originalFilePath = picture.originalFilePath;
+
+      // PRESERVE ORIGINAL: On first edit, save the original path and keep the file
+      if (!originalFilePath) {
+        // First edit - preserve the original file path
+        originalFilePath = oldFilePath;
+        // DO NOT delete the original file - keep it for restoration
+      } else {
+        // Subsequent edit - delete the previous edited version (but not the original)
+        if (oldFilePath !== originalFilePath) {
+          try {
+            if (oldFilePath.startsWith('http')) {
+              await deleteFromR2(oldFilePath);
+            } else {
+              await fs.unlink(oldFilePath).catch(() => {});
+            }
+          } catch (fileError) {
+            console.error(`Failed to delete old edited file ${oldFilePath}:`, fileError);
+          }
         }
-      } catch (fileError) {
-        console.error(`Failed to delete old file ${oldFilePath}:`, fileError);
       }
 
       // Handle new file path based on storage type (R2 or local)
@@ -1145,10 +1156,13 @@ router.put(
         newFilePath = `uploads/${relativePath}`;
       }
 
-      // Update picture record with new file path
+      // Update picture record with new file path and preserve original
       const updatedPicture = await prisma.picture.update({
         where: { id: parseInt(pictureId) },
-        data: { filePath: newFilePath },
+        data: {
+          filePath: newFilePath,
+          originalFilePath: originalFilePath
+        },
         include: {
           category: true,
           pictureSet: {
@@ -1169,10 +1183,145 @@ router.put(
       res.json({
         message: 'Picture updated successfully',
         picture: updatedPicture,
+        hasOriginal: !!originalFilePath
       });
     } catch (error) {
       console.error('Edit picture error:', error);
       res.status(500).json({ error: 'Failed to edit picture' });
+    }
+  }
+);
+
+// POST /api/pictures/:pictureId/restore-original - Restore original image
+router.post(
+  '/:pictureId/restore-original',
+  authenticate,
+  async (req, res) => {
+    try {
+      const { pictureId } = req.params;
+
+      const picture = await prisma.picture.findUnique({
+        where: { id: parseInt(pictureId) },
+        include: {
+          pictureSet: {
+            include: {
+              troupe: {
+                include: {
+                  group: {
+                    include: { district: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!picture) {
+        return res.status(404).json({ error: 'Picture not found' });
+      }
+
+      if (!picture.originalFilePath) {
+        return res.status(400).json({ error: 'No original image available to restore' });
+      }
+
+      // Permission check (same as edit-image)
+      const isOwner = picture.pictureSet.uploadedById === req.user.id;
+      const isAdmin = req.user.role === 'ADMIN';
+      const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
+      const status = picture.pictureSet.status;
+
+      let canEdit = false;
+      if (isAdmin) {
+        canEdit = true;
+      } else if (isBranche && (status === 'CLASSIFIED' || status === 'PENDING')) {
+        const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+          where: { userId: req.user.id },
+          select: { districtId: true },
+        });
+        const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+        const pictureDistrictId = picture.pictureSet.troupe?.group?.district?.id;
+        canEdit = allowedDistrictIds.length === 0 || allowedDistrictIds.includes(pictureDistrictId);
+      } else if (isOwner && (status === 'PENDING' || status === 'CLASSIFIED')) {
+        canEdit = true;
+      }
+
+      if (!canEdit) {
+        return res.status(403).json({
+          error: 'You do not have permission to restore this picture',
+        });
+      }
+
+      // Delete the current edited file (but not the original)
+      const currentFilePath = picture.filePath;
+      if (currentFilePath !== picture.originalFilePath) {
+        try {
+          if (currentFilePath.startsWith('http')) {
+            await deleteFromR2(currentFilePath);
+          } else {
+            await fs.unlink(currentFilePath).catch(() => {});
+          }
+        } catch (fileError) {
+          console.error(`Failed to delete edited file ${currentFilePath}:`, fileError);
+        }
+      }
+
+      // Restore: set filePath back to originalFilePath, clear originalFilePath
+      const restoredPicture = await prisma.picture.update({
+        where: { id: parseInt(pictureId) },
+        data: {
+          filePath: picture.originalFilePath,
+          originalFilePath: null
+        },
+        include: {
+          category: true,
+          pictureSet: {
+            include: {
+              uploadedBy: { select: { id: true, name: true } },
+              troupe: {
+                include: {
+                  group: {
+                    include: { district: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      res.json({
+        message: 'Original image restored successfully',
+        picture: restoredPicture,
+        hasOriginal: false
+      });
+    } catch (error) {
+      console.error('Restore original error:', error);
+      res.status(500).json({ error: 'Failed to restore original image' });
+    }
+  }
+);
+
+// GET /api/pictures/:pictureId/has-original - Check if picture has original available
+router.get(
+  '/:pictureId/has-original',
+  authenticate,
+  async (req, res) => {
+    try {
+      const { pictureId } = req.params;
+
+      const picture = await prisma.picture.findUnique({
+        where: { id: parseInt(pictureId) },
+        select: { originalFilePath: true }
+      });
+
+      if (!picture) {
+        return res.status(404).json({ error: 'Picture not found' });
+      }
+
+      res.json({ hasOriginal: !!picture.originalFilePath });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to check original status' });
     }
   }
 );

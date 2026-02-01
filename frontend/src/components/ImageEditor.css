@@ -112,6 +112,17 @@
   background: #f0f0f0;
 }
 
+.image-editor__btn--restore {
+  background: #4caf50;
+  border-color: #4caf50;
+  color: #fff;
+}
+
+.image-editor__btn--restore:hover:not(:disabled) {
+  background: #43a047;
+  border-color: #43a047;
+}
+
 .image-editor__help {
   padding: 8px 16px;
   background: #e3f2fd;
@@ -119,6 +130,61 @@
   font-size: 13px;
   text-align: center;
   border-bottom: 1px solid #e0e0e0;
+}
+
+.image-editor__help--blur {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.image-editor__blur-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 13px;
+  color: #666;
+  flex-wrap: wrap;
+}
+
+.blur-region-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #ff6b6b;
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.blur-region-tag:hover {
+  background: #ee5a5a;
+}
+
+.blur-count {
+  font-size: 12px;
+  color: #666;
+  padding: 4px 10px;
+  background: #e0e0e0;
+  border-radius: 12px;
+}
+
+.blur-slider {
+  width: 100px;
+  cursor: pointer;
+  accent-color: #d4a574;
+}
+
+.blur-value {
+  font-size: 12px;
+  color: #666;
+  min-width: 35px;
 }
 
 .image-editor__canvas-container {
@@ -139,6 +205,10 @@
 }
 
 .image-editor__canvas.cropping {
+  cursor: crosshair;
+}
+
+.image-editor__canvas.blurring {
   cursor: crosshair;
 }
 
@@ -178,5 +248,9 @@
   .image-editor__actions .image-editor__btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .blur-slider {
+    width: 80px;
   }
 }

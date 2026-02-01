@@ -250,9 +250,10 @@ model PictureSet {
 
 // Individual Picture in a set
 model Picture {
-  id            Int           @id @default(autoincrement())
-  filePath      String
-  displayOrder  Int           @default(0)
+  id               Int           @id @default(autoincrement())
+  filePath         String
+  originalFilePath String?       // Path to original image before any edits
+  displayOrder     Int           @default(0)
   caption       String?
   type          PictureType?  // INSTALLATION_PHOTO or SCHEMATIC - individual picture type
   categoryId    Int?
