@@ -50,7 +50,7 @@ uploads/
 
 # Database dumps (production data - never commit!)
 dumps/
-*.sql
+dumps/*.sql
 
 # Docker volumes data (optional - comment out if you want to track)
 postgres_data/
