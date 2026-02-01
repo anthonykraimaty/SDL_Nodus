@@ -71,7 +71,8 @@ router.get('/', optionalAuth, async (req, res) => {
 
     // Apply filters
     if (type) where.type = type;
-    if (categoryId) where.categoryId = parseInt(categoryId);
+    // Note: categoryId filter is no longer at PictureSet level - categories are assigned per Picture
+    // If you need to filter by category, query pictures instead and group by pictureSetId
     if (groupId) where.troupe = { groupId: parseInt(groupId) };
     if (troupeId) where.troupeId = parseInt(troupeId);
     if (patrouilleId) where.patrouilleId = parseInt(patrouilleId);
@@ -422,10 +423,15 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const { classifications, woodCount } = req.body;
+    const { classifications, woodCount, type } = req.body;
 
     if (!classifications || !Array.isArray(classifications)) {
       return res.status(400).json({ error: 'Classifications array is required' });
+    }
+
+    // Validate type if provided
+    if (type && !['INSTALLATION_PHOTO', 'SCHEMATIC'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid picture type' });
     }
 
     // Update each picture with its classification
@@ -447,7 +453,7 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 
     await Promise.all(updatePromises);
 
-    // Update picture set status to CLASSIFIED and optionally woodCount
+    // Update picture set status to CLASSIFIED and optionally woodCount and type
     const pictureSetUpdateData = {
       status: 'CLASSIFIED',
       classifiedById: req.user.id,
@@ -458,11 +464,13 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       pictureSetUpdateData.woodCount = woodCount ? parseInt(woodCount) : null;
     }
 
-    // Set the PictureSet categoryId from the first picture's category
-    // This allows the Browse page to filter by pictureSet.categoryId
-    if (classifications.length > 0 && classifications[0].categoryId) {
-      pictureSetUpdateData.categoryId = parseInt(classifications[0].categoryId);
+    // Allow changing the type during classification
+    if (type) {
+      pictureSetUpdateData.type = type;
     }
+
+    // Note: Categories are now assigned per Picture, not per PictureSet
+    // The Browse page filters by Picture.categoryId, not PictureSet.categoryId
 
     const updatedPictureSet = await prisma.pictureSet.update({
       where: { id: parseInt(req.params.id) },
@@ -727,6 +735,309 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
     res.json({ message: 'Picture deleted successfully' });
   } catch (error) {
     console.error('Delete picture error:', error);
+    res.status(500).json({ error: 'Failed to delete picture' });
+  }
+});
+
+// GET /api/pictures/individual - Get individual pictures (admin only)
+router.get('/individual/list', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const {
+      status,
+      categoryId,
+      type,
+      sortBy = 'uploadedAt',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    // Build where clause for picture sets (status filter)
+    const pictureSetWhere = {};
+    if (status) pictureSetWhere.status = status;
+
+    // Build where clause for pictures
+    const pictureWhere = {
+      pictureSet: pictureSetWhere,
+    };
+    if (categoryId) pictureWhere.categoryId = parseInt(categoryId);
+    // Type is now per-picture, not per-set
+    if (type) pictureWhere.type = type;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Build orderBy based on sortBy parameter
+    let orderBy = { uploadedAt: sortOrder };
+    if (sortBy === 'district') {
+      orderBy = { pictureSet: { troupe: { group: { district: { name: sortOrder } } } } };
+    } else if (sortBy === 'group') {
+      orderBy = { pictureSet: { troupe: { group: { name: sortOrder } } } };
+    } else if (sortBy === 'troupe') {
+      orderBy = { pictureSet: { troupe: { name: sortOrder } } };
+    } else if (sortBy === 'category') {
+      orderBy = { category: { name: sortOrder } };
+    } else if (sortBy === 'type') {
+      orderBy = { type: sortOrder }; // Sort by Picture.type now
+    } else if (sortBy === 'uploadedAt') {
+      orderBy = { uploadedAt: sortOrder };
+    }
+
+    const [pictures, total] = await Promise.all([
+      prisma.picture.findMany({
+        where: pictureWhere,
+        include: {
+          category: true,
+          pictureSet: {
+            include: {
+              uploadedBy: { select: { id: true, name: true } },
+              troupe: {
+                include: {
+                  group: {
+                    include: { district: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy,
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.picture.count({ where: pictureWhere }),
+    ]);
+
+    res.json({
+      pictures,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Get individual pictures error:', error);
+    res.status(500).json({ error: 'Failed to fetch pictures' });
+  }
+});
+
+// PUT /api/pictures/individual/bulk-update - Bulk update individual pictures (admin only)
+// NOTE: This route MUST be defined BEFORE /individual/:pictureId to avoid "bulk-update" being matched as a pictureId
+router.put('/individual/bulk-update', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { pictureIds, updates } = req.body;
+
+    if (!Array.isArray(pictureIds) || pictureIds.length === 0) {
+      return res.status(400).json({ error: 'No pictures selected' });
+    }
+
+    if (!updates || (updates.type === undefined && updates.categoryId === undefined)) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+
+    // Build the update data
+    const updateData = {};
+    if (updates.type !== undefined) {
+      updateData.type = updates.type;
+    }
+    if (updates.categoryId !== undefined) {
+      updateData.categoryId = updates.categoryId ? parseInt(updates.categoryId) : null;
+    }
+
+    // Perform bulk update
+    const result = await prisma.picture.updateMany({
+      where: {
+        id: { in: pictureIds.map(id => parseInt(id)) },
+      },
+      data: updateData,
+    });
+
+    res.json({
+      message: `Updated ${result.count} picture(s)`,
+      count: result.count,
+    });
+  } catch (error) {
+    console.error('Bulk update pictures error:', error);
+    res.status(500).json({ error: 'Failed to update pictures' });
+  }
+});
+
+// DELETE /api/pictures/individual/bulk-delete - Bulk delete individual pictures (admin only)
+// NOTE: This route MUST be defined BEFORE /individual/:pictureId to avoid "bulk-delete" being matched as a pictureId
+router.delete('/individual/bulk-delete', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { pictureIds } = req.body;
+
+    if (!Array.isArray(pictureIds) || pictureIds.length === 0) {
+      return res.status(400).json({ error: 'No pictures selected' });
+    }
+
+    // Get all pictures to delete (with their file paths and set info)
+    const pictures = await prisma.picture.findMany({
+      where: {
+        id: { in: pictureIds.map(id => parseInt(id)) },
+      },
+      include: {
+        pictureSet: {
+          include: { pictures: { select: { id: true } } },
+        },
+      },
+    });
+
+    // Check which pictures can be deleted (not the last in their set)
+    const deletablePictures = [];
+    const skippedPictures = [];
+
+    for (const picture of pictures) {
+      const otherPicturesInSet = picture.pictureSet.pictures.filter(p =>
+        !pictureIds.includes(p.id) && p.id !== picture.id
+      );
+
+      if (otherPicturesInSet.length === 0 && picture.pictureSet.pictures.length <= 1) {
+        skippedPictures.push({
+          id: picture.id,
+          reason: 'Last picture in set',
+          pictureSetId: picture.pictureSetId,
+        });
+      } else {
+        deletablePictures.push(picture);
+      }
+    }
+
+    // Delete files from storage
+    for (const picture of deletablePictures) {
+      try {
+        if (picture.filePath.startsWith('http')) {
+          await deleteFromR2(picture.filePath);
+        } else {
+          await fs.unlink(picture.filePath).catch(() => {});
+        }
+      } catch (fileError) {
+        console.error(`Failed to delete file ${picture.filePath}:`, fileError);
+      }
+    }
+
+    // Delete picture records
+    const deleteResult = await prisma.picture.deleteMany({
+      where: {
+        id: { in: deletablePictures.map(p => p.id) },
+      },
+    });
+
+    res.json({
+      message: `Deleted ${deleteResult.count} picture(s)`,
+      deleted: deleteResult.count,
+      skipped: skippedPictures,
+    });
+  } catch (error) {
+    console.error('Bulk delete pictures error:', error);
+    res.status(500).json({ error: 'Failed to delete pictures' });
+  }
+});
+
+// PUT /api/pictures/individual/:pictureId - Update individual picture (admin only)
+router.put('/individual/:pictureId', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { pictureId } = req.params;
+    const { categoryId, takenAt, woodCount, type } = req.body;
+
+    const picture = await prisma.picture.findUnique({
+      where: { id: parseInt(pictureId) },
+      include: { pictureSet: true },
+    });
+
+    if (!picture) {
+      return res.status(404).json({ error: 'Picture not found' });
+    }
+
+    const updateData = {};
+    if (categoryId !== undefined) {
+      updateData.categoryId = categoryId ? parseInt(categoryId) : null;
+    }
+    if (takenAt !== undefined) {
+      updateData.takenAt = takenAt ? new Date(takenAt) : null;
+    }
+    if (woodCount !== undefined) {
+      updateData.woodCount = woodCount ? parseInt(woodCount) : null;
+    }
+    // Type is now per-picture, not per-set
+    if (type !== undefined) {
+      updateData.type = type && ['INSTALLATION_PHOTO', 'SCHEMATIC'].includes(type) ? type : null;
+    }
+
+    // Update picture
+    const updatedPicture = await prisma.picture.update({
+      where: { id: parseInt(pictureId) },
+      data: updateData,
+      include: {
+        category: true,
+        pictureSet: {
+          include: {
+            uploadedBy: { select: { id: true, name: true } },
+            troupe: {
+              include: {
+                group: {
+                  include: { district: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      message: 'Picture updated successfully',
+      picture: updatedPicture,
+    });
+  } catch (error) {
+    console.error('Update picture error:', error);
+    res.status(500).json({ error: 'Failed to update picture' });
+  }
+});
+
+// DELETE /api/pictures/individual/:pictureId - Delete individual picture (admin only)
+router.delete('/individual/:pictureId', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { pictureId } = req.params;
+
+    const picture = await prisma.picture.findUnique({
+      where: { id: parseInt(pictureId) },
+      include: { pictureSet: { include: { pictures: true } } },
+    });
+
+    if (!picture) {
+      return res.status(404).json({ error: 'Picture not found' });
+    }
+
+    // Prevent deleting last picture in a set
+    if (picture.pictureSet.pictures.length <= 1) {
+      return res.status(400).json({
+        error: 'Cannot delete the last picture in a set. Delete the entire picture set instead.',
+        pictureSetId: picture.pictureSetId,
+      });
+    }
+
+    // Delete file from storage
+    try {
+      if (picture.filePath.startsWith('http')) {
+        await deleteFromR2(picture.filePath);
+      } else {
+        await fs.unlink(picture.filePath).catch(() => {});
+      }
+    } catch (fileError) {
+      console.error(`Failed to delete file ${picture.filePath}:`, fileError);
+    }
+
+    // Delete picture record
+    await prisma.picture.delete({
+      where: { id: parseInt(pictureId) },
+    });
+
+    res.json({ message: 'Picture deleted successfully' });
+  } catch (error) {
+    console.error('Delete individual picture error:', error);
     res.status(500).json({ error: 'Failed to delete picture' });
   }
 });

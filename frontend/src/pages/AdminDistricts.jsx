@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -313,46 +314,47 @@ const AdminDistricts = () => {
       </div>
 
       {/* District Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={resetForm}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{editingDistrict ? 'Edit District' : 'Create New District'}</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Name *</label>
-                <input
-                  type="text"
-                  value={districtForm.name}
-                  onChange={(e) => setDistrictForm({ ...districtForm, name: e.target.value })}
-                  required
-                  placeholder="e.g., Vieux Bruxelles"
-                />
-              </div>
+      <Modal
+        isOpen={showModal}
+        onClose={resetForm}
+        title={editingDistrict ? 'Edit District' : 'Create New District'}
+        size="medium"
+      >
+        <form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <div className="form-group">
+              <label>Name *</label>
+              <input
+                type="text"
+                value={districtForm.name}
+                onChange={(e) => setDistrictForm({ ...districtForm, name: e.target.value })}
+                required
+                placeholder="e.g., Vieux Bruxelles"
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Code *</label>
-                <input
-                  type="text"
-                  value={districtForm.code}
-                  onChange={(e) => setDistrictForm({ ...districtForm, code: e.target.value.toUpperCase() })}
-                  required
-                  placeholder="e.g., VB"
-                />
-                <small>Unique identifier (will be converted to uppercase)</small>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={resetForm} className="btn-cancel">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit primary">
-                  {editingDistrict ? 'Update' : 'Create'} District
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="form-group">
+              <label>Code *</label>
+              <input
+                type="text"
+                value={districtForm.code}
+                onChange={(e) => setDistrictForm({ ...districtForm, code: e.target.value.toUpperCase() })}
+                required
+                placeholder="e.g., VB"
+              />
+              <small>Unique identifier (will be converted to uppercase)</small>
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              {editingDistrict ? 'Update' : 'Create'} District
+            </button>
+            <button type="button" onClick={resetForm} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
     </div>
   );
 };

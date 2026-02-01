@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import './AdminRoles.css';
 
 const AdminRoles = () => {
@@ -208,67 +209,64 @@ const AdminRoles = () => {
       </div>
 
       {/* Edit Access Modal */}
-      {selectedUser && (
-        <div className="access-modal-overlay" onClick={handleCancel}>
-          <div className="access-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="access-modal-header">
-              <h2>District Access - {selectedUser.name}</h2>
-              <p>Select districts for picture classification</p>
-            </div>
+      <Modal
+        isOpen={!!selectedUser}
+        onClose={handleCancel}
+        title={`District Access - ${selectedUser?.name || ''}`}
+        size="medium"
+      >
+        <Modal.Body>
+          <p className="modal-subtitle">Select districts for picture classification</p>
 
-            <div className="access-modal-body">
-              <div className="access-toolbar">
-                <span className="access-count">
-                  {selectedDistricts.length} / {districts.length} selected
-                </span>
-                <div className="access-quick-actions">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDistricts(districts.map(d => d.id))}
-                    className="btn-quick"
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDistricts([])}
-                    className="btn-quick"
-                  >
-                    None
-                  </button>
-                </div>
-              </div>
-
-              <div className="districts-list">
-                {districts.map((district) => (
-                  <label key={district.id} className="district-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedDistricts.includes(district.id)}
-                      onChange={() => handleToggleDistrict(district.id)}
-                    />
-                    <div className="district-info">
-                      <span className="district-name">{district.name}</span>
-                      <span className="district-meta">
-                        {district.code} • {district.groups?.length || 0} groups
-                      </span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="access-modal-footer">
-              <button onClick={handleCancel} className="btn-secondary">
-                Cancel
+          <div className="access-toolbar">
+            <span className="access-count">
+              {selectedDistricts.length} / {districts.length} selected
+            </span>
+            <div className="access-quick-actions">
+              <button
+                type="button"
+                onClick={() => setSelectedDistricts(districts.map(d => d.id))}
+                className="btn-quick"
+              >
+                All
               </button>
-              <button onClick={handleSaveAccess} className="btn-primary">
-                Save Changes
+              <button
+                type="button"
+                onClick={() => setSelectedDistricts([])}
+                className="btn-quick"
+              >
+                None
               </button>
             </div>
           </div>
-        </div>
-      )}
+
+          <div className="districts-list">
+            {districts.map((district) => (
+              <label key={district.id} className="district-item">
+                <input
+                  type="checkbox"
+                  checked={selectedDistricts.includes(district.id)}
+                  onChange={() => handleToggleDistrict(district.id)}
+                />
+                <div className="district-info">
+                  <span className="district-name">{district.name}</span>
+                  <span className="district-meta">
+                    {district.code} • {district.groups?.length || 0} groups
+                  </span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </Modal.Body>
+        <Modal.Actions>
+          <button onClick={handleSaveAccess} className="primary">
+            Save Changes
+          </button>
+          <button onClick={handleCancel} className="secondary">
+            Cancel
+          </button>
+        </Modal.Actions>
+      </Modal>
     </div>
   );
 };

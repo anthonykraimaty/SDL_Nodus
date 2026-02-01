@@ -292,6 +292,20 @@
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
+/* Category Section */
+.category-section {
+  margin-bottom: var(--spacing-xxl, 3rem);
+}
+
+.section-title {
+  font-size: 1.8rem;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 var(--spacing-lg, 1.5rem) 0;
+  padding-bottom: var(--spacing-sm, 0.5rem);
+  border-bottom: 2px solid var(--accent, #d4a574);
+  display: inline-block;
+}
+
 /* Categories Grid */
 .categories-grid {
   display: grid;

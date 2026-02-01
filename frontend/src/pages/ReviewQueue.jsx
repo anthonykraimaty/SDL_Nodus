@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
+import Modal from '../components/Modal';
 import './ReviewQueue.css';
 
 const ReviewQueue = () => {
@@ -300,56 +301,62 @@ const ReviewQueue = () => {
         )}
 
         {/* Rejection Modal */}
-        {showRejectModal && (
-          <div className="modal-overlay" onClick={() => setShowRejectModal(null)}>
-            <div className="modal-content reject-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Reject Picture Set</h3>
-              <p>Please provide a reason for rejecting this picture set:</p>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Reason for rejection..."
-                rows="4"
-                className="rejection-textarea"
-                autoFocus
-              />
-              <div className="modal-actions">
-                <button
-                  onClick={() => handleReject(showRejectModal)}
-                  className="btn-confirm-reject"
-                  disabled={!rejectionReason.trim()}
-                >
-                  Confirm Rejection
-                </button>
-                <button
-                  onClick={() => {
-                    setShowRejectModal(null);
-                    setRejectionReason('');
-                  }}
-                  className="btn-cancel"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={!!showRejectModal}
+          onClose={() => {
+            setShowRejectModal(null);
+            setRejectionReason('');
+          }}
+          title="Reject Picture Set"
+          variant="danger"
+          size="medium"
+        >
+          <Modal.Body>
+            <p>Please provide a reason for rejecting this picture set:</p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows="4"
+              className="rejection-textarea"
+              autoFocus
+            />
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={() => handleReject(showRejectModal)}
+              className="danger"
+              disabled={!rejectionReason.trim()}
+            >
+              Confirm Rejection
+            </button>
+            <button
+              onClick={() => {
+                setShowRejectModal(null);
+                setRejectionReason('');
+              }}
+              className="secondary"
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
 
         {/* Image Preview Modal */}
-        {selectedImage && (
-          <div className="modal-overlay" onClick={() => setSelectedImage(null)}>
-            <div className="modal-content image-modal" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setSelectedImage(null)}>
-                ×
-              </button>
-              <img
-                src={getImageUrl(selectedImage.filePath)}
-                alt="Full size preview"
-                className="modal-image"
-              />
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={!!selectedImage}
+          onClose={() => setSelectedImage(null)}
+          variant="image"
+          size="fullscreen"
+        >
+          {selectedImage && (
+            <img
+              src={getImageUrl(selectedImage.filePath)}
+              alt="Full size preview"
+              style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '8px' }}
+            />
+          )}
+        </Modal>
       </div>
     </div>
   );

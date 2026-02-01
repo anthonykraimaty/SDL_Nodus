@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -402,62 +403,63 @@ const AdminTroupes = () => {
       </div>
 
       {/* Troupe Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={resetForm}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{editingTroupe ? 'Edit Troupe' : 'Create New Troupe'}</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Name *</label>
-                <input
-                  type="text"
-                  value={troupeForm.name}
-                  onChange={(e) => setTroupeForm({ ...troupeForm, name: e.target.value })}
-                  required
-                  placeholder="e.g., Troupe Saint-Georges"
-                />
-              </div>
+      <Modal
+        isOpen={showModal}
+        onClose={resetForm}
+        title={editingTroupe ? 'Edit Troupe' : 'Create New Troupe'}
+        size="medium"
+      >
+        <form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <div className="form-group">
+              <label>Name *</label>
+              <input
+                type="text"
+                value={troupeForm.name}
+                onChange={(e) => setTroupeForm({ ...troupeForm, name: e.target.value })}
+                required
+                placeholder="e.g., Troupe Saint-Georges"
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Code *</label>
-                <input
-                  type="text"
-                  value={troupeForm.code}
-                  onChange={(e) => setTroupeForm({ ...troupeForm, code: e.target.value.toUpperCase() })}
-                  required
-                  placeholder="e.g., TSG"
-                />
-                <small>Unique identifier (will be converted to uppercase)</small>
-              </div>
+            <div className="form-group">
+              <label>Code *</label>
+              <input
+                type="text"
+                value={troupeForm.code}
+                onChange={(e) => setTroupeForm({ ...troupeForm, code: e.target.value.toUpperCase() })}
+                required
+                placeholder="e.g., TSG"
+              />
+              <small>Unique identifier (will be converted to uppercase)</small>
+            </div>
 
-              <div className="form-group">
-                <label>Group *</label>
-                <select
-                  value={troupeForm.groupId}
-                  onChange={(e) => setTroupeForm({ ...troupeForm, groupId: e.target.value })}
-                  required
-                >
-                  <option value="">Select Group</option>
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.districtName} - {group.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={resetForm} className="btn-cancel">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit primary">
-                  {editingTroupe ? 'Update' : 'Create'} Troupe
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="form-group">
+              <label>Group *</label>
+              <select
+                value={troupeForm.groupId}
+                onChange={(e) => setTroupeForm({ ...troupeForm, groupId: e.target.value })}
+                required
+              >
+                <option value="">Select Group</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.districtName} - {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              {editingTroupe ? 'Update' : 'Create'} Troupe
+            </button>
+            <button type="button" onClick={resetForm} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
     </div>
   );
 };

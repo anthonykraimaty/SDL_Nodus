@@ -259,6 +259,48 @@ router.delete('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, 
   }
 });
 
+// Get users who have never logged in (ADMIN only)
+router.get('/users/never-logged-in', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        lastLogin: null,
+      },
+      include: {
+        troupe: {
+          include: {
+            group: {
+              include: {
+                district: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Format the response with only needed fields
+    const formattedUsers = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      district: user.troupe?.group?.district?.name || '',
+      group: user.troupe?.group?.name || '',
+      troupe: user.troupe?.name || '',
+      createdAt: user.createdAt,
+    }));
+
+    res.json(formattedUsers);
+  } catch (error) {
+    console.error('Failed to fetch never-logged-in users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
 // Bulk import users from Excel
 router.post('/users/import', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {

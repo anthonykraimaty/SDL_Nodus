@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
+import Modal from '../components/Modal';
 import './PictureStatus.css';
 
 const PictureStatus = () => {
@@ -16,6 +17,7 @@ const PictureStatus = () => {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pictureToDelete, setPictureToDelete] = useState(null);
+  const [viewingPicture, setViewingPicture] = useState(null);
 
   useEffect(() => {
     loadPictureSet();
@@ -311,7 +313,11 @@ const PictureStatus = () => {
           <h2>Pictures ({pictureSet.pictures?.length || 0})</h2>
           <div className="pictures-preview-grid">
             {pictureSet.pictures?.map((picture) => (
-              <div key={picture.id} className="picture-preview-card">
+              <div
+                key={picture.id}
+                className="picture-preview-card clickable"
+                onClick={() => setViewingPicture(picture)}
+              >
                 <img
                   src={getImageUrl(picture.filePath)}
                   alt={`Picture ${picture.displayOrder}`}
@@ -403,67 +409,98 @@ const PictureStatus = () => {
         </div>
 
         {/* Delete Set Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-            <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Delete Picture Set?</h3>
-              <p>
-                Are you sure you want to delete "<strong>{pictureSet.title}</strong>"?
-                This will permanently delete all {pictureSet.pictures?.length || 0} pictures.
-              </p>
-              <p className="warning-text">This action cannot be undone.</p>
-              <div className="modal-actions">
-                <button
-                  onClick={handleDeleteSet}
-                  className="btn-confirm-delete"
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting...' : 'Yes, Delete'}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="btn-cancel"
-                  disabled={deleting}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+          title="Delete Picture Set?"
+          variant="danger"
+        >
+          <Modal.Body>
+            <p>
+              Are you sure you want to delete "<strong>{pictureSet.title}</strong>"?
+              This will permanently delete all {pictureSet.pictures?.length || 0} pictures.
+            </p>
+            <p className="warning-text">This action cannot be undone.</p>
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={handleDeleteSet}
+              className="danger"
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Yes, Delete'}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="secondary"
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
 
         {/* Delete Picture Confirmation Modal */}
-        {pictureToDelete && (
-          <div className="modal-overlay" onClick={() => setPictureToDelete(null)}>
-            <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Delete Picture?</h3>
-              <div className="delete-preview">
-                <img
-                  src={getImageUrl(pictureToDelete.filePath)}
-                  alt="Picture to delete"
-                />
-              </div>
-              <p>Are you sure you want to delete picture #{pictureToDelete.displayOrder}?</p>
-              <p className="warning-text">This action cannot be undone.</p>
-              <div className="modal-actions">
-                <button
-                  onClick={() => handleDeletePicture(pictureToDelete.id)}
-                  className="btn-confirm-delete"
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting...' : 'Yes, Delete'}
-                </button>
-                <button
-                  onClick={() => setPictureToDelete(null)}
-                  className="btn-cancel"
-                  disabled={deleting}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={!!pictureToDelete}
+          onClose={() => setPictureToDelete(null)}
+          title="Delete Picture?"
+          variant="danger"
+        >
+          <Modal.Body>
+            {pictureToDelete && (
+              <>
+                <div className="delete-preview">
+                  <img
+                    src={getImageUrl(pictureToDelete.filePath)}
+                    alt="Picture to delete"
+                  />
+                </div>
+                <p>Are you sure you want to delete picture #{pictureToDelete.displayOrder}?</p>
+                <p className="warning-text">This action cannot be undone.</p>
+              </>
+            )}
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={() => handleDeletePicture(pictureToDelete?.id)}
+              className="danger"
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Yes, Delete'}
+            </button>
+            <button
+              onClick={() => setPictureToDelete(null)}
+              className="secondary"
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
+
+        {/* View Picture Modal */}
+        <Modal.ImageViewer
+          isOpen={!!viewingPicture}
+          onClose={() => setViewingPicture(null)}
+          images={pictureSet?.pictures?.map(p => ({
+            id: p.id,
+            src: getImageUrl(p.filePath),
+            alt: `Picture ${p.displayOrder}`,
+            displayOrder: p.displayOrder,
+            category: p.category,
+            takenAt: p.takenAt,
+          })) || []}
+          currentIndex={viewingPicture ? pictureSet?.pictures?.findIndex(p => p.id === viewingPicture.id) || 0 : 0}
+          onNavigate={(index) => setViewingPicture(pictureSet?.pictures?.[index])}
+          renderInfo={(img) => (
+            <>
+              <span>#{img.displayOrder}</span>
+              {img.category && <span>{img.category.name}</span>}
+              {img.takenAt && <span>{new Date(img.takenAt).toLocaleDateString()}</span>}
+            </>
+          )}
+        />
       </div>
     </div>
   );

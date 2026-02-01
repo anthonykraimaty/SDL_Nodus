@@ -75,6 +75,237 @@ router.get('/participation', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/analytics/sync-picture-categories - Check pictures needing category sync (admin only)
+router.get('/sync-picture-categories', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Find pictures where categoryId is null but their pictureSet has a categoryId
+    const picturesToSync = await prisma.picture.findMany({
+      where: {
+        categoryId: null,
+        pictureSet: {
+          categoryId: { not: null }
+        }
+      },
+      include: {
+        pictureSet: {
+          select: {
+            id: true,
+            title: true,
+            categoryId: true,
+            category: {
+              select: { id: true, name: true }
+            }
+          }
+        }
+      }
+    });
+
+    // Group by picture set for better display
+    const setMap = new Map();
+    for (const pic of picturesToSync) {
+      const setId = pic.pictureSet.id;
+      if (!setMap.has(setId)) {
+        setMap.set(setId, {
+          id: setId,
+          title: pic.pictureSet.title,
+          categoryId: pic.pictureSet.categoryId,
+          categoryName: pic.pictureSet.category?.name,
+          pictureCount: 0
+        });
+      }
+      setMap.get(setId).pictureCount++;
+    }
+
+    res.json({
+      totalPictures: picturesToSync.length,
+      sets: Array.from(setMap.values())
+    });
+  } catch (error) {
+    console.error('Check picture categories sync error:', error);
+    res.status(500).json({ error: 'Failed to check picture categories' });
+  }
+});
+
+// POST /api/analytics/sync-picture-categories - Sync picture categories from their sets (admin only)
+router.post('/sync-picture-categories', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Find all picture sets that have a categoryId
+    const setsWithCategory = await prisma.pictureSet.findMany({
+      where: {
+        categoryId: { not: null }
+      },
+      select: {
+        id: true,
+        categoryId: true
+      }
+    });
+
+    let totalUpdated = 0;
+    const updatedSets = [];
+
+    for (const set of setsWithCategory) {
+      // Update all pictures in this set that don't have a categoryId
+      const result = await prisma.picture.updateMany({
+        where: {
+          pictureSetId: set.id,
+          categoryId: null
+        },
+        data: {
+          categoryId: set.categoryId
+        }
+      });
+
+      if (result.count > 0) {
+        totalUpdated += result.count;
+        updatedSets.push({
+          setId: set.id,
+          categoryId: set.categoryId,
+          picturesUpdated: result.count
+        });
+      }
+    }
+
+    res.json({
+      message: `Synced ${totalUpdated} picture(s) across ${updatedSets.length} set(s)`,
+      totalUpdated,
+      updatedSets
+    });
+  } catch (error) {
+    console.error('Sync picture categories error:', error);
+    res.status(500).json({ error: 'Failed to sync picture categories' });
+  }
+});
+
+// GET /api/analytics/sync-picture-types - Check pictures needing type sync (admin only)
+router.get('/sync-picture-types', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Use raw SQL to count pictures needing sync (bypasses Prisma client caching)
+    const countResult = await prisma.$queryRaw`
+      SELECT COUNT(*) as count
+      FROM "Picture" p
+      JOIN "PictureSet" ps ON p."pictureSetId" = ps.id
+      WHERE p.type IS NULL AND ps.type IS NOT NULL
+    `;
+
+    const totalPictures = Number(countResult[0]?.count || 0);
+
+    // Get sample sets that need syncing
+    const setsResult = await prisma.$queryRaw`
+      SELECT DISTINCT ps.id, ps.title, ps.type, COUNT(p.id) as picture_count
+      FROM "PictureSet" ps
+      JOIN "Picture" p ON p."pictureSetId" = ps.id
+      WHERE p.type IS NULL AND ps.type IS NOT NULL
+      GROUP BY ps.id, ps.title, ps.type
+      LIMIT 20
+    `;
+
+    const sets = setsResult.map(row => ({
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      pictureCount: Number(row.picture_count)
+    }));
+
+    res.json({
+      totalPictures,
+      sets
+    });
+  } catch (error) {
+    console.error('Check picture types sync error:', error);
+    res.status(500).json({ error: 'Failed to check picture types' });
+  }
+});
+
+// POST /api/analytics/sync-picture-types - Sync picture types from their sets (admin only)
+router.post('/sync-picture-types', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Use raw SQL to update all pictures that have null type but their set has a type
+    // This bypasses any Prisma client caching issues
+    const result = await prisma.$executeRaw`
+      UPDATE "Picture" p
+      SET type = ps.type
+      FROM "PictureSet" ps
+      WHERE p."pictureSetId" = ps.id
+        AND p.type IS NULL
+        AND ps.type IS NOT NULL
+    `;
+
+    res.json({
+      message: `Synced ${result} picture(s)`,
+      totalUpdated: result,
+    });
+  } catch (error) {
+    console.error('Sync picture types error:', error);
+    res.status(500).json({ error: 'Failed to sync picture types' });
+  }
+});
+
+// GET /api/analytics/picture-type-debug - Debug picture types (admin only)
+router.get('/picture-type-debug', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Count pictures by type
+    const typeStats = await prisma.picture.groupBy({
+      by: ['type'],
+      _count: { id: true },
+    });
+
+    // Count pictures in approved picture sets
+    const approvedPictureCount = await prisma.picture.count({
+      where: {
+        pictureSet: { status: 'APPROVED' },
+      },
+    });
+
+    // Count pictures with INSTALLATION_PHOTO type in approved sets
+    const photoCount = await prisma.picture.count({
+      where: {
+        type: 'INSTALLATION_PHOTO',
+        pictureSet: { status: 'APPROVED' },
+      },
+    });
+
+    // Count pictures with categoryId set
+    const withCategory = await prisma.picture.count({
+      where: {
+        categoryId: { not: null },
+        pictureSet: { status: 'APPROVED' },
+      },
+    });
+
+    // Sample some pictures to see their actual values
+    const samplePictures = await prisma.picture.findMany({
+      take: 10,
+      where: {
+        pictureSet: { status: 'APPROVED' },
+      },
+      select: {
+        id: true,
+        type: true,
+        categoryId: true,
+        pictureSet: {
+          select: {
+            id: true,
+            type: true,
+            categoryId: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    res.json({
+      typeStats,
+      approvedPictureCount,
+      photoCount,
+      withCategory,
+      samplePictures,
+    });
+  } catch (error) {
+    console.error('Picture type debug error:', error);
+    res.status(500).json({ error: 'Failed to get debug info' });
+  }
+});
+
 // GET /api/analytics/pictures/stats - Get picture statistics
 router.get('/pictures/stats', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {

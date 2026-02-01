@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, schematicService, categoryService } from '../services/api';
 import { getImageUrl, API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -426,34 +427,40 @@ const Dashboard = () => {
         </div>
 
         {/* Delete Confirmation Modal */}
-        {deleteConfirm && (
-          <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
-            <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Delete Picture Set?</h3>
-              <p>
-                Are you sure you want to delete "<strong>{deleteConfirm.title}</strong>"?
-                This will permanently delete all {deleteConfirm.pictures?.length || 0} pictures.
-              </p>
-              <p className="warning-text">This action cannot be undone.</p>
-              <div className="modal-actions">
-                <button
-                  onClick={() => handleDelete(deleteConfirm.id)}
-                  className="btn-confirm-delete"
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting...' : 'Yes, Delete'}
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm(null)}
-                  className="btn-cancel"
-                  disabled={deleting}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          title="Delete Picture Set?"
+          variant="danger"
+        >
+          <Modal.Body>
+            {deleteConfirm && (
+              <>
+                <p>
+                  Are you sure you want to delete "<strong>{deleteConfirm.title}</strong>"?
+                  This will permanently delete all {deleteConfirm.pictures?.length || 0} pictures.
+                </p>
+                <p className="warning-text">This action cannot be undone.</p>
+              </>
+            )}
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={() => handleDelete(deleteConfirm?.id)}
+              className="danger"
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Yes, Delete'}
+            </button>
+            <button
+              onClick={() => setDeleteConfirm(null)}
+              className="secondary"
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
       </div>
     </div>
   );

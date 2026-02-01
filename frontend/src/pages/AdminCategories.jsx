@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import './AdminCategories.css';
 
 const AdminCategories = () => {
@@ -312,179 +313,174 @@ const AdminCategories = () => {
       </div>
 
       {/* Add Category Modal */}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Add New Category</h3>
-            <form onSubmit={handleAddCategory}>
-              <div className="form-group">
-                <label htmlFor="name">Category Name *</label>
-                <input
-                  type="text"
-                  id="name"
-                  value={newCategory.name}
-                  onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                  required
-                />
-              </div>
+      <Modal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Add New Category"
+        size="medium"
+      >
+        <form onSubmit={handleAddCategory}>
+          <Modal.Body>
+            <div className="form-group">
+              <label htmlFor="name">Category Name *</label>
+              <input
+                type="text"
+                id="name"
+                value={newCategory.name}
+                onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                required
+              />
+            </div>
 
-              <div className="form-group">
-                <label htmlFor="description">Description</label>
-                <textarea
-                  id="description"
-                  value={newCategory.description}
-                  onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                  rows="3"
-                />
-              </div>
+            <div className="form-group">
+              <label htmlFor="description">Description</label>
+              <textarea
+                id="description"
+                value={newCategory.description}
+                onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                rows="3"
+              />
+            </div>
 
-              <div className="form-group">
-                <label htmlFor="parentId">Parent Category (Optional)</label>
-                <select
-                  id="parentId"
-                  value={newCategory.parentId || ''}
-                  onChange={(e) => setNewCategory({ ...newCategory, parentId: e.target.value })}
-                >
-                  <option value="">None (Top-level category)</option>
-                  {categories.filter(c => !c.parentId).map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="form-group">
+              <label htmlFor="parentId">Parent Category (Optional)</label>
+              <select
+                id="parentId"
+                value={newCategory.parentId || ''}
+                onChange={(e) => setNewCategory({ ...newCategory, parentId: e.target.value })}
+              >
+                <option value="">None (Top-level category)</option>
+                {categories.filter(c => !c.parentId).map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              <div className="form-group">
-                <label htmlFor="displayOrder">Display Order</label>
-                <input
-                  type="number"
-                  id="displayOrder"
-                  value={newCategory.displayOrder}
-                  onChange={(e) =>
-                    setNewCategory({ ...newCategory, displayOrder: parseInt(e.target.value) })
-                  }
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowAddModal(false)} className="btn-cancel">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit primary">
-                  Create Category
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="form-group">
+              <label htmlFor="displayOrder">Display Order</label>
+              <input
+                type="number"
+                id="displayOrder"
+                value={newCategory.displayOrder}
+                onChange={(e) =>
+                  setNewCategory({ ...newCategory, displayOrder: parseInt(e.target.value) })
+                }
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              Create Category
+            </button>
+            <button type="button" onClick={() => setShowAddModal(false)} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
 
       {/* Category Details Modal */}
-      {selectedCategory && (
-        <div className="modal-overlay" onClick={() => setSelectedCategory(null)}>
-          <div className="category-details-modal" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="cdm-header">
-              <h3>{selectedCategory.name}</h3>
-              <button className="cdm-close" onClick={() => setSelectedCategory(null)}>×</button>
-            </div>
-
-            {/* Statistics */}
-            <div className="cdm-section">
-              <div className="cdm-label">Statistics</div>
-              {loadingStats ? (
-                <div className="cdm-loading">Loading...</div>
-              ) : categoryStats ? (
-                <div className="cdm-stats">
-                  <div className="cdm-stat">
-                    <span className="cdm-stat-value">{categoryStats.total}</span>
-                    <span className="cdm-stat-label">Total</span>
-                  </div>
-                  <div className="cdm-stat pending">
-                    <span className="cdm-stat-value">{categoryStats.pending}</span>
-                    <span className="cdm-stat-label">Pending</span>
-                  </div>
-                  <div className="cdm-stat classified">
-                    <span className="cdm-stat-value">{categoryStats.classified}</span>
-                    <span className="cdm-stat-label">Classified</span>
-                  </div>
-                  <div className="cdm-stat approved">
-                    <span className="cdm-stat-value">{categoryStats.approved}</span>
-                    <span className="cdm-stat-label">Approved</span>
-                  </div>
-                  <div className="cdm-stat rejected">
-                    <span className="cdm-stat-value">{categoryStats.rejected}</span>
-                    <span className="cdm-stat-label">Rejected</span>
-                  </div>
-                  <div className="cdm-stat recent">
-                    <span className="cdm-stat-value">{categoryStats.recentUploads}</span>
-                    <span className="cdm-stat-label">7 Days</span>
-                  </div>
+      <Modal
+        isOpen={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+        title={selectedCategory?.name || 'Category Details'}
+        size="medium"
+      >
+        <Modal.Body>
+          {/* Statistics */}
+          <div className="cdm-section">
+            <div className="cdm-label">Statistics</div>
+            {loadingStats ? (
+              <div className="cdm-loading">Loading...</div>
+            ) : categoryStats ? (
+              <div className="cdm-stats">
+                <div className="cdm-stat">
+                  <span className="cdm-stat-value">{categoryStats.total}</span>
+                  <span className="cdm-stat-label">Total</span>
                 </div>
-              ) : null}
-            </div>
-
-            {/* Settings */}
-            <div className="cdm-section">
-              <div className="cdm-label">Settings</div>
-              <div className="cdm-settings">
-                <label className="cdm-setting">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategory.isUploadDisabled || false}
-                    onChange={(e) => handleUpdateCategorySettings('isUploadDisabled', e.target.checked)}
-                  />
-                  <span>Disable Uploads</span>
-                </label>
-                <label className="cdm-setting">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategory.isHiddenFromBrowse || false}
-                    onChange={(e) => handleUpdateCategorySettings('isHiddenFromBrowse', e.target.checked)}
-                  />
-                  <span>Hide from Browse</span>
-                </label>
+                <div className="cdm-stat pending">
+                  <span className="cdm-stat-value">{categoryStats.pending}</span>
+                  <span className="cdm-stat-label">Pending</span>
+                </div>
+                <div className="cdm-stat classified">
+                  <span className="cdm-stat-value">{categoryStats.classified}</span>
+                  <span className="cdm-stat-label">Classified</span>
+                </div>
+                <div className="cdm-stat approved">
+                  <span className="cdm-stat-value">{categoryStats.approved}</span>
+                  <span className="cdm-stat-label">Approved</span>
+                </div>
+                <div className="cdm-stat rejected">
+                  <span className="cdm-stat-value">{categoryStats.rejected}</span>
+                  <span className="cdm-stat-label">Rejected</span>
+                </div>
+                <div className="cdm-stat recent">
+                  <span className="cdm-stat-value">{categoryStats.recentUploads}</span>
+                  <span className="cdm-stat-label">7 Days</span>
+                </div>
               </div>
-            </div>
+            ) : null}
+          </div>
 
-            {/* Actions */}
-            <div className="cdm-actions">
-              <button
-                className="cdm-btn cdm-btn-delete"
-                onClick={() => handleDeleteClick(selectedCategory)}
-              >
-                Delete
-              </button>
-              <button className="cdm-btn cdm-btn-close" onClick={() => setSelectedCategory(null)}>
-                Close
-              </button>
+          {/* Settings */}
+          <div className="cdm-section">
+            <div className="cdm-label">Settings</div>
+            <div className="cdm-settings">
+              <label className="cdm-setting">
+                <input
+                  type="checkbox"
+                  checked={selectedCategory?.isUploadDisabled || false}
+                  onChange={(e) => handleUpdateCategorySettings('isUploadDisabled', e.target.checked)}
+                />
+                <span>Disable Uploads</span>
+              </label>
+              <label className="cdm-setting">
+                <input
+                  type="checkbox"
+                  checked={selectedCategory?.isHiddenFromBrowse || false}
+                  onChange={(e) => handleUpdateCategorySettings('isHiddenFromBrowse', e.target.checked)}
+                />
+                <span>Hide from Browse</span>
+              </label>
             </div>
           </div>
-        </div>
-      )}
+        </Modal.Body>
+        <Modal.Actions>
+          <button
+            className="danger"
+            onClick={() => handleDeleteClick(selectedCategory)}
+          >
+            Delete
+          </button>
+          <button className="secondary" onClick={() => setSelectedCategory(null)}>
+            Close
+          </button>
+        </Modal.Actions>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="dcm-header">
-              <h3>Delete Category</h3>
-            </div>
-            <div className="dcm-body">
-              <p>Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?</p>
-              <p className="dcm-warning">This action cannot be undone.</p>
-            </div>
-            <div className="dcm-actions">
-              <button className="dcm-btn dcm-btn-cancel" onClick={() => setDeleteConfirm(null)}>
-                Cancel
-              </button>
-              <button className="dcm-btn dcm-btn-delete" onClick={handleDeleteCategory}>
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete Category"
+        variant="danger"
+        size="small"
+      >
+        <Modal.Body>
+          <p>Are you sure you want to delete <strong>{deleteConfirm?.name}</strong>?</p>
+          <p className="warning-text">This action cannot be undone.</p>
+        </Modal.Body>
+        <Modal.Actions>
+          <button className="danger" onClick={handleDeleteCategory}>
+            Delete
+          </button>
+          <button className="secondary" onClick={() => setDeleteConfirm(null)}>
+            Cancel
+          </button>
+        </Modal.Actions>
+      </Modal>
     </div>
   );
 };

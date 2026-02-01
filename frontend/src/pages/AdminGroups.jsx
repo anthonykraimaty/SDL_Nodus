@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import './Admin.css';
 
 const AdminGroups = () => {
@@ -285,69 +286,64 @@ const AdminGroups = () => {
         </table>
       </div>
 
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{editingGroup ? 'Edit Group' : 'Add New Group'}</h2>
-              <button onClick={() => setShowModal(false)} className="modal-close">
-                ×
-              </button>
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingGroup ? 'Edit Group' : 'Add New Group'}
+        size="medium"
+      >
+        <form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <div className="form-group">
+              <label>Group Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Groupe Casablanca"
+                required
+              />
             </div>
 
-            <form onSubmit={handleSubmit} className="modal-form">
-              <div className="form-group">
-                <label>Group Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Groupe Casablanca"
-                  required
-                />
-              </div>
+            <div className="form-group">
+              <label>Code *</label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                placeholder="e.g., GC"
+                maxLength="10"
+                required
+              />
+              <small>Unique identifier for this group</small>
+            </div>
 
-              <div className="form-group">
-                <label>Code *</label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  placeholder="e.g., GC"
-                  maxLength="10"
-                  required
-                />
-                <small>Unique identifier for this group</small>
-              </div>
-
-              <div className="form-group">
-                <label>District *</label>
-                <select
-                  value={formData.districtId}
-                  onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
-                  required
-                >
-                  <option value="">Select a district</option>
-                  {districts.map((district) => (
-                    <option key={district.id} value={district.id}>
-                      {district.name} ({district.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  {editingGroup ? 'Update Group' : 'Create Group'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="form-group">
+              <label>District *</label>
+              <select
+                value={formData.districtId}
+                onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
+                required
+              >
+                <option value="">Select a district</option>
+                {districts.map((district) => (
+                  <option key={district.id} value={district.id}>
+                    {district.name} ({district.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              {editingGroup ? 'Update Group' : 'Create Group'}
+            </button>
+            <button type="button" onClick={() => setShowModal(false)} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
     </div>
   );
 };

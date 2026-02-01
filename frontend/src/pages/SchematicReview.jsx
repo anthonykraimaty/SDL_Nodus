@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { schematicService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
+import Modal from '../components/Modal';
 import './SchematicReview.css';
 
 const SchematicReview = () => {
@@ -321,39 +322,43 @@ const SchematicReview = () => {
         )}
 
         {/* Rejection Modal */}
-        {rejectModal.open && (
-          <div className="modal-overlay" onClick={() => setRejectModal({ open: false, schematicId: null, reason: '' })}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>Reject Schematic</h3>
-              <p>Please provide a reason for rejection:</p>
-              <textarea
-                value={rejectModal.reason}
-                onChange={(e) =>
-                  setRejectModal((prev) => ({ ...prev, reason: e.target.value }))
-                }
-                placeholder="Enter rejection reason..."
-                rows={4}
-              />
-              <div className="modal-actions">
-                <button
-                  className="btn-cancel"
-                  onClick={() =>
-                    setRejectModal({ open: false, schematicId: null, reason: '' })
-                  }
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn-confirm-reject"
-                  onClick={handleRejectSubmit}
-                  disabled={!rejectModal.reason.trim()}
-                >
-                  Confirm Rejection
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          isOpen={rejectModal.open}
+          onClose={() => setRejectModal({ open: false, schematicId: null, reason: '' })}
+          title="Reject Schematic"
+          variant="danger"
+          size="medium"
+        >
+          <Modal.Body>
+            <p>Please provide a reason for rejection:</p>
+            <textarea
+              value={rejectModal.reason}
+              onChange={(e) =>
+                setRejectModal((prev) => ({ ...prev, reason: e.target.value }))
+              }
+              placeholder="Enter rejection reason..."
+              rows={4}
+              style={{ width: '100%', marginTop: '12px' }}
+            />
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              className="danger"
+              onClick={handleRejectSubmit}
+              disabled={!rejectModal.reason.trim()}
+            >
+              Confirm Rejection
+            </button>
+            <button
+              className="secondary"
+              onClick={() =>
+                setRejectModal({ open: false, schematicId: null, reason: '' })
+              }
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
 
         {/* Image Preview */}
         {previewImages.length > 0 && (

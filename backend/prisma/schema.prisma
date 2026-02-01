@@ -113,6 +113,7 @@ model User {
   districtAccess         UserDistrictAccess[]
   isActive               Boolean                @default(true)
   forcePasswordChange    Boolean                @default(false)
+  lastLogin              DateTime?              // Null if user has never logged in
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
 
@@ -253,6 +254,7 @@ model Picture {
   filePath      String
   displayOrder  Int           @default(0)
   caption       String?
+  type          PictureType?  // INSTALLATION_PHOTO or SCHEMATIC - individual picture type
   categoryId    Int?
   category      Category?     @relation("PictureCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   takenAt       DateTime?
@@ -271,6 +273,7 @@ model Picture {
   @@index([pictureSetId])
   @@index([displayOrder])
   @@index([categoryId])
+  @@index([type])
 }
 
 // Tagging system for additional classification

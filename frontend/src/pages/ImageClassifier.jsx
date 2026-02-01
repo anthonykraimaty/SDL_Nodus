@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService } from '../services/api';
 import { getImageUrl } from '../config/api';
+import Modal from '../components/Modal';
 import './ImageClassifier.css';
 
 const ImageClassifier = () => {
@@ -20,8 +21,9 @@ const ImageClassifier = () => {
   const [bulkCategory, setBulkCategory] = useState('');
   const [bulkMonth, setBulkMonth] = useState('');
   const [bulkYear, setBulkYear] = useState('');
-  const [bulkWoodCount, setBulkWoodCount] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
+  const [pictureType, setPictureType] = useState('');
+  const [showSchematicWarning, setShowSchematicWarning] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -37,6 +39,7 @@ const ImageClassifier = () => {
 
       setPictureSet(pictureSetData);
       setCategories(categoriesData);
+      setPictureType(pictureSetData.type || 'INSTALLATION_PHOTO');
 
       // Initialize classification data for each picture (including woodCount)
       const initialData = {};
@@ -99,7 +102,7 @@ const ImageClassifier = () => {
         takenAt: (bulkMonth && bulkYear)
           ? `${bulkYear}-${bulkMonth.padStart(2, '0')}-01`
           : classificationData[pictureId]?.takenAt || '',
-        woodCount: bulkWoodCount || classificationData[pictureId]?.woodCount || '',
+        woodCount: classificationData[pictureId]?.woodCount || '', // Keep existing woodCount (per-picture)
       };
     });
 
@@ -108,10 +111,11 @@ const ImageClassifier = () => {
       ...updates,
     }));
 
+    // Clear selection and bulk inputs after applying
+    setSelectedPictures(new Set());
     setBulkCategory('');
     setBulkMonth('');
     setBulkYear('');
-    setBulkWoodCount('');
     setSuccess('Bulk classification applied! Click "Save All Classifications" to save.');
   };
 
@@ -158,6 +162,7 @@ const ImageClassifier = () => {
 
       await pictureService.classifyBulk(id, {
         classifications,
+        type: pictureType,
       });
 
       setSuccess(`${picturesToClassify.length} picture(s) classified successfully!`);
@@ -233,89 +238,185 @@ const ImageClassifier = () => {
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
-        {/* Bulk Actions */}
-        <div className="bulk-actions-card">
-          <h2>Bulk Classification</h2>
-          <p>Select multiple pictures and apply the same category and date to all of them at once</p>
-
-          <div className="bulk-actions-controls">
-            <button onClick={selectAll} className="btn-secondary">
-              {selectedPictures.size === pictureSet.pictures.length ? 'Deselect All' : 'Select All'}
+        {/* Type Selection */}
+        <div className="type-selection-card">
+          <h2>Type de contenu</h2>
+          <p>Sélectionnez le type de contenu pour ce set</p>
+          <div className="type-buttons">
+            <button
+              className={`type-btn ${pictureType === 'INSTALLATION_PHOTO' ? 'active' : ''}`}
+              onClick={() => setPictureType('INSTALLATION_PHOTO')}
+            >
+              📸 Photos d'Installation
             </button>
-
-            <div className="bulk-inputs">
-              <div className="form-group">
-                <label>Category</label>
-                <select
-                  value={bulkCategory}
-                  onChange={(e) => setBulkCategory(e.target.value)}
-                  className="form-select"
-                >
-                  <option value="">Select Category</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Month</label>
-                <select
-                  value={bulkMonth}
-                  onChange={(e) => setBulkMonth(e.target.value)}
-                  className="form-select"
-                >
-                  <option value="">Month</option>
-                  <option value="1">January</option>
-                  <option value="2">February</option>
-                  <option value="3">March</option>
-                  <option value="4">April</option>
-                  <option value="5">May</option>
-                  <option value="6">June</option>
-                  <option value="7">July</option>
-                  <option value="8">August</option>
-                  <option value="9">September</option>
-                  <option value="10">October</option>
-                  <option value="11">November</option>
-                  <option value="12">December</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Year</label>
-                <select
-                  value={bulkYear}
-                  onChange={(e) => setBulkYear(e.target.value)}
-                  className="form-select"
-                >
-                  <option value="">Year</option>
-                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Nombre de bois</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={bulkWoodCount}
-                  onChange={(e) => setBulkWoodCount(e.target.value)}
-                  placeholder="e.g., 12"
-                  className="form-input bulk-wood-input"
-                />
-              </div>
-
-              <button
-                onClick={applyBulkClassification}
-                className="btn-primary"
-                disabled={selectedPictures.size === 0}
-              >
-                Apply to Selected ({selectedPictures.size})
-              </button>
-            </div>
+            <button
+              className={`type-btn ${pictureType === 'SCHEMATIC' ? 'active' : ''}`}
+              onClick={() => {
+                if (pictureType !== 'SCHEMATIC') {
+                  setShowSchematicWarning(true);
+                }
+              }}
+            >
+              📐 Schémas
+            </button>
           </div>
+          {pictureType === 'SCHEMATIC' && (
+            <div className="schematic-disclaimer">
+              <p>
+                <strong>FR:</strong> Les schémas pour Nodus 2026 "Scalpe de Patrouille" doivent être téléversés depuis la page "Téléverser Schémas" afin d'être liés à chaque patrouille et suivre leur progression. Utilisez ce bouton uniquement pour les schémas de troupe.
+              </p>
+              <p>
+                <strong>EN:</strong> Schematics for Nodus 2026 "Scalpe de Patrouille" should be uploaded from the "Upload Schematics" page so they can be linked to each patrouille and track progress. Use this button here only for troupe schematics.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Schematic Warning Modal */}
+        <Modal
+          isOpen={showSchematicWarning}
+          onClose={() => setShowSchematicWarning(false)}
+          title="⚠️ Attention / Warning"
+          variant="warning"
+          size="large"
+        >
+          <Modal.Body>
+            <p>
+              <strong>FR:</strong> Les schémas pour Nodus 2026 "Scalpe de Patrouille" doivent être téléversés depuis la page <strong>"Téléverser Schémas"</strong> afin d'être liés à chaque patrouille et suivre leur progression.
+            </p>
+            <p>
+              <strong>EN:</strong> Schematics for Nodus 2026 "Scalpe de Patrouille" should be uploaded from the <strong>"Upload Schematics"</strong> page so they can be linked to each patrouille and track progress.
+            </p>
+            <p style={{ textAlign: 'center', marginTop: '16px', color: 'var(--accent)', fontWeight: 600 }}>
+              Voulez-vous continuer avec un schéma de troupe?<br />
+              Do you want to continue with a troupe schematic?
+            </p>
+          </Modal.Body>
+          <Modal.Actions className="modal__actions--centered">
+            <button
+              className="primary"
+              onClick={() => {
+                setPictureType('SCHEMATIC');
+                setShowSchematicWarning(false);
+              }}
+            >
+              Oui, continuer
+            </button>
+            <button
+              className="secondary"
+              onClick={() => setShowSchematicWarning(false)}
+            >
+              Annuler
+            </button>
+          </Modal.Actions>
+        </Modal>
+
+        {/* Bulk Actions */}
+        <div className={`bulk-actions-card ${selectedPictures.size > 0 ? 'bulk-mode' : ''}`}>
+          {selectedPictures.size === 0 ? (
+            // Instructions when no pictures selected
+            <div className="bulk-instructions">
+              <div className="bulk-instructions-icon">📋</div>
+              <div className="bulk-instructions-content">
+                <h3>How to Classify Pictures</h3>
+                <div className="bulk-instructions-methods">
+                  <div className="bulk-method">
+                    <span className="bulk-method-icon">1️⃣</span>
+                    <div>
+                      <strong>Individual Classification</strong>
+                      <p>Use the category and date selectors below each picture to classify them one by one.</p>
+                    </div>
+                  </div>
+                  <div className="bulk-method">
+                    <span className="bulk-method-icon">2️⃣</span>
+                    <div>
+                      <strong>Bulk Classification</strong>
+                      <p>Click checkboxes on pictures to select them, then the bulk classification controls will appear here to classify multiple pictures at once.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Bulk classification controls when pictures are selected
+            <>
+              <div className="bulk-header">
+                <div className="bulk-header-info">
+                  <span className="bulk-header-icon">✅</span>
+                  <h2>{selectedPictures.size} picture(s) selected</h2>
+                </div>
+                <button onClick={() => setSelectedPictures(new Set())} className="btn-clear-selection">
+                  Clear Selection
+                </button>
+              </div>
+
+              <div className="bulk-actions-controls">
+                <button onClick={selectAll} className="btn-secondary">
+                  {selectedPictures.size === pictureSet.pictures.length ? 'Deselect All' : 'Select All'}
+                </button>
+
+                <div className="bulk-inputs">
+                  <div className="form-group">
+                    <label>Category</label>
+                    <select
+                      value={bulkCategory}
+                      onChange={(e) => setBulkCategory(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Month</label>
+                    <select
+                      value={bulkMonth}
+                      onChange={(e) => setBulkMonth(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="">Month</option>
+                      <option value="1">January</option>
+                      <option value="2">February</option>
+                      <option value="3">March</option>
+                      <option value="4">April</option>
+                      <option value="5">May</option>
+                      <option value="6">June</option>
+                      <option value="7">July</option>
+                      <option value="8">August</option>
+                      <option value="9">September</option>
+                      <option value="10">October</option>
+                      <option value="11">November</option>
+                      <option value="12">December</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Year</label>
+                    <select
+                      value={bulkYear}
+                      onChange={(e) => setBulkYear(e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="">Year</option>
+                      {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={applyBulkClassification}
+                    className="btn-primary"
+                  >
+                    Apply to Selected ({selectedPictures.size})
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Pictures Grid */}
@@ -347,88 +448,112 @@ const ImageClassifier = () => {
                 )}
               </div>
 
-              <div className="picture-controls">
-                <div className="form-group">
-                  <label>Category *</label>
-                  <select
-                    value={classificationData[picture.id]?.categoryId || ''}
-                    onChange={(e) => handleClassificationChange(picture.id, 'categoryId', e.target.value)}
-                    className="form-select"
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Date</label>
-                  <div className="date-picker-container">
+              {/* Show individual controls only when NOT selected for bulk */}
+              {!selectedPictures.has(picture.id) ? (
+                <div className="picture-controls">
+                  <div className="form-group">
+                    <label>Category *</label>
                     <select
-                      value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getMonth() + 1 : ''}
-                      onChange={(e) => {
-                        const month = e.target.value;
-                        const year = classificationData[picture.id]?.takenAt
-                          ? new Date(classificationData[picture.id].takenAt).getFullYear()
-                          : new Date().getFullYear();
-                        if (month) {
-                          handleClassificationChange(picture.id, 'takenAt', `${year}-${month.padStart(2, '0')}-01`);
-                        } else {
-                          handleClassificationChange(picture.id, 'takenAt', '');
-                        }
-                      }}
-                      className="form-select date-select"
+                      value={classificationData[picture.id]?.categoryId || ''}
+                      onChange={(e) => handleClassificationChange(picture.id, 'categoryId', e.target.value)}
+                      className="form-select"
                     >
-                      <option value="">Month</option>
-                      <option value="1">Jan</option>
-                      <option value="2">Feb</option>
-                      <option value="3">Mar</option>
-                      <option value="4">Apr</option>
-                      <option value="5">May</option>
-                      <option value="6">Jun</option>
-                      <option value="7">Jul</option>
-                      <option value="8">Aug</option>
-                      <option value="9">Sep</option>
-                      <option value="10">Oct</option>
-                      <option value="11">Nov</option>
-                      <option value="12">Dec</option>
-                    </select>
-                    <select
-                      value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getFullYear() : ''}
-                      onChange={(e) => {
-                        const year = e.target.value;
-                        const month = classificationData[picture.id]?.takenAt
-                          ? new Date(classificationData[picture.id].takenAt).getMonth() + 1
-                          : new Date().getMonth() + 1;
-                        if (year) {
-                          handleClassificationChange(picture.id, 'takenAt', `${year}-${String(month).padStart(2, '0')}-01`);
-                        } else {
-                          handleClassificationChange(picture.id, 'takenAt', '');
-                        }
-                      }}
-                      className="form-select date-select"
-                    >
-                      <option value="">Year</option>
-                      {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                        <option key={year} value={year}>{year}</option>
+                      <option value="">Select Category</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
                       ))}
                     </select>
                   </div>
-                </div>
 
-                <div className="form-group">
-                  <label>Nombre de bois</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={classificationData[picture.id]?.woodCount || ''}
-                    onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
-                    placeholder="e.g., 12"
-                    className="form-input picture-wood-input"
-                  />
+                  <div className="form-group">
+                    <label>Date</label>
+                    <div className="date-picker-container">
+                      <select
+                        value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getMonth() + 1 : ''}
+                        onChange={(e) => {
+                          const month = e.target.value;
+                          const year = classificationData[picture.id]?.takenAt
+                            ? new Date(classificationData[picture.id].takenAt).getFullYear()
+                            : new Date().getFullYear();
+                          if (month) {
+                            handleClassificationChange(picture.id, 'takenAt', `${year}-${month.padStart(2, '0')}-01`);
+                          } else {
+                            handleClassificationChange(picture.id, 'takenAt', '');
+                          }
+                        }}
+                        className="form-select date-select"
+                      >
+                        <option value="">Month</option>
+                        <option value="1">Jan</option>
+                        <option value="2">Feb</option>
+                        <option value="3">Mar</option>
+                        <option value="4">Apr</option>
+                        <option value="5">May</option>
+                        <option value="6">Jun</option>
+                        <option value="7">Jul</option>
+                        <option value="8">Aug</option>
+                        <option value="9">Sep</option>
+                        <option value="10">Oct</option>
+                        <option value="11">Nov</option>
+                        <option value="12">Dec</option>
+                      </select>
+                      <select
+                        value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getFullYear() : ''}
+                        onChange={(e) => {
+                          const year = e.target.value;
+                          const month = classificationData[picture.id]?.takenAt
+                            ? new Date(classificationData[picture.id].takenAt).getMonth() + 1
+                            : new Date().getMonth() + 1;
+                          if (year) {
+                            handleClassificationChange(picture.id, 'takenAt', `${year}-${String(month).padStart(2, '0')}-01`);
+                          } else {
+                            handleClassificationChange(picture.id, 'takenAt', '');
+                          }
+                        }}
+                        className="form-select date-select"
+                      >
+                        <option value="">Year</option>
+                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Nombre de bois</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={classificationData[picture.id]?.woodCount || ''}
+                      onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
+                      placeholder="e.g., 12"
+                      className="form-input picture-wood-input"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="picture-selected-indicator">
+                  <span className="selected-badge">Selected for bulk classification</span>
+                  <div className="form-group">
+                    <label>Nombre de bois</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={classificationData[picture.id]?.woodCount || ''}
+                      onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
+                      placeholder="e.g., 12"
+                      className="form-input picture-wood-input"
+                    />
+                  </div>
+                  <button
+                    className="btn-deselect"
+                    onClick={() => togglePictureSelection(picture.id)}
+                  >
+                    Deselect
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -441,20 +566,21 @@ const ImageClassifier = () => {
         </div>
 
         {/* Image Modal */}
-        {selectedImage && (
-          <div className="modal-overlay" onClick={() => setSelectedImage(null)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setSelectedImage(null)}>
-                ×
-              </button>
-              <img
-                src={getImageUrl(selectedImage.filePath)}
-                alt="Full size preview"
-                className="modal-image"
-              />
-            </div>
-          </div>
-        )}
+        <Modal.ImageViewer
+          isOpen={!!selectedImage}
+          onClose={() => setSelectedImage(null)}
+          images={pictureSet?.pictures?.map(p => ({
+            id: p.id,
+            src: getImageUrl(p.filePath),
+            alt: `Picture ${p.displayOrder}`,
+            displayOrder: p.displayOrder,
+          })) || []}
+          currentIndex={selectedImage ? pictureSet?.pictures?.findIndex(p => p.id === selectedImage.id) || 0 : 0}
+          onNavigate={(index) => setSelectedImage(pictureSet?.pictures?.[index])}
+          renderInfo={(img, index) => (
+            <span>#{img.displayOrder} of {pictureSet?.pictures?.length}</span>
+          )}
+        />
       </div>
     </div>
   );

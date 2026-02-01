@@ -65,23 +65,31 @@ router.get('/', async (req, res) => {
     });
 
     // For each category, count pictures and get thumbnail previews
-    // Pictures inherit category from their PictureSet
+    // Filter by individual Picture.categoryId (not PictureSet.categoryId)
     const categoriesWithCounts = await Promise.all(
       categories.map(async (category) => {
         try {
-          // Build the where clause for this category's pictures
-          const pictureSetFilter = {
-            status: 'APPROVED',
-            categoryId: category.id,
+          // Build the where clause for pictures in this category
+          const pictureFilter = {
+            categoryId: category.id, // Filter by Picture.categoryId
+            pictureSet: {
+              status: 'APPROVED',
+            },
           };
+
+          // Filter by type to ensure proper separation of photos and schematics
+          // Type is now per-picture, not per-set
+          if (type) {
+            pictureFilter.type = type;
+          }
 
           // Apply additional filters if provided
           if (groupId) {
-            pictureSetFilter.troupe = {
+            pictureFilter.pictureSet.troupe = {
               groupId: parseInt(groupId),
             };
           } else if (districtId) {
-            pictureSetFilter.troupe = {
+            pictureFilter.pictureSet.troupe = {
               group: {
                 districtId: parseInt(districtId),
               },
@@ -89,36 +97,55 @@ router.get('/', async (req, res) => {
           }
 
           if (dateFrom || dateTo) {
-            pictureSetFilter.uploadedAt = {};
-            if (dateFrom) pictureSetFilter.uploadedAt.gte = new Date(dateFrom);
+            pictureFilter.pictureSet.uploadedAt = {};
+            if (dateFrom) pictureFilter.pictureSet.uploadedAt.gte = new Date(dateFrom);
             if (dateTo) {
               const endDate = new Date(dateTo);
               endDate.setHours(23, 59, 59, 999);
-              pictureSetFilter.uploadedAt.lte = endDate;
+              pictureFilter.pictureSet.uploadedAt.lte = endDate;
             }
           }
 
-          // Count pictures in approved picture sets for this category
+          // Count pictures with this category
           const count = await prisma.picture.count({
-            where: {
-              pictureSet: pictureSetFilter,
-            },
+            where: pictureFilter,
           });
 
-          // Get up to 4 thumbnail pictures for preview
-          const thumbnailPictures = await prisma.picture.findMany({
-            where: {
-              pictureSet: pictureSetFilter,
-            },
-            select: {
-              id: true,
-              filePath: true,
-            },
-            orderBy: {
-              uploadedAt: 'desc',
-            },
-            take: 4,
-          });
+          // Get random thumbnail pictures for preview
+          // Prioritize photos over schematics when no type filter is set
+          let thumbnailPictures = [];
+          if (count > 0) {
+            // If no type filter, try to get photos first
+            if (!type) {
+              const photoFilter = { ...pictureFilter, type: 'INSTALLATION_PHOTO' };
+              const photoPictures = await prisma.picture.findMany({
+                where: photoFilter,
+                select: { id: true, filePath: true },
+              });
+
+              if (photoPictures.length > 0) {
+                // Use photos for thumbnails
+                const shuffled = photoPictures.sort(() => Math.random() - 0.5);
+                thumbnailPictures = shuffled.slice(0, 4);
+              } else {
+                // No photos, fall back to schematics
+                const allPictures = await prisma.picture.findMany({
+                  where: pictureFilter,
+                  select: { id: true, filePath: true },
+                });
+                const shuffled = allPictures.sort(() => Math.random() - 0.5);
+                thumbnailPictures = shuffled.slice(0, 4);
+              }
+            } else {
+              // Type filter is set, use all matching pictures
+              const allPictures = await prisma.picture.findMany({
+                where: pictureFilter,
+                select: { id: true, filePath: true },
+              });
+              const shuffled = allPictures.sort(() => Math.random() - 0.5);
+              thumbnailPictures = shuffled.slice(0, 4);
+            }
+          }
 
           return {
             ...category,
@@ -290,7 +317,7 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
       include: {
         subcategories: true,
         _count: {
-          select: { pictureSets: true },
+          select: { pictures: true },
         },
       },
     });
@@ -307,9 +334,9 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
     }
 
     // Check if category has pictures
-    if (existingCategory._count.pictureSets > 0) {
+    if (existingCategory._count.pictures > 0) {
       return res.status(400).json({
-        error: `Cannot delete category with ${existingCategory._count.pictureSets} picture(s). Remove or reassign pictures first.`
+        error: `Cannot delete category with ${existingCategory._count.pictures} picture(s). Remove or reassign pictures first.`
       });
     }
 
@@ -341,29 +368,29 @@ router.get('/:id/stats', authenticate, authorize('ADMIN'), async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    // Get picture counts by status
+    // Get picture counts by status (counting individual pictures, not sets)
     const [total, pending, classified, approved, rejected] = await Promise.all([
-      prisma.pictureSet.count({
+      prisma.picture.count({
         where: { categoryId: parseInt(id) },
       }),
-      prisma.pictureSet.count({
-        where: { categoryId: parseInt(id), status: 'PENDING' },
+      prisma.picture.count({
+        where: { categoryId: parseInt(id), pictureSet: { status: 'PENDING' } },
       }),
-      prisma.pictureSet.count({
-        where: { categoryId: parseInt(id), status: 'CLASSIFIED' },
+      prisma.picture.count({
+        where: { categoryId: parseInt(id), pictureSet: { status: 'CLASSIFIED' } },
       }),
-      prisma.pictureSet.count({
-        where: { categoryId: parseInt(id), status: 'APPROVED' },
+      prisma.picture.count({
+        where: { categoryId: parseInt(id), pictureSet: { status: 'APPROVED' } },
       }),
-      prisma.pictureSet.count({
-        where: { categoryId: parseInt(id), status: 'REJECTED' },
+      prisma.picture.count({
+        where: { categoryId: parseInt(id), pictureSet: { status: 'REJECTED' } },
       }),
     ]);
 
     // Get recent uploads (last 7 days)
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const recentUploads = await prisma.pictureSet.count({
+    const recentUploads = await prisma.picture.count({
       where: {
         categoryId: parseInt(id),
         uploadedAt: { gte: weekAgo },
@@ -456,7 +483,7 @@ router.patch('/:id/schematic', authenticate, authorize('ADMIN'), async (req, res
       include: {
         subcategories: true,
         _count: {
-          select: { pictureSets: true },
+          select: { pictures: true },
         },
       },
     });
@@ -580,7 +607,7 @@ router.patch('/:id/main-picture', authenticate, authorize('ADMIN'), async (req, 
         mainPicture: true,
         subcategories: true,
         _count: {
-          select: { pictureSets: true },
+          select: { pictures: true },
         },
       },
     });
@@ -596,7 +623,10 @@ router.patch('/:id/main-picture', authenticate, authorize('ADMIN'), async (req, 
 router.get('/:id/pictures', async (req, res) => {
   try {
     const { id } = req.params;
-    const { districtId, groupId, dateFrom, dateTo, woodCountMin, woodCountMax } = req.query;
+    const {
+      districtId, groupId, dateFrom, dateTo, woodCountMin, woodCountMax, type,
+      dateDoneMonth, dateDoneYear, sortBy, sortOrder
+    } = req.query;
 
     // Check if category exists
     const category = await prisma.category.findUnique({
@@ -607,18 +637,28 @@ router.get('/:id/pictures', async (req, res) => {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    // Build where clause for picture set filtering
-    const pictureSetWhere = {
-      status: 'APPROVED',
+    // Build where clause for picture filtering
+    // Filter by Picture.categoryId (individual picture category, not set)
+    const pictureWhere = {
+      categoryId: parseInt(id), // Filter by Picture.categoryId
+      pictureSet: {
+        status: 'APPROVED',
+      },
     };
+
+    // Filter by picture type (INSTALLATION_PHOTO or SCHEMATIC)
+    // Type is now per-picture, not per-set
+    if (type) {
+      pictureWhere.type = type;
+    }
 
     // Apply filters
     if (groupId) {
-      pictureSetWhere.troupe = {
+      pictureWhere.pictureSet.troupe = {
         groupId: parseInt(groupId),
       };
     } else if (districtId) {
-      pictureSetWhere.troupe = {
+      pictureWhere.pictureSet.troupe = {
         group: {
           districtId: parseInt(districtId),
         },
@@ -627,30 +667,66 @@ router.get('/:id/pictures', async (req, res) => {
 
     // Filter by upload date range
     if (dateFrom || dateTo) {
-      pictureSetWhere.uploadedAt = {};
-      if (dateFrom) pictureSetWhere.uploadedAt.gte = new Date(dateFrom);
+      pictureWhere.pictureSet.uploadedAt = {};
+      if (dateFrom) pictureWhere.pictureSet.uploadedAt.gte = new Date(dateFrom);
       if (dateTo) {
         const endDate = new Date(dateTo);
         endDate.setHours(23, 59, 59, 999); // Include the entire end date
-        pictureSetWhere.uploadedAt.lte = endDate;
+        pictureWhere.pictureSet.uploadedAt.lte = endDate;
       }
     }
 
     // Filter by wood count range
     if (woodCountMin || woodCountMax) {
-      pictureSetWhere.woodCount = {};
-      if (woodCountMin) pictureSetWhere.woodCount.gte = parseInt(woodCountMin);
-      if (woodCountMax) pictureSetWhere.woodCount.lte = parseInt(woodCountMax);
+      pictureWhere.pictureSet.woodCount = {};
+      if (woodCountMin) pictureWhere.pictureSet.woodCount.gte = parseInt(woodCountMin);
+      if (woodCountMax) pictureWhere.pictureSet.woodCount.lte = parseInt(woodCountMax);
     }
 
-    // Get pictures that belong to this category (via pictureSet.categoryId)
+    // Filter by takenAt (date done) month and year
+    if (dateDoneMonth || dateDoneYear) {
+      const year = dateDoneYear ? parseInt(dateDoneYear) : new Date().getFullYear();
+      const month = dateDoneMonth ? parseInt(dateDoneMonth) : null;
+
+      if (month) {
+        // Filter by specific month and year
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of month
+        pictureWhere.takenAt = {
+          gte: startDate,
+          lte: endDate,
+        };
+      } else if (dateDoneYear) {
+        // Filter by year only
+        const startDate = new Date(year, 0, 1);
+        const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+        pictureWhere.takenAt = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+    }
+
+    // Build order by clause
+    let orderByClause;
+    const order = sortOrder === 'asc' ? 'asc' : 'desc';
+
+    switch (sortBy) {
+      case 'woodCount':
+        orderByClause = { pictureSet: { woodCount: order } };
+        break;
+      case 'dateDone':
+        orderByClause = { takenAt: order };
+        break;
+      case 'uploadDate':
+      default:
+        orderByClause = { pictureSet: { uploadedAt: order } };
+        break;
+    }
+
+    // Get pictures that belong to this category (via Picture.categoryId)
     const pictures = await prisma.picture.findMany({
-      where: {
-        pictureSet: {
-          ...pictureSetWhere,
-          categoryId: parseInt(id),
-        },
-      },
+      where: pictureWhere,
       include: {
         category: true,
         pictureSet: {
@@ -675,11 +751,7 @@ router.get('/:id/pictures', async (req, res) => {
           },
         },
       },
-      orderBy: {
-        pictureSet: {
-          uploadedAt: 'desc',
-        },
-      },
+      orderBy: orderByClause,
     });
 
     // Transform to expected format

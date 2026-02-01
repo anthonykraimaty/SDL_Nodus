@@ -41,7 +41,12 @@
       "Bash(timeout /t 5 /nobreak)",
       "Bash(del \"K:\\\\Projects\\\\SDL\\\\nodus\\\\frontend\\\\src\\\\pages\\\\SchematicGallery.jsx\")",
       "Bash(del \"K:\\\\Projects\\\\SDL\\\\nodus\\\\frontend\\\\src\\\\pages\\\\SchematicGallery.css\")",
-      "Bash(node prisma/seedCTs.js:*)"
+      "Bash(node prisma/seedCTs.js:*)",
+      "Bash(git commit:*)",
+      "Bash(scripts/db-dump-local.bat:*)",
+      "Bash(scriptsdb-sync.bat)",
+      "Bash(node check-categories.js:*)",
+      "Bash(node fix-categories.js:*)"
     ],
     "deny": [],
     "ask": []

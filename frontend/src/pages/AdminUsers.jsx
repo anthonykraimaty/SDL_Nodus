@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import * as XLSX from 'xlsx';
 import './AdminUsers.css';
 
@@ -17,6 +18,12 @@ const AdminUsers = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
+
+  // Never logged in users
+  const [neverLoggedInUsers, setNeverLoggedInUsers] = useState([]);
+  const [showNeverLoggedIn, setShowNeverLoggedIn] = useState(false);
+  const [loadingNeverLoggedIn, setLoadingNeverLoggedIn] = useState(false);
+  const [neverLoggedInSortKeys, setNeverLoggedInSortKeys] = useState([]); // Array of {key, direction}
 
   const [userForm, setUserForm] = useState({
     name: '',
@@ -45,6 +52,96 @@ const AdminUsers = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const loadNeverLoggedInUsers = async () => {
+    try {
+      setLoadingNeverLoggedIn(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/admin/users/never-logged-in`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await response.json();
+      setNeverLoggedInUsers(data);
+    } catch (err) {
+      setError('Failed to load never-logged-in users');
+    } finally {
+      setLoadingNeverLoggedIn(false);
+    }
+  };
+
+  const exportNeverLoggedInCSV = () => {
+    const exportData = neverLoggedInUsers.map(u => ({
+      District: u.district || '',
+      Groupe: u.group || '',
+      Name: u.name || '',
+      Email: u.email || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Never Logged In Users');
+    XLSX.writeFile(wb, 'never_logged_in_users.csv');
+  };
+
+  const toggleNeverLoggedIn = () => {
+    if (!showNeverLoggedIn && neverLoggedInUsers.length === 0) {
+      loadNeverLoggedInUsers();
+    }
+    setShowNeverLoggedIn(!showNeverLoggedIn);
+  };
+
+  // Multi-column sorting for never-logged-in users
+  // Each new column click adds to the sort chain - sorts within the already sorted results
+  const handleNeverLoggedInSort = (key) => {
+    setNeverLoggedInSortKeys(prev => {
+      const existingIndex = prev.findIndex(s => s.key === key);
+
+      if (existingIndex === -1) {
+        // Add new sort key to the END of the chain (sorts within current sort)
+        return [...prev, { key, direction: 'asc' }];
+      } else {
+        // Toggle direction or remove if already desc
+        const existing = prev[existingIndex];
+        if (existing.direction === 'asc') {
+          // Change to desc
+          const newKeys = [...prev];
+          newKeys[existingIndex] = { key, direction: 'desc' };
+          return newKeys;
+        } else {
+          // Remove from sort chain
+          return prev.filter((_, i) => i !== existingIndex);
+        }
+      }
+    });
+  };
+
+  const clearNeverLoggedInSort = () => {
+    setNeverLoggedInSortKeys([]);
+  };
+
+  const getNeverLoggedInSortIndicator = (key) => {
+    const sortItem = neverLoggedInSortKeys.find(s => s.key === key);
+    if (!sortItem) return <span className="sort-indicator-inactive">↕</span>;
+    const position = neverLoggedInSortKeys.indexOf(sortItem) + 1;
+    return (
+      <span className="sort-indicator-active">
+        {sortItem.direction === 'asc' ? '↑' : '↓'}
+        <span className="sort-position">{position}</span>
+      </span>
+    );
+  };
+
+  // Sort the never-logged-in users based on sort keys chain
+  const sortedNeverLoggedInUsers = [...neverLoggedInUsers].sort((a, b) => {
+    for (const { key, direction } of neverLoggedInSortKeys) {
+      const aValue = (a[key] || '').toLowerCase();
+      const bValue = (b[key] || '').toLowerCase();
+
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+    }
+    return 0;
+  });
 
   const loadData = async () => {
     try {
@@ -461,6 +558,95 @@ const AdminUsers = () => {
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
+        {/* Never Logged In Dashboard */}
+        <div className="never-logged-in-section">
+          <button
+            onClick={toggleNeverLoggedIn}
+            className={`btn-toggle-dashboard ${showNeverLoggedIn ? 'active' : ''}`}
+          >
+            {showNeverLoggedIn ? 'Masquer' : 'Afficher'} les utilisateurs jamais connectés
+            {!showNeverLoggedIn && neverLoggedInUsers.length > 0 && (
+              <span className="badge">{neverLoggedInUsers.length}</span>
+            )}
+          </button>
+
+          {showNeverLoggedIn && (
+            <div className="never-logged-in-dashboard">
+              <div className="dashboard-header">
+                <h3>Utilisateurs jamais connectés</h3>
+                {neverLoggedInUsers.length > 0 && (
+                  <button onClick={exportNeverLoggedInCSV} className="btn-export-csv">
+                    Télécharger CSV
+                  </button>
+                )}
+              </div>
+
+              {loadingNeverLoggedIn ? (
+                <div className="loading-inline">
+                  <div className="spinner-small"></div>
+                  <span>Chargement...</span>
+                </div>
+              ) : neverLoggedInUsers.length === 0 ? (
+                <div className="empty-state-inline">
+                  <span>Tous les utilisateurs se sont déjà connectés!</span>
+                </div>
+              ) : (
+                <>
+                  {neverLoggedInSortKeys.length > 0 && (
+                    <div className="sort-info-bar">
+                      <span>Tri: {neverLoggedInSortKeys.map((s, i) => (
+                        <span key={s.key} className="sort-tag">
+                          {i > 0 && ' → '}
+                          {s.key === 'district' ? 'District' : s.key === 'group' ? 'Groupe' : s.key === 'name' ? 'Nom' : 'Email'}
+                          {s.direction === 'asc' ? ' ↑' : ' ↓'}
+                        </span>
+                      ))}</span>
+                      <button onClick={clearNeverLoggedInSort} className="btn-clear-sort">
+                        Effacer tri
+                      </button>
+                    </div>
+                  )}
+                  <div className="never-logged-in-table-container">
+                    <table className="never-logged-in-table">
+                      <thead>
+                        <tr>
+                          <th className="sortable-header" onClick={() => handleNeverLoggedInSort('district')}>
+                            District {getNeverLoggedInSortIndicator('district')}
+                          </th>
+                          <th className="sortable-header" onClick={() => handleNeverLoggedInSort('group')}>
+                            Groupe {getNeverLoggedInSortIndicator('group')}
+                          </th>
+                          <th className="sortable-header" onClick={() => handleNeverLoggedInSort('name')}>
+                            Nom {getNeverLoggedInSortIndicator('name')}
+                          </th>
+                          <th className="sortable-header" onClick={() => handleNeverLoggedInSort('email')}>
+                            Email {getNeverLoggedInSortIndicator('email')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedNeverLoggedInUsers.map((u) => (
+                          <tr key={u.id}>
+                            <td>{u.district || '-'}</td>
+                            <td>{u.group || '-'}</td>
+                            <td>{u.name}</td>
+                            <td>{u.email}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              <div className="dashboard-footer">
+                <span className="count-label">
+                  {neverLoggedInUsers.length} utilisateur{neverLoggedInUsers.length !== 1 ? 's' : ''} jamais connecté{neverLoggedInUsers.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Search Bar */}
         <div className="search-container">
           <input
@@ -587,143 +773,144 @@ const AdminUsers = () => {
       </div>
 
       {/* User Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={resetForm}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{editingUser ? 'Edit User' : 'Create New User'}</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Name *</label>
+      <Modal
+        isOpen={showModal}
+        onClose={resetForm}
+        title={editingUser ? 'Edit User' : 'Create New User'}
+        size="medium"
+      >
+        <form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <div className="form-group">
+              <label>Name *</label>
+              <input
+                type="text"
+                value={userForm.name}
+                onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Email *</label>
+              <input
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password {!editingUser && '*'}</label>
+              <input
+                type="password"
+                value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                required={!editingUser}
+                placeholder={editingUser ? 'Leave blank to keep current' : ''}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Role *</label>
+              <select
+                value={userForm.role}
+                onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                required
+              >
+                <option value="CHEF_TROUPE">Chef Troupe</option>
+                <option value="BRANCHE_ECLAIREURS">Branche Éclaireurs</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </div>
+
+            {userForm.role === 'CHEF_TROUPE' && (
+              <>
+                <div className="form-group">
+                  <label>District *</label>
+                  <select
+                    value={selectedDistrict}
+                    onChange={(e) => handleDistrictChange(e.target.value)}
+                    required
+                  >
+                    <option value="">Select District</option>
+                    {getDistricts().map(district => (
+                      <option key={district.id} value={district.id}>
+                        {district.name} ({district.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Group *</label>
+                  <select
+                    value={selectedGroup}
+                    onChange={(e) => handleGroupChange(e.target.value)}
+                    disabled={!selectedDistrict}
+                    required
+                  >
+                    <option value="">Select Group</option>
+                    {getGroupsForDistrict(selectedDistrict).map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Troupe *</label>
+                  <select
+                    value={userForm.troupeId}
+                    onChange={(e) => setUserForm({ ...userForm, troupeId: e.target.value })}
+                    disabled={!selectedGroup}
+                    required
+                  >
+                    <option value="">Select Troupe</option>
+                    {troupes.filter(t => t.groupId === parseInt(selectedGroup)).map(troupe => (
+                      <option key={troupe.id} value={troupe.id}>
+                        {troupe.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div className="form-group checkbox-group">
+              <label>
                 <input
-                  type="text"
-                  value={userForm.name}
-                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                  required
+                  type="checkbox"
+                  checked={userForm.isActive}
+                  onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })}
                 />
-              </div>
+                <span>Active</span>
+              </label>
+            </div>
 
-              <div className="form-group">
-                <label>Email *</label>
+            <div className="form-group checkbox-group">
+              <label>
                 <input
-                  type="email"
-                  value={userForm.email}
-                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  required
+                  type="checkbox"
+                  checked={userForm.forcePasswordChange}
+                  onChange={(e) => setUserForm({ ...userForm, forcePasswordChange: e.target.checked })}
                 />
-              </div>
-
-              <div className="form-group">
-                <label>Password {!editingUser && '*'}</label>
-                <input
-                  type="password"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  required={!editingUser}
-                  placeholder={editingUser ? 'Leave blank to keep current' : ''}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Role *</label>
-                <select
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                  required
-                >
-                  <option value="CHEF_TROUPE">Chef Troupe</option>
-                  <option value="BRANCHE_ECLAIREURS">Branche Éclaireurs</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
-
-              {userForm.role === 'CHEF_TROUPE' && (
-                <>
-                  <div className="form-group">
-                    <label>District *</label>
-                    <select
-                      value={selectedDistrict}
-                      onChange={(e) => handleDistrictChange(e.target.value)}
-                      required
-                    >
-                      <option value="">Select District</option>
-                      {getDistricts().map(district => (
-                        <option key={district.id} value={district.id}>
-                          {district.name} ({district.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Group *</label>
-                    <select
-                      value={selectedGroup}
-                      onChange={(e) => handleGroupChange(e.target.value)}
-                      disabled={!selectedDistrict}
-                      required
-                    >
-                      <option value="">Select Group</option>
-                      {getGroupsForDistrict(selectedDistrict).map(group => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Troupe *</label>
-                    <select
-                      value={userForm.troupeId}
-                      onChange={(e) => setUserForm({ ...userForm, troupeId: e.target.value })}
-                      disabled={!selectedGroup}
-                      required
-                    >
-                      <option value="">Select Troupe</option>
-                      {troupes.filter(t => t.groupId === parseInt(selectedGroup)).map(troupe => (
-                        <option key={troupe.id} value={troupe.id}>
-                          {troupe.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              <div className="form-group checkbox-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={userForm.isActive}
-                    onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })}
-                  />
-                  <span>Active</span>
-                </label>
-              </div>
-
-              <div className="form-group checkbox-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={userForm.forcePasswordChange}
-                    onChange={(e) => setUserForm({ ...userForm, forcePasswordChange: e.target.checked })}
-                  />
-                  <span>Force Password Change on Next Login</span>
-                </label>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={resetForm} className="btn-cancel">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit primary">
-                  {editingUser ? 'Update' : 'Create'} User
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <span>Force Password Change on Next Login</span>
+              </label>
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              {editingUser ? 'Update' : 'Create'} User
+            </button>
+            <button type="button" onClick={resetForm} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
     </div>
   );
 };

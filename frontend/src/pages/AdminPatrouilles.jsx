@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import Modal from '../components/Modal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -487,112 +488,113 @@ const AdminPatrouilles = () => {
       </div>
 
       {/* Patrouille Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={resetForm}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{editingPatrouille ? 'Edit Patrouille' : 'Create New Patrouille'}</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Name *</label>
-                <input
-                  type="text"
-                  value={patrouilleForm.name}
-                  onChange={(e) => setPatrouilleForm({ ...patrouilleForm, name: e.target.value })}
-                  required
-                  placeholder="e.g., Renards"
-                />
-              </div>
+      <Modal
+        isOpen={showModal}
+        onClose={resetForm}
+        title={editingPatrouille ? 'Edit Patrouille' : 'Create New Patrouille'}
+        size="medium"
+      >
+        <form onSubmit={handleSubmit}>
+          <Modal.Body>
+            <div className="form-group">
+              <label>Name *</label>
+              <input
+                type="text"
+                value={patrouilleForm.name}
+                onChange={(e) => setPatrouilleForm({ ...patrouilleForm, name: e.target.value })}
+                required
+                placeholder="e.g., Renards"
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Totem *</label>
-                <input
-                  type="text"
-                  value={patrouilleForm.totem}
-                  onChange={(e) => setPatrouilleForm({ ...patrouilleForm, totem: e.target.value })}
-                  required
-                  placeholder="e.g., Renard Rusé"
-                />
-              </div>
+            <div className="form-group">
+              <label>Totem *</label>
+              <input
+                type="text"
+                value={patrouilleForm.totem}
+                onChange={(e) => setPatrouilleForm({ ...patrouilleForm, totem: e.target.value })}
+                required
+                placeholder="e.g., Renard Rusé"
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Cri *</label>
-                <input
-                  type="text"
-                  value={patrouilleForm.cri}
-                  onChange={(e) => setPatrouilleForm({ ...patrouilleForm, cri: e.target.value })}
-                  required
-                  placeholder="e.g., Ouah!"
-                />
-              </div>
+            <div className="form-group">
+              <label>Cri *</label>
+              <input
+                type="text"
+                value={patrouilleForm.cri}
+                onChange={(e) => setPatrouilleForm({ ...patrouilleForm, cri: e.target.value })}
+                required
+                placeholder="e.g., Ouah!"
+              />
+            </div>
 
-              <div className="form-group">
-                <label>District *</label>
-                <select
-                  value={selectedDistrict}
-                  onChange={(e) => handleDistrictChange(e.target.value)}
-                  required
-                >
-                  <option value="">Select District</option>
-                  {getDistricts().map((district) => (
-                    <option key={district.id} value={district.id}>
-                      {district.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="form-group">
+              <label>District *</label>
+              <select
+                value={selectedDistrict}
+                onChange={(e) => handleDistrictChange(e.target.value)}
+                required
+              >
+                <option value="">Select District</option>
+                {getDistricts().map((district) => (
+                  <option key={district.id} value={district.id}>
+                    {district.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              <div className="form-group">
-                <label>Group *</label>
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => handleGroupChange(e.target.value)}
-                  required
-                  disabled={!selectedDistrict}
-                >
-                  <option value="">Select Group</option>
-                  {getGroupsForDistrict().map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-                {!selectedDistrict && (
-                  <small>Please select a district first</small>
-                )}
-              </div>
+            <div className="form-group">
+              <label>Group *</label>
+              <select
+                value={selectedGroup}
+                onChange={(e) => handleGroupChange(e.target.value)}
+                required
+                disabled={!selectedDistrict}
+              >
+                <option value="">Select Group</option>
+                {getGroupsForDistrict().map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+              {!selectedDistrict && (
+                <small>Please select a district first</small>
+              )}
+            </div>
 
-              <div className="form-group">
-                <label>Troupe *</label>
-                <select
-                  value={patrouilleForm.troupeId}
-                  onChange={(e) => setPatrouilleForm({ ...patrouilleForm, troupeId: e.target.value })}
-                  required
-                  disabled={!selectedGroup}
-                >
-                  <option value="">Select Troupe</option>
-                  {getTroupesForGroup().map((troupe) => (
-                    <option key={troupe.id} value={troupe.id}>
-                      {troupe.name}
-                    </option>
-                  ))}
-                </select>
-                {!selectedGroup && (
-                  <small>Please select a group first</small>
-                )}
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={resetForm} className="btn-cancel">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit primary">
-                  {editingPatrouille ? 'Update' : 'Create'} Patrouille
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="form-group">
+              <label>Troupe *</label>
+              <select
+                value={patrouilleForm.troupeId}
+                onChange={(e) => setPatrouilleForm({ ...patrouilleForm, troupeId: e.target.value })}
+                required
+                disabled={!selectedGroup}
+              >
+                <option value="">Select Troupe</option>
+                {getTroupesForGroup().map((troupe) => (
+                  <option key={troupe.id} value={troupe.id}>
+                    {troupe.name}
+                  </option>
+                ))}
+              </select>
+              {!selectedGroup && (
+                <small>Please select a group first</small>
+              )}
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              {editingPatrouille ? 'Update' : 'Create'} Patrouille
+            </button>
+            <button type="button" onClick={resetForm} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
     </div>
   );
 };

@@ -185,6 +185,27 @@ export const pictureService = {
   reject: (id, rejectionReason) => api.post(`/api/pictures/${id}/reject`, { rejectionReason }, true),
   delete: (id) => api.delete(`/api/pictures/${id}`, true),
   deletePicture: (setId, pictureId) => api.delete(`/api/pictures/${setId}/picture/${pictureId}`, true),
+  // Individual picture management (admin)
+  getIndividualPictures: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/pictures/individual/list${query ? '?' + query : ''}`, true);
+  },
+  updateIndividualPicture: (pictureId, data) => api.put(`/api/pictures/individual/${pictureId}`, data, true),
+  deleteIndividualPicture: (pictureId) => api.delete(`/api/pictures/individual/${pictureId}`, true),
+  // Bulk operations (admin)
+  bulkUpdatePictures: (pictureIds, updates) => api.put('/api/pictures/individual/bulk-update', { pictureIds, updates }, true),
+  bulkDeletePictures: async (pictureIds) => {
+    const response = await fetch(`${API_URL}/api/pictures/individual/bulk-delete`, {
+      method: 'DELETE',
+      headers: getHeaders(true),
+      body: JSON.stringify({ pictureIds }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
 };
 
 // Categories
@@ -216,6 +237,11 @@ export const analyticsService = {
     return api.get(`/api/analytics/participation${query ? '?' + query : ''}`, true);
   },
   getPictureStats: () => api.get('/api/analytics/pictures/stats', true),
+  // Sync tools (admin only)
+  checkCategorySync: () => api.get('/api/analytics/sync-picture-categories', true),
+  syncCategories: () => api.post('/api/analytics/sync-picture-categories', {}, true),
+  checkTypeSync: () => api.get('/api/analytics/sync-picture-types', true),
+  syncTypes: () => api.post('/api/analytics/sync-picture-types', {}, true),
 };
 
 // Schematics
