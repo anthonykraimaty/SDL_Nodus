@@ -1,9 +1,14 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize, canModifyPicture, optionalAuth } from '../middleware/auth.js';
 import { upload, handleUploadError, processUpload } from '../middleware/upload.js';
 import { deleteFromR2, isR2Configured, uploadMultipleToR2 } from '../services/r2Storage.js';
 import fs from 'fs/promises';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -996,6 +1001,181 @@ router.put('/individual/:pictureId', authenticate, authorize('ADMIN'), async (re
     res.status(500).json({ error: 'Failed to update picture' });
   }
 });
+
+// GET /api/pictures/:pictureId/image-proxy - Proxy image for canvas editing (CORS-safe)
+router.get('/:pictureId/image-proxy', authenticate, async (req, res) => {
+  try {
+    const { pictureId } = req.params;
+
+    const picture = await prisma.picture.findUnique({
+      where: { id: parseInt(pictureId) },
+      include: {
+        pictureSet: true,
+      },
+    });
+
+    if (!picture) {
+      return res.status(404).json({ error: 'Picture not found' });
+    }
+
+    // Set CORS headers
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Cache-Control', 'public, max-age=3600');
+
+    const filePath = picture.filePath;
+
+    if (filePath.startsWith('http')) {
+      // R2/CDN URL - fetch and proxy
+      const response = await fetch(filePath);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'Failed to fetch image' });
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      res.header('Content-Type', contentType);
+
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } else {
+      // Local file - send directly
+      const absolutePath = path.join(__dirname, '../../', filePath);
+      res.sendFile(absolutePath);
+    }
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    res.status(500).json({ error: 'Failed to proxy image' });
+  }
+});
+
+// PUT /api/pictures/:pictureId/edit-image - Replace picture with edited version
+// - Owner can edit from non-approved sets (PENDING, CLASSIFIED)
+// - Branche can edit from CLASSIFIED sets (during review)
+// - Admin can edit any set
+router.put(
+  '/:pictureId/edit-image',
+  authenticate,
+  upload.single('picture'),
+  handleUploadError,
+  async (req, res) => {
+    try {
+      const { pictureId } = req.params;
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+      }
+
+      const picture = await prisma.picture.findUnique({
+        where: { id: parseInt(pictureId) },
+        include: {
+          pictureSet: {
+            include: {
+              troupe: {
+                include: {
+                  group: {
+                    include: { district: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!picture) {
+        return res.status(404).json({ error: 'Picture not found' });
+      }
+
+      const isOwner = picture.pictureSet.uploadedById === req.user.id;
+      const isAdmin = req.user.role === 'ADMIN';
+      const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
+      const status = picture.pictureSet.status;
+
+      // Check permissions
+      let canEdit = false;
+      if (isAdmin) {
+        canEdit = true;
+      } else if (isBranche && (status === 'CLASSIFIED' || status === 'PENDING')) {
+        // Branche can edit during review (CLASSIFIED) or classification (PENDING)
+        // Check district access
+        const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+          where: { userId: req.user.id },
+          select: { districtId: true },
+        });
+        const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+        const pictureDistrictId = picture.pictureSet.troupe?.group?.district?.id;
+        canEdit = allowedDistrictIds.length === 0 || allowedDistrictIds.includes(pictureDistrictId);
+      } else if (isOwner && (status === 'PENDING' || status === 'CLASSIFIED')) {
+        canEdit = true;
+      }
+
+      if (!canEdit) {
+        return res.status(403).json({
+          error: 'You do not have permission to edit this picture',
+        });
+      }
+
+      // Delete old file from storage
+      const oldFilePath = picture.filePath;
+      try {
+        if (oldFilePath.startsWith('http')) {
+          await deleteFromR2(oldFilePath);
+        } else {
+          await fs.unlink(oldFilePath).catch(() => {});
+        }
+      } catch (fileError) {
+        console.error(`Failed to delete old file ${oldFilePath}:`, fileError);
+      }
+
+      // Handle new file path based on storage type (R2 or local)
+      let newFilePath;
+
+      if (isR2Configured()) {
+        // Upload to R2
+        const { uploadToR2 } = await import('../services/r2Storage.js');
+        const result = await uploadToR2(
+          req.file.buffer,
+          req.file.originalname,
+          req.file.mimetype
+        );
+        newFilePath = result.url;
+      } else {
+        // Local storage - file is already saved by multer
+        const relativePath = req.file.path.replace(/\\/g, '/').split('/uploads/').pop();
+        newFilePath = `uploads/${relativePath}`;
+      }
+
+      // Update picture record with new file path
+      const updatedPicture = await prisma.picture.update({
+        where: { id: parseInt(pictureId) },
+        data: { filePath: newFilePath },
+        include: {
+          category: true,
+          pictureSet: {
+            include: {
+              uploadedBy: { select: { id: true, name: true } },
+              troupe: {
+                include: {
+                  group: {
+                    include: { district: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      res.json({
+        message: 'Picture updated successfully',
+        picture: updatedPicture,
+      });
+    } catch (error) {
+      console.error('Edit picture error:', error);
+      res.status(500).json({ error: 'Failed to edit picture' });
+    }
+  }
+);
 
 // DELETE /api/pictures/individual/:pictureId - Delete individual picture (admin only)
 router.delete('/individual/:pictureId', authenticate, authorize('ADMIN'), async (req, res) => {

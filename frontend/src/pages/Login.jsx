@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ChangePassword from '../components/ChangePassword';
 import './Login.css';
@@ -13,6 +13,10 @@ const Login = () => {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Get redirect path from query params (used by share-target)
+  const redirectPath = searchParams.get('redirect') || '/dashboard';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,7 +30,7 @@ const Login = () => {
       if (result.forcePasswordChange) {
         setShowChangePassword(true);
       } else {
-        navigate('/dashboard');
+        navigate(redirectPath);
       }
     } catch (err) {
       setError(err.message || 'Échec de connexion');
@@ -37,7 +41,7 @@ const Login = () => {
 
   const handlePasswordChangeSuccess = () => {
     setShowChangePassword(false);
-    navigate('/dashboard');
+    navigate(redirectPath);
   };
 
   const handlePasswordChangeCancel = () => {

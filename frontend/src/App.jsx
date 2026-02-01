@@ -26,6 +26,7 @@ import ProfileSettings from './pages/ProfileSettings';
 import SchematicUpload from './pages/SchematicUpload';
 import SchematicReview from './pages/SchematicReview';
 import SchematicProgress from './pages/SchematicProgress';
+import ShareTarget from './pages/ShareTarget';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
@@ -72,6 +73,7 @@ function App() {
             <Route path="category/:categoryId" element={<CategoryView />} />
             <Route path="schematics" element={<SchematicProgress />} />
             <Route path="login" element={<Login />} />
+            <Route path="share-target" element={<ShareTarget />} />
 
             {/* Protected Routes */}
             <Route

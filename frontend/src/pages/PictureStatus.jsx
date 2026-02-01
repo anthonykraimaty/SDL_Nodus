@@ -252,6 +252,14 @@ const PictureStatus = () => {
               </span>
             </div>
             <div className="metadata-item">
+              <strong>District:</strong>
+              <span>{pictureSet.troupe?.group?.district?.name || 'Not assigned'}</span>
+            </div>
+            <div className="metadata-item">
+              <strong>Group:</strong>
+              <span>{pictureSet.troupe?.group?.name || 'Not assigned'}</span>
+            </div>
+            <div className="metadata-item">
               <strong>Troupe:</strong>
               <span>{pictureSet.troupe?.name || 'Not assigned'}</span>
             </div>

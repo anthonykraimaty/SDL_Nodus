@@ -287,11 +287,68 @@
   color: var(--error);
 }
 
+/* Thumbnail Size Control */
+.thumbnail-size-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md, 1rem);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  padding: var(--spacing-sm, 0.5rem) var(--spacing-lg, 1.5rem);
+  background: var(--bg-medium);
+  border-radius: var(--radius-md, 8px);
+  max-width: 300px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.thumbnail-size-control .size-label {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.thumbnail-size-control .size-slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.thumbnail-size-control .size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.thumbnail-size-control .size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.thumbnail-size-control .size-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: none;
+}
+
 /* Pictures Grid */
 .pictures-grid {
+  --thumbnail-min-size: 350px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--spacing-lg, 1.5rem);
+  grid-template-columns: repeat(auto-fill, minmax(var(--thumbnail-min-size), 1fr));
+  gap: var(--spacing-xl, 2rem);
   margin-top: var(--spacing-xl, 2rem);
 }
 
@@ -447,8 +504,8 @@
 /* Responsive Design */
 @media (max-width: 1024px) {
   .pictures-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--spacing-md, 1rem);
+    --thumbnail-min-size: 280px;
+    gap: var(--spacing-lg, 1.5rem);
   }
 
   .category-header h1 {
@@ -462,12 +519,16 @@
   }
 
   .pictures-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: var(--spacing-sm, 0.5rem);
+    --thumbnail-min-size: 200px;
+    gap: var(--spacing-md, 1rem);
   }
 
   .category-header h1 {
     font-size: 1.75rem;
+  }
+
+  .thumbnail-size-control {
+    max-width: 250px;
   }
 
   .category-description {

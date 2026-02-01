@@ -192,6 +192,21 @@ export const pictureService = {
   },
   updateIndividualPicture: (pictureId, data) => api.put(`/api/pictures/individual/${pictureId}`, data, true),
   deleteIndividualPicture: (pictureId) => api.delete(`/api/pictures/individual/${pictureId}`, true),
+  // Edit picture image (crop/rotate)
+  editImage: async (pictureId, imageBlob) => {
+    const formData = new FormData();
+    formData.append('picture', imageBlob, 'edited-image.jpg');
+    const response = await fetch(`${API_URL}/api/pictures/${pictureId}/edit-image`, {
+      method: 'PUT',
+      headers: getHeaders(true, true), // Auth but no Content-Type (FormData sets it)
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
   // Bulk operations (admin)
   bulkUpdatePictures: (pictureIds, updates) => api.put('/api/pictures/individual/bulk-update', { pictureIds, updates }, true),
   bulkDeletePictures: async (pictureIds) => {

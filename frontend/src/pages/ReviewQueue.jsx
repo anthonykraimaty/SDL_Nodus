@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ImageEditor from '../components/ImageEditor';
 import './ReviewQueue.css';
 
 const ReviewQueue = () => {
@@ -21,6 +22,7 @@ const ReviewQueue = () => {
   const [showRejectModal, setShowRejectModal] = useState(null);
   // Track excluded pictures per set: { setId: Set of pictureIds }
   const [excludedPictures, setExcludedPictures] = useState({});
+  const [editingPicture, setEditingPicture] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -245,6 +247,16 @@ const ReviewQueue = () => {
                         {picture.category && (
                           <div className="picture-category-label">{picture.category.name}</div>
                         )}
+                        <button
+                          className="picture-edit-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPicture(picture);
+                          }}
+                          title="Edit image (crop/rotate)"
+                        >
+                          ✎
+                        </button>
                         {isPictureExcluded(set.id, picture.id) ? (
                           <div className="picture-excluded-badge">
                             ✗
@@ -354,6 +366,35 @@ const ReviewQueue = () => {
               src={getImageUrl(selectedImage.filePath)}
               alt="Full size preview"
               style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '8px' }}
+            />
+          )}
+        </Modal>
+
+        {/* Image Editor Modal */}
+        <Modal
+          isOpen={!!editingPicture}
+          onClose={() => setEditingPicture(null)}
+          title={`Edit Image #${editingPicture?.displayOrder || ''}`}
+          size="fullscreen"
+          closeOnOverlay={false}
+        >
+          {editingPicture && (
+            <ImageEditor
+              imageUrl={getImageUrl(editingPicture.filePath)}
+              pictureId={editingPicture.id}
+              onCancel={() => setEditingPicture(null)}
+              onSave={async (blob, pictureId) => {
+                try {
+                  await pictureService.editImage(pictureId, blob);
+                  setSuccess('Image updated successfully!');
+                  setEditingPicture(null);
+                  // Reload data to get updated image
+                  await loadData();
+                } catch (err) {
+                  console.error('Failed to save edited image:', err);
+                  setError('Failed to save edited image: ' + err.message);
+                }
+              }}
             />
           )}
         </Modal>

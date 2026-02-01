@@ -32,6 +32,9 @@ const CategoryView = () => {
   const [sortBy, setSortBy] = useState('uploadDate'); // 'uploadDate', 'woodCount', 'dateDone'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
 
+  // Thumbnail size state (0-100, default 50)
+  const [thumbnailSize, setThumbnailSize] = useState(50);
+
   useEffect(() => {
     loadCategoryPictures();
   }, [categoryId, typeFilter, sortBy, sortOrder]);
@@ -338,6 +341,34 @@ const CategoryView = () => {
           )}
         </div>
 
+        {/* Thumbnail Size Slider */}
+        {pictures.length > 0 && (
+          <div className="thumbnail-size-control">
+            <span className="size-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={thumbnailSize}
+              onChange={(e) => setThumbnailSize(parseInt(e.target.value))}
+              className="size-slider"
+              aria-label="Taille des miniatures"
+            />
+            <span className="size-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                <rect x="2" y="2" width="20" height="20" rx="2" />
+              </svg>
+            </span>
+          </div>
+        )}
+
         {/* Pictures Grid */}
         {pictures.length === 0 ? (
           <div className="empty-state">
@@ -347,7 +378,11 @@ const CategoryView = () => {
             </Link>
           </div>
         ) : (
-          <section className="pictures-grid" aria-label={`Photos de ${category?.name}`}>
+          <section
+            className="pictures-grid"
+            aria-label={`Photos de ${category?.name}`}
+            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${200 + thumbnailSize * 3}px, 1fr))` }}
+          >
             {pictures.map((picture, index) => (
               <article
                 key={picture.id}

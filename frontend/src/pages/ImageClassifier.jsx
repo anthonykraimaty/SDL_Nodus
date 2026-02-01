@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ImageEditor from '../components/ImageEditor';
 import './ImageClassifier.css';
 
 const ImageClassifier = () => {
@@ -24,6 +25,7 @@ const ImageClassifier = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [pictureType, setPictureType] = useState('');
   const [showSchematicWarning, setShowSchematicWarning] = useState(false);
+  const [editingPicture, setEditingPicture] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -441,6 +443,16 @@ const ImageClassifier = () => {
                 <div className="picture-overlay">
                   <span>#{picture.displayOrder}</span>
                 </div>
+                <button
+                  className="picture-edit-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingPicture(picture);
+                  }}
+                  title="Edit image (crop/rotate)"
+                >
+                  ✎
+                </button>
                 {classificationData[picture.id]?.categoryId ? (
                   <div className="picture-classified-badge">✓</div>
                 ) : (
@@ -581,6 +593,35 @@ const ImageClassifier = () => {
             <span>#{img.displayOrder} of {pictureSet?.pictures?.length}</span>
           )}
         />
+
+        {/* Image Editor Modal */}
+        <Modal
+          isOpen={!!editingPicture}
+          onClose={() => setEditingPicture(null)}
+          title={`Edit Image #${editingPicture?.displayOrder || ''}`}
+          size="fullscreen"
+          closeOnOverlay={false}
+        >
+          {editingPicture && (
+            <ImageEditor
+              imageUrl={getImageUrl(editingPicture.filePath)}
+              pictureId={editingPicture.id}
+              onCancel={() => setEditingPicture(null)}
+              onSave={async (blob, pictureId) => {
+                try {
+                  await pictureService.editImage(pictureId, blob);
+                  setSuccess('Image updated successfully!');
+                  setEditingPicture(null);
+                  // Reload data to get updated image
+                  await loadData();
+                } catch (err) {
+                  console.error('Failed to save edited image:', err);
+                  setError('Failed to save edited image: ' + err.message);
+                }
+              }}
+            />
+          )}
+        </Modal>
       </div>
     </div>
   );

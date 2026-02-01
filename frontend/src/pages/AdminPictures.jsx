@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService, analyticsService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ImageEditor from '../components/ImageEditor';
 import './AdminPictures.css';
 
 const AdminPictures = () => {
@@ -48,6 +49,9 @@ const AdminPictures = () => {
 
   // Preview size state (0 = table view, 100 = full thumbnail grid)
   const [previewSize, setPreviewSize] = useState(0);
+
+  // Image editor state
+  const [imageEditingPicture, setImageEditingPicture] = useState(null);
 
   useEffect(() => {
     loadCategories();
@@ -282,6 +286,20 @@ const AdminPictures = () => {
       setError(err.message || 'Failed to delete pictures');
     } finally {
       setBulkSaving(false);
+    }
+  };
+
+  // Handle image edit save
+  const handleImageEditSave = async (blob, pictureId) => {
+    try {
+      await pictureService.editImage(pictureId, blob);
+      setSuccess('Image updated successfully');
+      setImageEditingPicture(null);
+      setViewingPicture(null);
+      await loadPictures();
+    } catch (err) {
+      console.error('Failed to save edited image:', err);
+      setError(err.message || 'Failed to save edited image');
     }
   };
 
@@ -721,10 +739,35 @@ const AdminPictures = () => {
               </div>
             </Modal.Body>
             <Modal.Actions>
+              <button
+                onClick={() => setImageEditingPicture(viewingPicture)}
+                className="primary"
+              >
+                Edit Image
+              </button>
               <button onClick={() => setViewingPicture(null)} className="secondary">
                 Close
               </button>
             </Modal.Actions>
+          </Modal>
+        )}
+
+        {/* Image Editor Modal */}
+        {imageEditingPicture && (
+          <Modal
+            isOpen={true}
+            onClose={() => setImageEditingPicture(null)}
+            title="Edit Image"
+            size="large"
+          >
+            <Modal.Body>
+              <ImageEditor
+                imageUrl={getImageUrl(imageEditingPicture.filePath)}
+                pictureId={imageEditingPicture.id}
+                onSave={handleImageEditSave}
+                onCancel={() => setImageEditingPicture(null)}
+              />
+            </Modal.Body>
           </Modal>
         )}
 
