@@ -286,18 +286,22 @@
 }
 
 .pictures-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-md);
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: var(--spacing-lg) !important;
+  width: 100%;
 }
 
 .picture-preview-card {
   position: relative;
+  width: 320px;
+  height: 240px;
+  flex: 0 0 320px;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 2px solid var(--border);
   transition: all 0.3s ease;
-  aspect-ratio: 1;
 }
 
 .picture-preview-card.clickable {
@@ -569,9 +573,10 @@
     grid-template-columns: 1fr;
   }
 
-  .pictures-preview-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: var(--spacing-sm);
+  .picture-preview-card {
+    width: 140px;
+    height: 120px;
+    flex: 0 0 140px;
   }
 
   .action-buttons {
@@ -594,7 +599,213 @@
     padding: var(--spacing-md);
   }
 
-  .pictures-preview-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .picture-preview-card {
+    width: 120px;
+    height: 100px;
+    flex: 0 0 120px;
+  }
+}
+
+/* Review/Approval Styles */
+.review-hint {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-medium);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--accent);
+}
+
+.review-hint strong {
+  color: var(--accent);
+}
+
+/* Success Message */
+.success-message {
+  background: rgba(76, 175, 80, 0.1);
+  border: 2px solid var(--success, #4CAF50);
+  color: var(--success, #4CAF50);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Error Message */
+.error-message {
+  background: rgba(244, 67, 54, 0.1);
+  border: 2px solid var(--error, #f44336);
+  color: var(--error, #f44336);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Edit Picture Button - bottom left */
+.btn-edit-picture {
+  position: absolute;
+  bottom: var(--spacing-xs);
+  left: var(--spacing-xs);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.picture-preview-card:hover .btn-edit-picture {
+  opacity: 1;
+}
+
+.btn-edit-picture:hover {
+  background: var(--accent, #d4a574);
+  border-color: var(--accent, #d4a574);
+  transform: scale(1.1);
+}
+
+/* Include/Exclude Toggle Button - top right */
+.btn-toggle-include {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  z-index: 5;
+}
+
+.btn-toggle-include.included {
+  background: var(--success, #4CAF50);
+  color: white;
+}
+
+.btn-toggle-include.excluded {
+  background: var(--error, #f44336);
+  color: white;
+}
+
+.btn-toggle-include:hover {
+  transform: scale(1.15);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Excluded picture styling */
+.picture-preview-card.excluded {
+  border-color: var(--error, #f44336);
+  opacity: 0.6;
+}
+
+.picture-preview-card.excluded img {
+  filter: grayscale(50%);
+}
+
+.picture-preview-card.excluded:hover {
+  opacity: 0.8;
+}
+
+/* Approve/Reject Action Buttons */
+.btn-action.approve {
+  background: var(--success, #4CAF50);
+  color: white;
+}
+
+.btn-action.approve:hover:not(:disabled) {
+  background: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.btn-action.highlight {
+  background: var(--gradient-accent);
+  color: var(--primary-dark);
+}
+
+.btn-action.highlight:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 165, 116, 0.4);
+}
+
+.btn-action.reject {
+  background: var(--error, #f44336);
+  color: white;
+}
+
+.btn-action.reject:hover:not(:disabled) {
+  background: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+}
+
+.btn-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Rejection textarea */
+.rejection-textarea {
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.rejection-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.1);
+}
+
+/* Mobile responsive for new elements */
+@media (max-width: 768px) {
+  .btn-edit-picture,
+  .btn-toggle-include {
+    opacity: 1;
+  }
+
+  .review-hint {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-toggle-include {
+    width: 28px;
+    height: 28px;
+    font-size: 0.9rem;
+  }
+
+  .btn-edit-picture {
+    width: 28px;
+    height: 28px;
+    font-size: 0.9rem;
   }
 }

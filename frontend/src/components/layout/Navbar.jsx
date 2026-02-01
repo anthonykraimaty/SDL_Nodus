@@ -43,6 +43,9 @@ const Navbar = () => {
               {user?.role === 'ADMIN' && (
                 <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Administration</Link>
               )}
+              {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+                <Link to="/review" className="nav-link" onClick={closeMobileMenu}>Pour Valider</Link>
+              )}
               <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Tableau de bord</Link>
               <ProfileDropdown closeMobileMenu={closeMobileMenu} />
             </>

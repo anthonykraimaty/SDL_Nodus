@@ -3,6 +3,10 @@
   padding: var(--spacing-xl) 0;
 }
 
+.review-queue-page .container {
+  max-width: 1800px;
+}
+
 /* Header */
 .review-header {
   margin-bottom: var(--spacing-xxl);
@@ -215,41 +219,61 @@
 }
 
 /* Pictures Preview */
-.pictures-preview {
+.review-queue-page .pictures-preview {
   margin-bottom: var(--spacing-lg);
+  width: 100%;
 }
 
-.preview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-md);
+.review-queue-page .pictures-preview .preview-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: var(--spacing-lg) !important;
   margin-bottom: var(--spacing-sm);
+  width: 100% !important;
+  max-width: none !important;
+  align-items: flex-start !important;
 }
 
-.preview-image-wrapper {
+.review-queue-page .pictures-preview .preview-grid > .preview-image-wrapper {
+  flex: 0 0 320px !important;
+  display: block !important;
+}
+
+.review-queue-page .preview-image-wrapper {
   position: relative;
-  height: 150px;
+  width: 320px;
+  min-width: 320px;
+  height: 240px;
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
   border: 2px solid var(--border);
   transition: all 0.3s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.preview-image-wrapper:hover {
+.review-queue-page .preview-image-wrapper:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
-.preview-image {
+.review-queue-page .preview-image {
   width: 100%;
   height: 100%;
+  max-width: none;
+  max-height: none;
   object-fit: cover;
   transition: transform 0.3s ease;
+  cursor: zoom-in;
+  display: block;
+  margin: 0;
+  border-radius: 0;
 }
 
-.preview-image-wrapper:hover .preview-image {
+.review-queue-page .preview-image-wrapper:hover .preview-image {
   transform: scale(1.05);
 }
 
@@ -287,7 +311,7 @@
 }
 
 /* Edit button on picture preview */
-.picture-edit-btn {
+.review-queue-page .picture-edit-btn {
   position: absolute;
   bottom: var(--spacing-xs);
   left: var(--spacing-xs);
@@ -307,42 +331,49 @@
   z-index: 10;
 }
 
-.preview-image-wrapper:hover .picture-edit-btn {
+.review-queue-page .preview-image-wrapper:hover .picture-edit-btn {
   opacity: 1;
 }
 
-.picture-edit-btn:hover {
+.review-queue-page .picture-edit-btn:hover {
   background: var(--accent, #d4a574);
   border-color: var(--accent, #d4a574);
   transform: scale(1.1);
 }
 
-/* Included/Excluded badges */
-.picture-included-badge,
-.picture-excluded-badge {
+/* Include/Exclude toggle button */
+.review-queue-page .picture-toggle-btn {
   position: absolute;
   top: var(--spacing-xs);
   right: var(--spacing-xs);
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 1rem;
   box-shadow: var(--shadow-md);
   transition: all 0.2s ease;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  z-index: 5;
 }
 
-.picture-included-badge {
+.review-queue-page .picture-toggle-btn.included {
   background: var(--success);
   color: white;
 }
 
-.picture-excluded-badge {
+.review-queue-page .picture-toggle-btn.excluded {
   background: var(--error);
   color: white;
+}
+
+.review-queue-page .picture-toggle-btn:hover {
+  transform: scale(1.15);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Excluded picture styling */
@@ -715,13 +746,10 @@
     grid-template-columns: 1fr;
   }
 
-  .preview-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: var(--spacing-sm);
-  }
-
-  .preview-image-wrapper {
-    height: 100px;
+  .review-queue-page .preview-image-wrapper {
+    width: 140px;
+    min-width: 140px;
+    height: 120px;
   }
 
   .review-actions {
@@ -747,8 +775,10 @@
     font-size: 1.2rem;
   }
 
-  .preview-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .review-queue-page .preview-image-wrapper {
+    width: 120px;
+    min-width: 120px;
+    height: 100px;
   }
 
   .modal-actions {

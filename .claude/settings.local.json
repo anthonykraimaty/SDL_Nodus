@@ -46,7 +46,8 @@
       "Bash(scripts/db-dump-local.bat:*)",
       "Bash(scriptsdb-sync.bat)",
       "Bash(node check-categories.js:*)",
-      "Bash(node fix-categories.js:*)"
+      "Bash(node fix-categories.js:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": []

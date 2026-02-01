@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ImageEditor from '../components/ImageEditor';
 import './PictureStatus.css';
 
 const PictureStatus = () => {
@@ -18,6 +19,13 @@ const PictureStatus = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pictureToDelete, setPictureToDelete] = useState(null);
   const [viewingPicture, setViewingPicture] = useState(null);
+
+  // Review/approval state
+  const [excludedPictures, setExcludedPictures] = useState(new Set());
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [success, setSuccess] = useState('');
+  const [editingPicture, setEditingPicture] = useState(null);
 
   useEffect(() => {
     loadPictureSet();
@@ -59,6 +67,89 @@ const PictureStatus = () => {
     if (isAdmin) return true;
     if (isOwner && !isApproved) return true;
     return false;
+  };
+
+  // Check if user can approve/reject
+  const canReview = user && (user.role === 'BRANCHE_ECLAIREURS' || user.role === 'ADMIN');
+
+  // Exclusion handlers for approve/reject
+  const toggleExclusion = (pictureId, e) => {
+    e.stopPropagation();
+    setExcludedPictures(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(pictureId)) {
+        newSet.delete(pictureId);
+      } else {
+        newSet.add(pictureId);
+      }
+      return newSet;
+    });
+  };
+
+  const isExcluded = (pictureId) => excludedPictures.has(pictureId);
+  const getIncludedCount = () => (pictureSet?.pictures?.length || 0) - excludedPictures.size;
+
+  // Approve handler
+  const handleApprove = async (asHighlight = false) => {
+    try {
+      setError('');
+      setSuccess('');
+      const excludedIds = Array.from(excludedPictures);
+
+      if (getIncludedCount() === 0) {
+        setError('Cannot approve: all pictures are excluded');
+        return;
+      }
+
+      await pictureService.approve(pictureSet.id, asHighlight, excludedIds);
+      const excludedMsg = excludedIds.length > 0 ? ` (${excludedIds.length} excluded)` : '';
+      setSuccess(asHighlight ? `Picture set approved as highlight!${excludedMsg}` : `Picture set approved!${excludedMsg}`);
+      setExcludedPictures(new Set());
+      await loadPictureSet();
+    } catch (err) {
+      console.error('Approval error:', err);
+      setError('Failed to approve picture set');
+    }
+  };
+
+  // Reject handler
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+
+    try {
+      setError('');
+      setSuccess('');
+      await pictureService.reject(pictureSet.id, rejectionReason);
+      setSuccess('Picture set rejected');
+      setShowRejectModal(false);
+      setRejectionReason('');
+      await loadPictureSet();
+    } catch (err) {
+      console.error('Rejection error:', err);
+      setError('Failed to reject picture set');
+    }
+  };
+
+  // Edit picture handler
+  const handleEditPicture = (picture, e) => {
+    e.stopPropagation();
+    setEditingPicture(picture);
+  };
+
+  // Save edited image
+  const handleSaveEdit = async (blob, pictureId) => {
+    try {
+      await pictureService.editImage(pictureId, blob);
+      setSuccess('Image updated successfully!');
+      setEditingPicture(null);
+      await loadPictureSet();
+    } catch (err) {
+      console.error('Failed to save edited image:', err);
+      setError('Failed to save edited image: ' + err.message);
+    }
   };
 
   const handleDeleteSet = async () => {
@@ -187,6 +278,10 @@ const PictureStatus = () => {
           <h1>{pictureSet.title}</h1>
           {pictureSet.description && <p className="description">{pictureSet.description}</p>}
         </div>
+
+        {/* Success/Error Messages */}
+        {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">{success}</div>}
 
         {/* Current Status Card */}
         <div className="current-status-card" style={{ borderColor: statusInfo.color }}>
@@ -319,11 +414,18 @@ const PictureStatus = () => {
         {/* Pictures Grid */}
         <div className="pictures-section">
           <h2>Pictures ({pictureSet.pictures?.length || 0})</h2>
+          {/* Show included/excluded count when reviewing */}
+          {canReview && pictureSet.status === 'CLASSIFIED' && (
+            <p className="review-hint">
+              Click ✓/✗ to include/exclude pictures from approval.
+              <strong> {getIncludedCount()} of {pictureSet.pictures?.length || 0}</strong> will be approved.
+            </p>
+          )}
           <div className="pictures-preview-grid">
             {pictureSet.pictures?.map((picture) => (
               <div
                 key={picture.id}
-                className="picture-preview-card clickable"
+                className={`picture-preview-card clickable ${isExcluded(picture.id) ? 'excluded' : ''}`}
                 onClick={() => setViewingPicture(picture)}
               >
                 <img
@@ -343,6 +445,29 @@ const PictureStatus = () => {
                     {new Date(picture.takenAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                   </div>
                 )}
+
+                {/* Edit button for reviewers */}
+                {canReview && (
+                  <button
+                    className="btn-edit-picture"
+                    onClick={(e) => handleEditPicture(picture, e)}
+                    title="Edit image (crop/rotate)"
+                  >
+                    ✎
+                  </button>
+                )}
+
+                {/* Include/Exclude toggle for review */}
+                {canReview && pictureSet.status === 'CLASSIFIED' && (
+                  <button
+                    className={`btn-toggle-include ${isExcluded(picture.id) ? 'excluded' : 'included'}`}
+                    onClick={(e) => toggleExclusion(picture.id, e)}
+                    title={isExcluded(picture.id) ? 'Click to include' : 'Click to exclude'}
+                  >
+                    {isExcluded(picture.id) ? '✗' : '✓'}
+                  </button>
+                )}
+
                 {canDeletePictures() && pictureSet.pictures.length > 1 && (
                   <button
                     className="btn-delete-picture"
@@ -384,15 +509,22 @@ const PictureStatus = () => {
             </button>
           )}
 
-          {pictureSet.status === 'CLASSIFIED' && (
-            user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN'
-          ) && (
-            <button
-              onClick={() => navigate('/review')}
-              className="btn-action primary"
-            >
-              🔍 Go to Review Queue
-            </button>
+          {pictureSet.status === 'CLASSIFIED' && canReview && (
+            <>
+              <button
+                onClick={() => handleApprove(false)}
+                className="btn-action approve"
+                disabled={getIncludedCount() === 0}
+              >
+                ✓ Approve ({getIncludedCount()})
+              </button>
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="btn-action reject"
+              >
+                ✕ Reject
+              </button>
+            </>
           )}
 
           {pictureSet.status === 'APPROVED' && (
@@ -509,6 +641,66 @@ const PictureStatus = () => {
             </>
           )}
         />
+
+        {/* Rejection Modal */}
+        <Modal
+          isOpen={showRejectModal}
+          onClose={() => {
+            setShowRejectModal(false);
+            setRejectionReason('');
+          }}
+          title="Reject Picture Set"
+          variant="danger"
+          size="medium"
+        >
+          <Modal.Body>
+            <p>Please provide a reason for rejecting this picture set:</p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows="4"
+              className="rejection-textarea"
+              autoFocus
+            />
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={handleReject}
+              className="danger"
+              disabled={!rejectionReason.trim()}
+            >
+              Confirm Rejection
+            </button>
+            <button
+              onClick={() => {
+                setShowRejectModal(false);
+                setRejectionReason('');
+              }}
+              className="secondary"
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
+
+        {/* Image Editor Modal */}
+        <Modal
+          isOpen={!!editingPicture}
+          onClose={() => setEditingPicture(null)}
+          title={`Edit Image #${editingPicture?.displayOrder || ''}`}
+          size="fullscreen"
+          closeOnOverlay={false}
+        >
+          {editingPicture && (
+            <ImageEditor
+              imageUrl={getImageUrl(editingPicture.filePath)}
+              pictureId={editingPicture.id}
+              onCancel={() => setEditingPicture(null)}
+              onSave={handleSaveEdit}
+            />
+          )}
+        </Modal>
       </div>
     </div>
   );

@@ -231,18 +231,19 @@ const ReviewQueue = () => {
                 </div>
 
                 <div className="pictures-preview">
-                  <div className="preview-grid">
+                  <div className="preview-grid" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
                     {set.pictures?.map(picture => (
                       <div
                         key={picture.id}
                         className={`preview-image-wrapper ${isPictureExcluded(set.id, picture.id) ? 'excluded' : ''}`}
-                        onClick={(e) => togglePictureExclusion(set.id, picture.id, e)}
-                        title={isPictureExcluded(set.id, picture.id) ? 'Click to include' : 'Click to exclude'}
+                        style={{ width: '320px', height: '240px', flex: '0 0 320px' }}
                       >
                         <img
                           src={getImageUrl(picture.filePath)}
                           alt={`Picture ${picture.displayOrder}`}
                           className="preview-image"
+                          onClick={() => setSelectedImage(picture)}
+                          title="Click to view full size"
                         />
                         {picture.category && (
                           <div className="picture-category-label">{picture.category.name}</div>
@@ -257,15 +258,13 @@ const ReviewQueue = () => {
                         >
                           ✎
                         </button>
-                        {isPictureExcluded(set.id, picture.id) ? (
-                          <div className="picture-excluded-badge">
-                            ✗
-                          </div>
-                        ) : (
-                          <div className="picture-included-badge">
-                            ✓
-                          </div>
-                        )}
+                        <button
+                          className={`picture-toggle-btn ${isPictureExcluded(set.id, picture.id) ? 'excluded' : 'included'}`}
+                          onClick={(e) => togglePictureExclusion(set.id, picture.id, e)}
+                          title={isPictureExcluded(set.id, picture.id) ? 'Click to include' : 'Click to exclude'}
+                        >
+                          {isPictureExcluded(set.id, picture.id) ? '✗' : '✓'}
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -284,13 +283,6 @@ const ReviewQueue = () => {
                     disabled={getIncludedCount(set) === 0}
                   >
                     {activeTab === 'rejected' ? 'Re-Approve' : 'Approve'} {getIncludedCount(set) < set.pictures?.length ? `(${getIncludedCount(set)})` : ''}
-                  </button>
-                  <button
-                    onClick={() => handleApprove(set.id, true)}
-                    className="btn-highlight"
-                    disabled={getIncludedCount(set) === 0}
-                  >
-                    {activeTab === 'rejected' ? 'Re-Approve as Highlight' : 'Approve as Highlight'}
                   </button>
                   {activeTab === 'pending' && (
                     <button

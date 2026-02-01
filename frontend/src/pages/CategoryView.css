@@ -644,3 +644,289 @@
     font-size: 0.75rem;
   }
 }
+
+/* Review Controls */
+.review-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md, 1rem);
+  margin-bottom: var(--spacing-xl, 2rem);
+  padding: var(--spacing-lg, 1.5rem);
+  background: var(--bg-medium);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.btn-selection-mode {
+  padding: var(--spacing-md, 1rem) var(--spacing-xl, 2rem);
+  background: var(--bg-light);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-selection-mode:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--bg-dark);
+}
+
+.btn-selection-mode.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--bg-dark);
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md, 1rem);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-select-all,
+.btn-deselect-all {
+  padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-select-all:hover,
+.btn-deselect-all:hover {
+  background: var(--bg-light);
+  border-color: var(--primary);
+  color: var(--text-primary);
+}
+
+.selection-count {
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.review-actions-inline {
+  display: flex;
+  gap: var(--spacing-md, 1rem);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.review-actions-inline .btn-approve,
+.review-actions-inline .btn-highlight,
+.review-actions-inline .btn-reject {
+  padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.review-actions-inline .btn-approve {
+  background: var(--success, #4CAF50);
+  color: white;
+}
+
+.review-actions-inline .btn-approve:hover:not(:disabled) {
+  background: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.review-actions-inline .btn-highlight {
+  background: var(--gradient-accent);
+  color: var(--primary-dark);
+}
+
+.review-actions-inline .btn-highlight:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 165, 116, 0.4);
+}
+
+.review-actions-inline .btn-reject {
+  background: var(--error, #f44336);
+  color: white;
+}
+
+.review-actions-inline .btn-reject:hover:not(:disabled) {
+  background: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+}
+
+.review-actions-inline button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Success Message */
+.success-message {
+  background: rgba(76, 175, 80, 0.1);
+  border: 2px solid var(--success, #4CAF50);
+  color: var(--success, #4CAF50);
+  padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: var(--spacing-lg, 1.5rem);
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Picture Selection Badge */
+.picture-selection-badge {
+  position: absolute;
+  top: var(--spacing-sm, 0.5rem);
+  left: var(--spacing-sm, 0.5rem);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: white;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.picture-selection-badge.selected {
+  background: var(--success, #4CAF50);
+  border-color: var(--success, #4CAF50);
+}
+
+.picture-selection-badge:hover {
+  transform: scale(1.1);
+}
+
+/* Selected thumbnail styling */
+.picture-thumbnail.selected {
+  border-color: var(--success, #4CAF50);
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+}
+
+.picture-thumbnail.selected .thumbnail-image img {
+  opacity: 0.9;
+}
+
+/* Picture Edit Button */
+.picture-edit-btn {
+  position: absolute;
+  top: var(--spacing-sm, 0.5rem);
+  right: var(--spacing-sm, 0.5rem);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.picture-thumbnail:hover .picture-edit-btn {
+  opacity: 1;
+}
+
+.picture-edit-btn:hover {
+  background: var(--accent, #d4a574);
+  border-color: var(--accent, #d4a574);
+  transform: scale(1.1);
+}
+
+/* Picture Category Label */
+.picture-category-label {
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: var(--spacing-md, 1rem) var(--spacing-sm, 0.5rem) var(--spacing-xs, 0.25rem);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+/* Rejection textarea */
+.rejection-textarea {
+  width: 100%;
+  padding: var(--spacing-md, 1rem);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.rejection-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.1);
+}
+
+/* Mobile responsive for review controls */
+@media (max-width: 768px) {
+  .review-controls {
+    padding: var(--spacing-md, 1rem);
+  }
+
+  .review-actions-inline {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .review-actions-inline button {
+    width: 100%;
+  }
+
+  .selection-actions {
+    flex-direction: column;
+  }
+
+  .picture-edit-btn {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-selection-mode {
+    font-size: 0.9rem;
+    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+  }
+
+  .review-actions-inline button {
+    font-size: 0.85rem;
+    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+  }
+}
