@@ -110,6 +110,7 @@ model User {
   uploadedPictureSets    PictureSet[]           @relation("PictureSetUploader")
   approvedPictureSets    PictureSet[]           @relation("PictureSetApprover")
   classifiedPictureSets  PictureSet[]           @relation("PictureSetClassifier")
+  createdDesignGroups    DesignGroup[]          // Design groups created by this user
   districtAccess         UserDistrictAccess[]
   isActive               Boolean                @default(true)
   forcePasswordChange    Boolean                @default(false)
@@ -148,6 +149,7 @@ model Category {
   pictureSets            PictureSet[]     @relation("PictureSetCategory")
   subCategoryPictureSets PictureSet[]     @relation("PictureSetSubCategory")
   pictures               Picture[]        @relation("PictureCategory")
+  designGroups           DesignGroup[]    // Design groups in this category
   monthlyCategories      MonthlyCategory[]
   isSchematicEnabled     Boolean          @default(false) // Enable/disable for schematic upload
   isUploadDisabled       Boolean          @default(false) // Disable uploads for this category
@@ -268,6 +270,13 @@ model Picture {
   // Categories using this as main picture
   categoriesAsMain Category[] @relation("CategoryMainPicture")
 
+  // Design Group membership (optional - picture may or may not belong to a group)
+  designGroupId    Int?
+  designGroup      DesignGroup?  @relation("DesignGroupPictures", fields: [designGroupId], references: [id], onDelete: SetNull)
+
+  // Pictures that use this as primary in a design group
+  primaryForGroups DesignGroup[] @relation("DesignGroupPrimary")
+
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -275,6 +284,7 @@ model Picture {
   @@index([displayOrder])
   @@index([categoryId])
   @@index([type])
+  @@index([designGroupId])
 }
 
 // Tagging system for additional classification
@@ -320,6 +330,33 @@ model SchematicCategory {
   @@unique([setName, itemName])
   @@index([setName])
   @@index([setOrder, itemOrder])
+}
+
+// Design Group - Groups related pictures showing the same design/installation
+model DesignGroup {
+  id                Int       @id @default(autoincrement())
+  name              String?   // Optional name for the design group
+
+  // Primary picture (shown as thumbnail in stacked view)
+  primaryPictureId  Int?
+  primaryPicture    Picture?  @relation("DesignGroupPrimary", fields: [primaryPictureId], references: [id], onDelete: SetNull)
+
+  // Category for the design group (inherited from pictures or set explicitly)
+  categoryId        Int?
+  category          Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Pictures in this group
+  pictures          Picture[] @relation("DesignGroupPictures")
+
+  // Metadata
+  createdById       Int
+  createdBy         User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([categoryId])
+  @@index([createdById])
 }
 
 // Track progress for each patrouille per schematic item

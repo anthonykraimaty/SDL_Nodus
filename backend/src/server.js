@@ -20,6 +20,7 @@ import groupRoutes from './routes/groups.js';
 import troupeRoutes from './routes/troupes.js';
 import patrouilleRoutes from './routes/patrouilles.js';
 import schematicRoutes from './routes/schematics.js';
+import designGroupRoutes from './routes/designGroups.js';
 import sitemapRoutes from './routes/sitemap.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -107,6 +108,7 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/troupes', troupeRoutes);
 app.use('/api/patrouilles', patrouilleRoutes);
 app.use('/api/schematics', schematicRoutes);
+app.use('/api/design-groups', designGroupRoutes);
 app.use('/api', sitemapRoutes); // Sitemap and robots.txt
 
 // 404 handler

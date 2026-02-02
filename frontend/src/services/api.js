@@ -322,3 +322,43 @@ export const schematicService = {
 export const patrouilleService = {
   getMyTroupe: () => api.get('/api/patrouilles/my-troupe', true),
 };
+
+// Design Groups
+export const designGroupService = {
+  // List design groups with optional filtering
+  getAll: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/design-groups${query ? '?' + query : ''}`);
+  },
+
+  // Get single design group with all pictures
+  getById: (id) => api.get(`/api/design-groups/${id}`),
+
+  // Get design groups for a specific category
+  getByCategory: (categoryId) => api.get(`/api/design-groups/by-category/${categoryId}`),
+
+  // Create new design group (requires auth)
+  create: (data) => api.post('/api/design-groups', data, true),
+
+  // Update design group (requires auth)
+  update: (id, data) => api.put(`/api/design-groups/${id}`, data, true),
+
+  // Delete design group (requires auth)
+  delete: (id) => api.delete(`/api/design-groups/${id}`, true),
+
+  // Add pictures to group (requires auth)
+  addPictures: (groupId, pictureIds) => api.post(`/api/design-groups/${groupId}/pictures`, { pictureIds }, true),
+
+  // Remove picture from group (requires auth)
+  removePicture: async (groupId, pictureId) => {
+    const response = await fetch(`${API_URL}/api/design-groups/${groupId}/pictures/${pictureId}`, {
+      method: 'DELETE',
+      headers: getHeaders(true),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
+};

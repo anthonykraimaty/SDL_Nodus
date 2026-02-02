@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService } from '../services/api';
+import { pictureService, categoryService, designGroupService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import DesignGroupPicker from '../components/DesignGroupPicker';
 import './Classify.css';
 
 const Classify = () => {
@@ -23,6 +24,9 @@ const Classify = () => {
     categoryId: '',
     takenAtMonth: '',
     takenAtYear: '',
+    designGroupId: null,
+    createNewGroup: false,
+    newGroupName: '',
   });
   const [bulkClassifying, setBulkClassifying] = useState(false);
 
@@ -139,7 +143,7 @@ const Classify = () => {
   // Clear all selections
   const clearAllSelections = () => {
     setSelectedPictures(new Set());
-    setBulkClassification({ categoryId: '', takenAtMonth: '', takenAtYear: '' });
+    setBulkClassification({ categoryId: '', takenAtMonth: '', takenAtYear: '', designGroupId: null, createNewGroup: false, newGroupName: '' });
   };
 
   // Handle bulk classification
@@ -166,12 +170,14 @@ const Classify = () => {
 
     // Group selections by set ID
     const selectionsBySet = {};
+    const allPictureIds = [];
     selectedPictures.forEach(key => {
-      const [setId] = key.split(':');
+      const [setId, pictureId] = key.split(':');
       if (!selectionsBySet[setId]) {
         selectionsBySet[setId] = [];
       }
       selectionsBySet[setId].push(key);
+      allPictureIds.push(parseInt(pictureId));
     });
 
     // Classify each set
@@ -185,6 +191,25 @@ const Classify = () => {
       } catch (err) {
         console.error(`Failed to classify set ${setId}:`, err);
         failCount++;
+      }
+    }
+
+    // Handle design group creation/assignment after classification
+    if (allPictureIds.length >= 2) {
+      try {
+        if (bulkClassification.createNewGroup && bulkClassification.newGroupName) {
+          // Create a new design group with these pictures
+          await designGroupService.create({
+            name: bulkClassification.newGroupName,
+            pictureIds: allPictureIds,
+          });
+        } else if (bulkClassification.designGroupId) {
+          // Add pictures to existing design group
+          await designGroupService.addPictures(bulkClassification.designGroupId, allPictureIds);
+        }
+      } catch (err) {
+        console.error('Failed to create/assign design group:', err);
+        // Don't fail the whole operation if group creation fails
       }
     }
 
@@ -322,6 +347,29 @@ const Classify = () => {
                     </select>
                   </div>
                 </div>
+
+                {/* Design Group Picker - only show when 2+ pictures selected and category chosen */}
+                {selectedPictures.size >= 2 && bulkClassification.categoryId && (
+                  <div className="bulk-form-group bulk-form-group-wide">
+                    <DesignGroupPicker
+                      categoryId={parseInt(bulkClassification.categoryId)}
+                      selectedGroupId={bulkClassification.designGroupId}
+                      onSelectGroup={(groupId) => setBulkClassification(prev => ({
+                        ...prev,
+                        designGroupId: groupId,
+                        createNewGroup: false,
+                        newGroupName: '',
+                      }))}
+                      onCreateGroup={(groupName) => setBulkClassification(prev => ({
+                        ...prev,
+                        designGroupId: null,
+                        createNewGroup: true,
+                        newGroupName: groupName,
+                      }))}
+                      disabled={bulkClassifying}
+                    />
+                  </div>
+                )}
                 <button
                   onClick={handleBulkClassify}
                   className="btn-bulk-classify"

@@ -625,7 +625,7 @@ router.get('/:id/pictures', async (req, res) => {
     const { id } = req.params;
     const {
       districtId, groupId, dateFrom, dateTo, woodCountMin, woodCountMax, type,
-      dateDoneMonth, dateDoneYear, sortBy, sortOrder
+      dateDoneMonth, dateDoneYear, sortBy, sortOrder, grouped
     } = req.query;
 
     // Check if category exists
@@ -729,6 +729,19 @@ router.get('/:id/pictures', async (req, res) => {
       where: pictureWhere,
       include: {
         category: true,
+        designGroup: {
+          include: {
+            primaryPicture: {
+              select: {
+                id: true,
+                filePath: true,
+              },
+            },
+            _count: {
+              select: { pictures: true },
+            },
+          },
+        },
         pictureSet: {
           include: {
             troupe: {
@@ -768,6 +781,42 @@ router.get('/:id/pictures', async (req, res) => {
         woodCount: pic.pictureSet.woodCount,
       },
     }));
+
+    // If grouped=true, organize pictures by design groups
+    if (grouped === 'true') {
+      const designGroups = [];
+      const ungroupedPictures = [];
+      const seenGroupIds = new Set();
+
+      for (const pic of transformedPictures) {
+        if (pic.designGroup && pic.designGroupId) {
+          // Picture belongs to a design group
+          if (!seenGroupIds.has(pic.designGroupId)) {
+            seenGroupIds.add(pic.designGroupId);
+            // Get all pictures in this group (from the fetched data)
+            const groupPictures = transformedPictures.filter(p => p.designGroupId === pic.designGroupId);
+            designGroups.push({
+              id: pic.designGroup.id,
+              name: pic.designGroup.name,
+              primaryPicture: pic.designGroup.primaryPicture,
+              pictureCount: pic.designGroup._count?.pictures || groupPictures.length,
+              pictures: groupPictures,
+            });
+          }
+        } else {
+          // Picture is not in any group
+          ungroupedPictures.push(pic);
+        }
+      }
+
+      return res.json({
+        category,
+        grouped: true,
+        designGroups,
+        ungroupedPictures,
+        totalPictures: transformedPictures.length,
+      });
+    }
 
     res.json({ category, pictures: transformedPictures });
   } catch (error) {

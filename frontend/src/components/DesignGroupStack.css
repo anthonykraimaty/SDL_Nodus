@@ -1,0 +1,169 @@
+.design-group-stack {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.design-group-stack:hover {
+  transform: translateY(-4px);
+}
+
+.design-group-stack:focus {
+  outline: 2px solid var(--primary-color, #3498db);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.stack-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: visible;
+}
+
+/* Stack cards - positioned behind each other */
+.stack-card {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg, #fff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stack-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Back card (3rd) */
+.stack-card-3 {
+  transform: rotate(-4deg) translate(-4px, 4px) scale(0.95);
+  z-index: 1;
+  opacity: 0.7;
+}
+
+/* Middle card (2nd) */
+.stack-card-2 {
+  transform: rotate(3deg) translate(4px, 2px) scale(0.97);
+  z-index: 2;
+  opacity: 0.85;
+}
+
+/* Front card (primary) */
+.stack-card-1 {
+  transform: rotate(0deg) translate(0, 0) scale(1);
+  z-index: 3;
+}
+
+/* Hover effects - fan out the cards */
+.design-group-stack:hover .stack-card-3 {
+  transform: rotate(-8deg) translate(-12px, 8px) scale(0.95);
+}
+
+.design-group-stack:hover .stack-card-2 {
+  transform: rotate(6deg) translate(10px, 4px) scale(0.97);
+}
+
+.design-group-stack:hover .stack-card-1 {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Count badge */
+.stack-count-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.stack-icon {
+  display: flex;
+  align-items: center;
+}
+
+.stack-icon svg {
+  opacity: 0.9;
+}
+
+.stack-count {
+  line-height: 1;
+}
+
+/* Group info below the stack */
+.stack-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 4px;
+  text-align: center;
+}
+
+.stack-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.stack-photos-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .stack-card {
+    background: var(--card-bg-dark, #2a2a2a);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .stack-count-badge {
+    background: rgba(0, 0, 0, 0.85);
+  }
+
+  .stack-name {
+    color: var(--text-primary-dark, #eee);
+  }
+
+  .stack-photos-label {
+    color: var(--text-secondary-dark, #aaa);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stack-card-3 {
+    transform: rotate(-3deg) translate(-3px, 3px) scale(0.96);
+  }
+
+  .stack-card-2 {
+    transform: rotate(2deg) translate(3px, 1px) scale(0.98);
+  }
+
+  .design-group-stack:hover .stack-card-3 {
+    transform: rotate(-5deg) translate(-6px, 5px) scale(0.96);
+  }
+
+  .design-group-stack:hover .stack-card-2 {
+    transform: rotate(4deg) translate(5px, 2px) scale(0.98);
+  }
+}

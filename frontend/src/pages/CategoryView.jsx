@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { API_URL, getImageUrl } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import { pictureService } from '../services/api';
+import { pictureService, categoryService } from '../services/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import ImageEditor from '../components/ImageEditor';
+import DesignGroupStack from '../components/DesignGroupStack';
+import DesignGroupModal from '../components/DesignGroupModal';
 import Modal from '../components/Modal';
 import SEO from '../components/SEO';
 import './CategoryView.css';
@@ -17,10 +19,17 @@ const CategoryView = () => {
 
   const [category, setCategory] = useState(null);
   const [pictures, setPictures] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedPictureIndex, setSelectedPictureIndex] = useState(null);
+
+  // Grouped view state
+  const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
+  const [designGroups, setDesignGroups] = useState([]);
+  const [ungroupedPictures, setUngroupedPictures] = useState([]);
+  const [selectedDesignGroup, setSelectedDesignGroup] = useState(null);
 
   // Type filter state
   const [typeFilter, setTypeFilter] = useState(initialType);
@@ -47,9 +56,16 @@ const CategoryView = () => {
   // Check if user can approve/reject
   const canReview = user && (user.role === 'BRANCHE_ECLAIREURS' || user.role === 'ADMIN');
 
+  // Load all categories for the edit dropdown (only for authorized users)
+  useEffect(() => {
+    if (canReview) {
+      categoryService.getAll().then(setAllCategories).catch(console.error);
+    }
+  }, [canReview]);
+
   useEffect(() => {
     loadCategoryPictures();
-  }, [categoryId, typeFilter, sortBy, sortOrder]);
+  }, [categoryId, typeFilter, sortBy, sortOrder, viewMode]);
 
   const loadCategoryPictures = async (filters = {}) => {
     try {
@@ -68,6 +84,11 @@ const CategoryView = () => {
       if (sortBy) params.append('sortBy', sortBy);
       if (sortOrder) params.append('sortOrder', sortOrder);
 
+      // Add grouped parameter based on view mode
+      if (viewMode === 'grouped') {
+        params.append('grouped', 'true');
+      }
+
       const queryString = params.toString();
       const url = `${API_URL}/api/categories/${categoryId}/pictures${queryString ? `?${queryString}` : ''}`;
 
@@ -79,7 +100,22 @@ const CategoryView = () => {
 
       const data = await response.json();
       setCategory(data.category);
-      setPictures(data.pictures);
+
+      // Handle grouped vs flat response
+      if (data.grouped) {
+        setDesignGroups(data.designGroups || []);
+        setUngroupedPictures(data.ungroupedPictures || []);
+        // Combine all pictures for total count and previewer
+        const allPics = [
+          ...(data.designGroups || []).flatMap(g => g.pictures || []),
+          ...(data.ungroupedPictures || []),
+        ];
+        setPictures(allPics);
+      } else {
+        setPictures(data.pictures || []);
+        setDesignGroups([]);
+        setUngroupedPictures([]);
+      }
     } catch (err) {
       console.error('Error loading category pictures:', err);
       setError(err.message);
@@ -151,6 +187,12 @@ const CategoryView = () => {
       console.error('Failed to save edited image:', err);
       setError('Échec de la sauvegarde: ' + err.message);
     }
+  };
+
+  // Handler for when picture metadata is updated in the previewer
+  const handlePictureUpdate = () => {
+    setSuccess('Image mise à jour avec succès');
+    loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
   };
 
   if (loading) {
@@ -230,26 +272,58 @@ const CategoryView = () => {
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
 
-        {/* Type Filters */}
-        <div className="type-filters">
-          <button
-            className={`type-filter ${typeFilter === '' ? 'active' : ''}`}
-            onClick={() => handleTypeFilter('')}
-          >
-            Tout
-          </button>
-          <button
-            className={`type-filter ${typeFilter === 'INSTALLATION_PHOTO' ? 'active' : ''}`}
-            onClick={() => handleTypeFilter('INSTALLATION_PHOTO')}
-          >
-            📸 Photos
-          </button>
-          <button
-            className={`type-filter ${typeFilter === 'SCHEMATIC' ? 'active' : ''}`}
-            onClick={() => handleTypeFilter('SCHEMATIC')}
-          >
-            📐 Schémas
-          </button>
+        {/* Type Filters and View Mode Toggle */}
+        <div className="filters-row">
+          <div className="type-filters">
+            <button
+              className={`type-filter ${typeFilter === '' ? 'active' : ''}`}
+              onClick={() => handleTypeFilter('')}
+            >
+              Tout
+            </button>
+            <button
+              className={`type-filter ${typeFilter === 'INSTALLATION_PHOTO' ? 'active' : ''}`}
+              onClick={() => handleTypeFilter('INSTALLATION_PHOTO')}
+            >
+              📸 Photos
+            </button>
+            <button
+              className={`type-filter ${typeFilter === 'SCHEMATIC' ? 'active' : ''}`}
+              onClick={() => handleTypeFilter('SCHEMATIC')}
+            >
+              📐 Schémas
+            </button>
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="view-mode-toggle">
+            <span className="view-label">Vue:</span>
+            <button
+              className={`view-mode-btn ${viewMode === 'grouped' ? 'active' : ''}`}
+              onClick={() => setViewMode('grouped')}
+              title="Afficher les photos groupées par design"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+              </svg>
+              Groupée
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'flat' ? 'active' : ''}`}
+              onClick={() => setViewMode('flat')}
+              title="Afficher toutes les photos individuellement"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+              Liste
+            </button>
+          </div>
         </div>
 
         {/* Sort Options */}
@@ -411,7 +485,82 @@ const CategoryView = () => {
               Parcourir d'autres Catégories
             </Link>
           </div>
+        ) : viewMode === 'grouped' ? (
+          /* Grouped View - Show design group stacks and ungrouped pictures */
+          <section
+            className="pictures-grid grouped-view"
+            aria-label={`Photos de ${category?.name}`}
+            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${200 + thumbnailSize * 3}px, 1fr))` }}
+          >
+            {/* Render Design Group Stacks */}
+            {designGroups.map((group) => (
+              <DesignGroupStack
+                key={`group-${group.id}`}
+                designGroup={group}
+                thumbnailSize={thumbnailSize}
+                onClick={() => setSelectedDesignGroup(group)}
+              />
+            ))}
+
+            {/* Render Ungrouped Pictures */}
+            {ungroupedPictures.map((picture) => {
+              // Find the index in the full pictures array for the previewer
+              const pictureIndex = pictures.findIndex(p => p.id === picture.id);
+              return (
+                <article
+                  key={picture.id}
+                  className="picture-thumbnail"
+                  onClick={() => handlePictureClick(pictureIndex)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Voir ${getImageAlt(picture, pictureIndex)}`}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePictureClick(pictureIndex)}
+                >
+                  <figure className="thumbnail-image">
+                    <img
+                      src={getImageUrl(picture.filePath)}
+                      alt={getImageAlt(picture, pictureIndex)}
+                      loading="lazy"
+                    />
+
+                    {/* Edit button for authorized users */}
+                    {canReview && (
+                      <button
+                        className="picture-edit-btn"
+                        onClick={(e) => handleEditPicture(picture, e)}
+                        title="Modifier l'image (recadrer/rotation)"
+                      >
+                        ✎
+                      </button>
+                    )}
+
+                    {/* Category label on the image */}
+                    {picture.category && (
+                      <div className="picture-category-label">{picture.category.name}</div>
+                    )}
+
+                    <figcaption className="thumbnail-overlay">
+                      <div className="thumbnail-info">
+                        {picture.troupe && (
+                          <>
+                            {picture.troupe.group?.name && (
+                              <span className="thumbnail-group">{picture.troupe.group.name}</span>
+                            )}
+                            <span className="thumbnail-troupe">{picture.troupe.name}</span>
+                          </>
+                        )}
+                        {picture.pictureSet?.location && (
+                          <span className="thumbnail-location">{picture.pictureSet.location}</span>
+                        )}
+                      </div>
+                    </figcaption>
+                  </figure>
+                </article>
+              );
+            })}
+          </section>
         ) : (
+          /* Flat View - Show all pictures individually */
           <section
             className="pictures-grid"
             aria-label={`Photos de ${category?.name}`}
@@ -478,6 +627,9 @@ const CategoryView = () => {
           pictures={pictures}
           initialIndex={selectedPictureIndex}
           onClose={handleClosePreviewer}
+          user={user}
+          categories={allCategories}
+          onPictureUpdate={handlePictureUpdate}
         />
       )}
 
@@ -498,6 +650,14 @@ const CategoryView = () => {
           />
         )}
       </Modal>
+
+      {/* Design Group Modal */}
+      <DesignGroupModal
+        isOpen={!!selectedDesignGroup}
+        onClose={() => setSelectedDesignGroup(null)}
+        designGroupId={selectedDesignGroup?.id}
+        initialData={selectedDesignGroup}
+      />
     </div>
   );
 };

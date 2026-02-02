@@ -990,19 +990,46 @@ router.delete('/individual/bulk-delete', authenticate, authorize('ADMIN'), async
   }
 });
 
-// PUT /api/pictures/individual/:pictureId - Update individual picture (admin only)
-router.put('/individual/:pictureId', authenticate, authorize('ADMIN'), async (req, res) => {
+// PUT /api/pictures/individual/:pictureId - Update individual picture (admin or branche with district access)
+router.put('/individual/:pictureId', authenticate, authorize('ADMIN', 'BRANCHE_ECLAIREURS'), async (req, res) => {
   try {
     const { pictureId } = req.params;
     const { categoryId, takenAt, woodCount, type } = req.body;
 
     const picture = await prisma.picture.findUnique({
       where: { id: parseInt(pictureId) },
-      include: { pictureSet: true },
+      include: {
+        pictureSet: {
+          include: {
+            troupe: {
+              include: {
+                group: {
+                  include: { district: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!picture) {
       return res.status(404).json({ error: 'Picture not found' });
+    }
+
+    // For BRANCHE_ECLAIREURS, verify district access
+    if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+        where: { userId: req.user.id },
+        select: { districtId: true },
+      });
+      const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+      const pictureDistrictId = picture.pictureSet.troupe?.group?.district?.id;
+
+      // SECURITY: Deny-by-default - branche must have explicit district access
+      if (allowedDistrictIds.length === 0 || !allowedDistrictIds.includes(pictureDistrictId)) {
+        return res.status(403).json({ error: 'You do not have access to edit pictures from this district' });
+      }
     }
 
     const updateData = {};

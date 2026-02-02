@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService, analyticsService } from '../services/api';
+import { pictureService, categoryService, analyticsService, designGroupService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -46,6 +46,13 @@ const AdminPictures = () => {
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [bulkEditForm, setBulkEditForm] = useState({ type: '', categoryId: '' });
   const [bulkSaving, setBulkSaving] = useState(false);
+
+  // Design group state
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showAddToGroup, setShowAddToGroup] = useState(false);
+  const [existingGroups, setExistingGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
 
   // Preview size state (0 = table view, 100 = full thumbnail grid)
   const [previewSize, setPreviewSize] = useState(0);
@@ -303,6 +310,102 @@ const AdminPictures = () => {
     }
   };
 
+  // Design group handlers
+  const handleCreateGroupClick = () => {
+    if (selectedPictures.size < 2) {
+      setError('Select at least 2 pictures to create a design group');
+      return;
+    }
+    setNewGroupName('');
+    setShowCreateGroup(true);
+  };
+
+  const handleCreateGroupConfirm = async () => {
+    try {
+      setBulkSaving(true);
+      const pictureIds = Array.from(selectedPictures);
+      await designGroupService.create({
+        name: newGroupName || null,
+        pictureIds,
+      });
+      setSuccess(`Design group created with ${pictureIds.length} pictures`);
+      setShowCreateGroup(false);
+      setSelectedPictures(new Set());
+      await loadPictures();
+    } catch (err) {
+      console.error('Failed to create design group:', err);
+      setError(err.message || 'Failed to create design group');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const handleAddToGroupClick = async () => {
+    if (selectedPictures.size === 0) {
+      setError('Select at least 1 picture to add to a group');
+      return;
+    }
+    try {
+      // Load existing groups
+      const data = await designGroupService.getAll({ limit: 100 });
+      setExistingGroups(data.designGroups || []);
+      setSelectedGroupId(null);
+      setShowAddToGroup(true);
+    } catch (err) {
+      console.error('Failed to load design groups:', err);
+      setError('Failed to load design groups');
+    }
+  };
+
+  const handleAddToGroupConfirm = async () => {
+    if (!selectedGroupId) {
+      setError('Please select a group');
+      return;
+    }
+    try {
+      setBulkSaving(true);
+      const pictureIds = Array.from(selectedPictures);
+      await designGroupService.addPictures(selectedGroupId, pictureIds);
+      setSuccess(`Added ${pictureIds.length} pictures to design group`);
+      setShowAddToGroup(false);
+      setSelectedPictures(new Set());
+      await loadPictures();
+    } catch (err) {
+      console.error('Failed to add pictures to group:', err);
+      setError(err.message || 'Failed to add pictures to group');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const handleRemoveFromGroups = async () => {
+    const picturesInGroups = pictures.filter(p => selectedPictures.has(p.id) && p.designGroupId);
+    if (picturesInGroups.length === 0) {
+      setError('None of the selected pictures are in a design group');
+      return;
+    }
+    try {
+      setBulkSaving(true);
+      let removed = 0;
+      for (const pic of picturesInGroups) {
+        try {
+          await designGroupService.removePicture(pic.designGroupId, pic.id);
+          removed++;
+        } catch (err) {
+          console.error(`Failed to remove picture ${pic.id} from group:`, err);
+        }
+      }
+      setSuccess(`Removed ${removed} pictures from their design groups`);
+      setSelectedPictures(new Set());
+      await loadPictures();
+    } catch (err) {
+      console.error('Failed to remove pictures from groups:', err);
+      setError(err.message || 'Failed to remove pictures from groups');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   // Clear messages after 5 seconds
   useEffect(() => {
     if (success || error) {
@@ -410,6 +513,15 @@ const AdminPictures = () => {
             <div className="bulk-buttons">
               <button className="btn-bulk-edit" onClick={handleBulkEditClick}>
                 Edit Selected
+              </button>
+              <button className="btn-bulk-group" onClick={handleCreateGroupClick} disabled={selectedPictures.size < 2}>
+                Create Group
+              </button>
+              <button className="btn-bulk-group" onClick={handleAddToGroupClick}>
+                Add to Group
+              </button>
+              <button className="btn-bulk-ungroup" onClick={handleRemoveFromGroups}>
+                Remove from Groups
               </button>
               <button className="btn-bulk-delete" onClick={handleBulkDeleteClick}>
                 Delete Selected
@@ -994,6 +1106,119 @@ const AdminPictures = () => {
             </button>
             <button
               onClick={() => setShowBulkDelete(false)}
+              className="secondary"
+              disabled={bulkSaving}
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
+
+        {/* Create Design Group Modal */}
+        <Modal
+          isOpen={showCreateGroup}
+          onClose={() => setShowCreateGroup(false)}
+          title="Create Design Group"
+          size="small"
+        >
+          <Modal.Body>
+            <div className="create-group-modal">
+              <p>Create a design group from <strong>{selectedPictures.size}</strong> selected picture(s).</p>
+              <p className="group-info-text">
+                Design groups allow you to stack related pictures together in the browse view.
+              </p>
+              <div className="form-group">
+                <label>Group Name (Optional)</label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="e.g., Mat Double, Tour Standard"
+                  className="form-input"
+                />
+              </div>
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={handleCreateGroupConfirm}
+              className="primary"
+              disabled={bulkSaving}
+            >
+              {bulkSaving ? 'Creating...' : 'Create Group'}
+            </button>
+            <button
+              onClick={() => setShowCreateGroup(false)}
+              className="secondary"
+              disabled={bulkSaving}
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
+
+        {/* Add to Existing Group Modal */}
+        <Modal
+          isOpen={showAddToGroup}
+          onClose={() => setShowAddToGroup(false)}
+          title="Add to Design Group"
+          size="medium"
+        >
+          <Modal.Body>
+            <div className="add-to-group-modal">
+              <p>Add <strong>{selectedPictures.size}</strong> picture(s) to an existing design group.</p>
+              {existingGroups.length === 0 ? (
+                <div className="no-groups-message">
+                  <p>No design groups exist yet.</p>
+                  <p>Create a new group first by selecting pictures and clicking "Create Group".</p>
+                </div>
+              ) : (
+                <div className="existing-groups-list">
+                  {existingGroups.map(group => (
+                    <div
+                      key={group.id}
+                      className={`group-option ${selectedGroupId === group.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedGroupId(group.id)}
+                    >
+                      <div className="group-option-preview">
+                        {group.primaryPicture ? (
+                          <img
+                            src={getImageUrl(group.primaryPicture.filePath)}
+                            alt={group.name || 'Group preview'}
+                          />
+                        ) : (
+                          <span className="no-preview">No preview</span>
+                        )}
+                      </div>
+                      <div className="group-option-info">
+                        <span className="group-option-name">
+                          {group.name || `Group #${group.id}`}
+                        </span>
+                        <span className="group-option-count">
+                          {group._count?.pictures || 0} picture(s)
+                        </span>
+                        {group.category && (
+                          <span className="group-option-category">
+                            {group.category.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              onClick={handleAddToGroupConfirm}
+              className="primary"
+              disabled={bulkSaving || !selectedGroupId || existingGroups.length === 0}
+            >
+              {bulkSaving ? 'Adding...' : 'Add to Group'}
+            </button>
+            <button
+              onClick={() => setShowAddToGroup(false)}
               className="secondary"
               disabled={bulkSaving}
             >

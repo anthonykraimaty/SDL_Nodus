@@ -960,4 +960,172 @@
   .results-count {
     text-align: center;
   }
+
+  .bulk-actions-bar {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .bulk-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+/* Design Group Buttons */
+.btn-bulk-group,
+.btn-bulk-ungroup {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-bulk-group {
+  background: #9c27b0;
+  color: white;
+}
+
+.btn-bulk-group:hover:not(:disabled) {
+  background: #7b1fa2;
+}
+
+.btn-bulk-group:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-bulk-ungroup {
+  background: var(--bg-medium);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-bulk-ungroup:hover {
+  border-color: #9c27b0;
+  color: #9c27b0;
+}
+
+/* Create Group Modal */
+.create-group-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.create-group-modal p {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.group-info-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-dark);
+  border-radius: var(--radius-md);
+  border-left: 3px solid #9c27b0;
+}
+
+/* Add to Group Modal */
+.add-to-group-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.add-to-group-modal p {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.add-to-group-modal .no-groups-message {
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: var(--bg-dark);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.add-to-group-modal .no-groups-message p {
+  margin: var(--spacing-sm) 0;
+}
+
+.existing-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 300px;
+  overflow-y: auto;
+  padding: var(--spacing-xs);
+}
+
+.existing-groups-list .group-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.existing-groups-list .group-option:hover {
+  border-color: #9c27b0;
+}
+
+.existing-groups-list .group-option.selected {
+  border-color: #9c27b0;
+  background: rgba(156, 39, 176, 0.1);
+}
+
+.existing-groups-list .group-option-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-medium);
+  flex-shrink: 0;
+}
+
+.existing-groups-list .group-option-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.existing-groups-list .group-option-preview .no-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.existing-groups-list .group-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.existing-groups-list .group-option-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.existing-groups-list .group-option-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.existing-groups-list .group-option-category {
+  font-size: 0.8rem;
+  color: var(--accent);
 }
