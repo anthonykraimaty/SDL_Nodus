@@ -41,12 +41,6 @@ const CategoryView = () => {
   // Thumbnail size state (0-100, default 50)
   const [thumbnailSize, setThumbnailSize] = useState(50);
 
-  // Selection mode for approve/reject
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedPictures, setSelectedPictures] = useState(new Set());
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
-
   // Image editing
   const [editingPicture, setEditingPicture] = useState(null);
 
@@ -140,119 +134,6 @@ const CategoryView = () => {
   // Generate year options (last 10 years)
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - i);
-
-  // Selection handlers
-  const toggleSelectionMode = () => {
-    setSelectionMode(!selectionMode);
-    setSelectedPictures(new Set());
-  };
-
-  const togglePictureSelection = (pictureId, e) => {
-    e.stopPropagation();
-    setSelectedPictures(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(pictureId)) {
-        newSet.delete(pictureId);
-      } else {
-        newSet.add(pictureId);
-      }
-      return newSet;
-    });
-  };
-
-  const selectAll = () => {
-    setSelectedPictures(new Set(pictures.map(p => p.id)));
-  };
-
-  const deselectAll = () => {
-    setSelectedPictures(new Set());
-  };
-
-  // Group selected pictures by pictureSetId
-  const getSelectedPicturesBySet = () => {
-    const bySet = {};
-    pictures.forEach(pic => {
-      if (selectedPictures.has(pic.id)) {
-        const setId = pic.pictureSetId;
-        if (!bySet[setId]) {
-          bySet[setId] = [];
-        }
-        bySet[setId].push(pic.id);
-      }
-    });
-    return bySet;
-  };
-
-  // Approve selected pictures
-  const handleApproveSelected = async (asHighlight = false) => {
-    try {
-      setError('');
-      setSuccess('');
-
-      const bySet = getSelectedPicturesBySet();
-      const setIds = Object.keys(bySet);
-
-      if (setIds.length === 0) {
-        setError('Aucune image sélectionnée');
-        return;
-      }
-
-      // Approve each set, excluding non-selected pictures from that set
-      for (const setId of setIds) {
-        const selectedInSet = bySet[setId];
-        // Get all pictures in this set
-        const allInSet = pictures.filter(p => p.pictureSetId === parseInt(setId)).map(p => p.id);
-        // Excluded = all in set minus selected
-        const excludedIds = allInSet.filter(id => !selectedInSet.includes(id));
-
-        await pictureService.approve(parseInt(setId), asHighlight, excludedIds);
-      }
-
-      setSuccess(`${selectedPictures.size} image(s) approuvée(s)${asHighlight ? ' comme highlight' : ''}`);
-      setSelectionMode(false);
-      setSelectedPictures(new Set());
-      loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
-    } catch (err) {
-      console.error('Approval error:', err);
-      setError('Échec de l\'approbation');
-    }
-  };
-
-  // Reject selected pictures
-  const handleRejectSelected = async () => {
-    try {
-      setError('');
-      setSuccess('');
-
-      if (!rejectionReason.trim()) {
-        alert('Veuillez fournir une raison de rejet');
-        return;
-      }
-
-      const bySet = getSelectedPicturesBySet();
-      const setIds = Object.keys(bySet);
-
-      if (setIds.length === 0) {
-        setError('Aucune image sélectionnée');
-        return;
-      }
-
-      // Reject each set
-      for (const setId of setIds) {
-        await pictureService.reject(parseInt(setId), rejectionReason);
-      }
-
-      setSuccess(`${setIds.length} set(s) rejeté(s)`);
-      setShowRejectModal(false);
-      setRejectionReason('');
-      setSelectionMode(false);
-      setSelectedPictures(new Set());
-      loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
-    } catch (err) {
-      console.error('Rejection error:', err);
-      setError('Échec du rejet');
-    }
-  };
 
   // Image editing handlers
   const handleEditPicture = (picture, e) => {
@@ -348,58 +229,6 @@ const CategoryView = () => {
         {/* Success/Error Messages */}
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
-
-        {/* Review Controls - Only for authorized users */}
-        {canReview && pictures.length > 0 && (
-          <div className="review-controls">
-            <button
-              className={`btn-selection-mode ${selectionMode ? 'active' : ''}`}
-              onClick={toggleSelectionMode}
-            >
-              {selectionMode ? '✕ Annuler la sélection' : '☑ Mode sélection'}
-            </button>
-
-            {selectionMode && (
-              <>
-                <div className="selection-actions">
-                  <button className="btn-select-all" onClick={selectAll}>
-                    Tout sélectionner
-                  </button>
-                  <button className="btn-deselect-all" onClick={deselectAll}>
-                    Tout désélectionner
-                  </button>
-                  <span className="selection-count">
-                    {selectedPictures.size} sélectionnée(s)
-                  </span>
-                </div>
-
-                <div className="review-actions-inline">
-                  <button
-                    className="btn-approve"
-                    onClick={() => handleApproveSelected(false)}
-                    disabled={selectedPictures.size === 0}
-                  >
-                    ✓ Approuver
-                  </button>
-                  <button
-                    className="btn-highlight"
-                    onClick={() => handleApproveSelected(true)}
-                    disabled={selectedPictures.size === 0}
-                  >
-                    ★ Approuver comme Highlight
-                  </button>
-                  <button
-                    className="btn-reject"
-                    onClick={() => setShowRejectModal(true)}
-                    disabled={selectedPictures.size === 0}
-                  >
-                    ✕ Rejeter
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
 
         {/* Type Filters */}
         <div className="type-filters">
@@ -591,12 +420,12 @@ const CategoryView = () => {
             {pictures.map((picture, index) => (
               <article
                 key={picture.id}
-                className={`picture-thumbnail ${selectionMode && selectedPictures.has(picture.id) ? 'selected' : ''}`}
-                onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index)}
+                className="picture-thumbnail"
+                onClick={() => handlePictureClick(index)}
                 role="button"
                 tabIndex={0}
                 aria-label={`Voir ${getImageAlt(picture, index)}`}
-                onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index))}
+                onKeyDown={(e) => e.key === 'Enter' && handlePictureClick(index)}
               >
                 <figure className="thumbnail-image">
                   <img
@@ -605,18 +434,8 @@ const CategoryView = () => {
                     loading="lazy"
                   />
 
-                  {/* Selection checkbox in selection mode */}
-                  {selectionMode && (
-                    <div
-                      className={`picture-selection-badge ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
-                      onClick={(e) => togglePictureSelection(picture.id, e)}
-                    >
-                      {selectedPictures.has(picture.id) ? '✓' : ''}
-                    </div>
-                  )}
-
                   {/* Edit button for authorized users */}
-                  {canReview && !selectionMode && (
+                  {canReview && (
                     <button
                       className="picture-edit-btn"
                       onClick={(e) => handleEditPicture(picture, e)}
@@ -661,48 +480,6 @@ const CategoryView = () => {
           onClose={handleClosePreviewer}
         />
       )}
-
-      {/* Rejection Modal */}
-      <Modal
-        isOpen={showRejectModal}
-        onClose={() => {
-          setShowRejectModal(false);
-          setRejectionReason('');
-        }}
-        title="Rejeter les images sélectionnées"
-        variant="danger"
-        size="medium"
-      >
-        <Modal.Body>
-          <p>Veuillez fournir une raison pour le rejet de ces images:</p>
-          <textarea
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            placeholder="Raison du rejet..."
-            rows="4"
-            className="rejection-textarea"
-            autoFocus
-          />
-        </Modal.Body>
-        <Modal.Actions>
-          <button
-            onClick={handleRejectSelected}
-            className="danger"
-            disabled={!rejectionReason.trim()}
-          >
-            Confirmer le rejet
-          </button>
-          <button
-            onClick={() => {
-              setShowRejectModal(false);
-              setRejectionReason('');
-            }}
-            className="secondary"
-          >
-            Annuler
-          </button>
-        </Modal.Actions>
-      </Modal>
 
       {/* Image Editor Modal */}
       <Modal
