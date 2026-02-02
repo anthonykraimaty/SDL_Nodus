@@ -2,7 +2,7 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import path from 'path';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -36,17 +36,34 @@ const upload = multer({
   fileFilter: csvFileFilter,
 });
 
-// GET /api/groups - Get all groups (public for filters)
-router.get('/', async (req, res) => {
+// GET /api/groups - Public gets limited data, authenticated gets full details
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const groups = await prisma.group.findMany({
-      include: {
-        district: true,
-        _count: {
-          select: {
-            troupes: true,
+    // Authenticated users get full details including district and troupe counts
+    if (req.user) {
+      const groups = await prisma.group.findMany({
+        include: {
+          district: true,
+          _count: {
+            select: {
+              troupes: true,
+            },
           },
         },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+      return res.json(groups);
+    }
+
+    // Public users get only basic info (no hierarchy details)
+    const groups = await prisma.group.findMany({
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        districtId: true,
       },
       orderBy: {
         name: 'asc',
@@ -206,13 +223,15 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
 
 // POST /api/groups/import - Import groups from CSV (admin only)
 router.post('/import', authenticate, authorize('ADMIN'), upload.single('file'), async (req, res) => {
+  const fs = await import('fs');
+  const filePath = req.file?.path;
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const fs = await import('fs');
-    const csvData = fs.readFileSync(req.file.path, 'utf-8');
+    const csvData = fs.readFileSync(filePath, 'utf-8');
     const lines = csvData.split('\n').filter(line => line.trim());
 
     if (lines.length < 2) {
@@ -255,13 +274,19 @@ router.post('/import', authenticate, authorize('ADMIN'), upload.single('file'), 
       }
     }
 
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
-
     res.json({ message: `Successfully imported ${imported} groups`, count: imported });
   } catch (error) {
     console.error('Failed to import groups:', error);
     res.status(500).json({ error: 'Failed to import groups' });
+  } finally {
+    // Always clean up uploaded file, even on error
+    if (filePath) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Failed to cleanup temp file:', cleanupError);
+      }
+    }
   }
 });
 

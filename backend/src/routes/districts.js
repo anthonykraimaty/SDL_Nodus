@@ -1,25 +1,41 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all districts (with groups and troupes) - Public for filters
-router.get('/', async (req, res) => {
+// Get all districts - Public gets limited data, authenticated gets full hierarchy
+router.get('/', optionalAuth, async (req, res) => {
   try {
+    // Authenticated users get full details including groups
+    if (req.user) {
+      const districts = await prisma.district.findMany({
+        include: {
+          groups: {
+            orderBy: {
+              name: 'asc',
+            },
+          },
+          _count: {
+            select: {
+              groups: true,
+            },
+          },
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+      return res.json(districts);
+    }
+
+    // Public users get only names and codes (no hierarchy details)
     const districts = await prisma.district.findMany({
-      include: {
-        groups: {
-          orderBy: {
-            name: 'asc',
-          },
-        },
-        _count: {
-          select: {
-            groups: true,
-          },
-        },
+      select: {
+        id: true,
+        name: true,
+        code: true,
       },
       orderBy: {
         name: 'asc',

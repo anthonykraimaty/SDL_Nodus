@@ -57,9 +57,12 @@ router.get('/', optionalAuth, async (req, res) => {
 
         const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
 
-        // If branche has specific district access, filter by those districts
-        // Otherwise (no district access entries), they can see all districts
-        if (allowedDistrictIds.length > 0) {
+        // SECURITY: Deny-by-default - if no district access entries, branche sees nothing
+        if (allowedDistrictIds.length === 0) {
+          // No district access assigned - return empty result
+          where.id = -1; // Will match nothing
+        } else {
+          // Filter by assigned districts only
           where.troupe = {
             group: {
               districtId: { in: allowedDistrictIds },
@@ -350,8 +353,8 @@ router.put('/:id/classify', authenticate, async (req, res) => {
       const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
       const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
 
-      // If no district access entries, branche can access all districts
-      canModify = allowedDistrictIds.length === 0 || allowedDistrictIds.includes(pictureDistrictId);
+      // SECURITY: Deny-by-default - branche must have explicit district access
+      canModify = allowedDistrictIds.length > 0 && allowedDistrictIds.includes(pictureDistrictId);
     }
 
     if (!canModify) {
@@ -604,13 +607,22 @@ router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'
 
 // DELETE /api/pictures/:id - Delete picture set
 // - Owner can delete non-approved sets (PENDING, CLASSIFIED, REJECTED)
-// - Branche can delete non-approved sets (PENDING, CLASSIFIED, REJECTED)
+// - Branche can delete non-approved sets from districts they have access to
 // - Admin can delete any set (including APPROVED)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const pictureSet = await prisma.pictureSet.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { pictures: true },
+      include: {
+        pictures: true,
+        troupe: {
+          include: {
+            group: {
+              include: { district: true },
+            },
+          },
+        },
+      },
     });
 
     if (!pictureSet) {
@@ -629,9 +641,23 @@ router.delete('/:id', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Only administrators can delete approved picture sets' });
       }
     } else {
-      // Non-approved: owner, branche, or admin can delete
-      if (!isOwner && !isBranche && !isAdmin) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
+      // Non-approved: owner, branche (with district access), or admin can delete
+      if (!isOwner && !isAdmin) {
+        if (isBranche) {
+          // SECURITY: Verify branche has district access
+          const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+            where: { userId: req.user.id },
+            select: { districtId: true },
+          });
+          const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+          const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
+
+          if (allowedDistrictIds.length === 0 || !allowedDistrictIds.includes(pictureDistrictId)) {
+            return res.status(403).json({ error: 'You do not have access to delete pictures from this district' });
+          }
+        } else {
+          return res.status(403).json({ error: 'Insufficient permissions' });
+        }
       }
     }
 
@@ -666,7 +692,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 
 // DELETE /api/pictures/:id/picture/:pictureId - Delete individual picture from a set
 // - Owner can delete from non-approved sets
-// - Branche can delete from non-approved sets
+// - Branche can delete from non-approved sets (with district access)
 // - Admin can delete from any set
 router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
   try {
@@ -674,7 +700,16 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
 
     const pictureSet = await prisma.pictureSet.findUnique({
       where: { id: parseInt(id) },
-      include: { pictures: true },
+      include: {
+        pictures: true,
+        troupe: {
+          include: {
+            group: {
+              include: { district: true },
+            },
+          },
+        },
+      },
     });
 
     if (!pictureSet) {
@@ -697,8 +732,22 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Only administrators can delete pictures from approved sets' });
       }
     } else {
-      if (!isOwner && !isBranche && !isAdmin) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
+      if (!isOwner && !isAdmin) {
+        if (isBranche) {
+          // SECURITY: Verify branche has district access
+          const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+            where: { userId: req.user.id },
+            select: { districtId: true },
+          });
+          const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+          const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
+
+          if (allowedDistrictIds.length === 0 || !allowedDistrictIds.includes(pictureDistrictId)) {
+            return res.status(403).json({ error: 'You do not have access to delete pictures from this district' });
+          }
+        } else {
+          return res.status(403).json({ error: 'Insufficient permissions' });
+        }
       }
     }
 
