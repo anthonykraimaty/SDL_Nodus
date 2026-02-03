@@ -412,10 +412,127 @@
   cursor: not-allowed;
 }
 
-/* Responsive Design */
+/* Desktop Layout - Portrait Images (details on left) */
+@media (min-width: 769px) {
+  .image-previewer.layout-portrait {
+    flex-direction: row;
+  }
+
+  .layout-portrait .previewer-image-container {
+    flex: 1;
+    margin: 80px 20px 60px 320px;
+  }
+
+  .layout-portrait .previewer-details {
+    position: absolute;
+    left: 20px;
+    top: 80px;
+    bottom: auto;
+    right: auto;
+    width: 280px;
+    max-height: calc(100vh - 160px);
+    border-radius: 12px;
+  }
+
+  .layout-portrait .previewer-counter {
+    left: 180px;
+  }
+
+  /* Desktop Layout - Landscape Images (compact footer at bottom) */
+  .layout-landscape .previewer-details {
+    bottom: 60px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: auto;
+    max-width: 800px;
+    min-width: 400px;
+    max-height: none;
+    padding: 16px 24px;
+  }
+
+  .layout-landscape .details-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px 32px;
+  }
+
+  .layout-landscape .detail-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .layout-landscape .detail-item strong {
+    font-size: 11px;
+  }
+
+  .layout-landscape .detail-item span {
+    font-size: 13px;
+  }
+
+  .layout-landscape .detail-item.full-width {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Hide minimize button on landscape desktop - use top bar toggle instead */
+  .layout-landscape .previewer-minimize-btn {
+    display: none;
+  }
+
+  /* Move edit button for landscape */
+  .layout-landscape .previewer-edit-btn {
+    position: absolute;
+    bottom: auto;
+    top: 10px;
+    right: 10px;
+  }
+}
+
+/* Responsive Design - Mobile always uses bottom layout regardless of orientation */
 @media (max-width: 768px) {
-  .image-previewer {
+  .image-previewer,
+  .image-previewer.layout-portrait,
+  .image-previewer.layout-landscape {
+    flex-direction: column;
     padding: 10px;
+  }
+
+  .layout-portrait .previewer-image-container,
+  .layout-landscape .previewer-image-container {
+    margin: 80px 0 10px;
+  }
+
+  .layout-portrait .previewer-details,
+  .layout-landscape .previewer-details {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: 50px;
+    width: auto;
+    max-width: none;
+    min-width: auto;
+    transform: none;
+  }
+
+  .layout-portrait .previewer-counter,
+  .layout-landscape .previewer-counter {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .layout-landscape .previewer-minimize-btn {
+    display: flex;
+  }
+
+  .layout-landscape .previewer-edit-btn {
+    position: absolute;
+    top: auto;
+    bottom: 10px;
+    right: 10px;
   }
 
   .previewer-close {
@@ -454,8 +571,18 @@
     font-size: 13px;
   }
 
-  .details-grid {
+  .details-grid,
+  .layout-landscape .details-grid,
+  .layout-portrait .details-grid {
+    display: grid;
     grid-template-columns: 1fr;
+    flex-wrap: unset;
+  }
+
+  .layout-landscape .detail-item,
+  .layout-portrait .detail-item {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .previewer-details {

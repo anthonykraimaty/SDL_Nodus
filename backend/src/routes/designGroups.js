@@ -84,15 +84,6 @@ const canUserAccessPictures = async (userId, userRole, pictureIds) => {
   // Admin can access any pictures
   if (userRole === 'ADMIN') return { allowed: true, pictures };
 
-  // Chef troupe can only access their own pictures
-  if (userRole === 'CHEF_TROUPE') {
-    const allOwned = pictures.every(pic => pic.pictureSet.uploadedById === userId);
-    if (!allOwned) {
-      return { allowed: false, error: 'You can only group your own pictures', status: 403 };
-    }
-    return { allowed: true, pictures };
-  }
-
   // Branche can access pictures from their districts
   if (userRole === 'BRANCHE_ECLAIREURS') {
     const districtIds = await getUserDistrictIds(userId);
@@ -271,7 +262,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 });
 
 // POST /api/design-groups - Create new design group
-router.post('/', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.post('/', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
     const { name, pictureIds, primaryPictureId } = req.body;
 
@@ -340,7 +331,7 @@ router.post('/', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'A
 });
 
 // PUT /api/design-groups/:id - Update design group
-router.put('/:id', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.put('/:id', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, primaryPictureId, categoryId } = req.body;
@@ -391,7 +382,7 @@ router.put('/:id', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 
 });
 
 // POST /api/design-groups/:id/pictures - Add pictures to group
-router.post('/:id/pictures', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.post('/:id/pictures', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { pictureIds } = req.body;
@@ -448,7 +439,7 @@ router.post('/:id/pictures', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECL
 });
 
 // DELETE /api/design-groups/:id/pictures/:pictureId - Remove picture from group
-router.delete('/:id/pictures/:pictureId', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.delete('/:id/pictures/:pictureId', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
     const { id, pictureId } = req.params;
 
@@ -540,7 +531,7 @@ router.delete('/:id/pictures/:pictureId', authenticate, authorize('CHEF_TROUPE',
 });
 
 // DELETE /api/design-groups/:id - Delete design group
-router.delete('/:id', authenticate, authorize('CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.delete('/:id', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
 

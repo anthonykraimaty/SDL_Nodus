@@ -15,6 +15,9 @@ const ImagePreviewer = ({
   const [zoom, setZoom] = useState(1);
   const [showDetails, setShowDetails] = useState(true);
 
+  // Image orientation state
+  const [isPortrait, setIsPortrait] = useState(false);
+
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editType, setEditType] = useState('');
@@ -23,6 +26,12 @@ const ImagePreviewer = ({
   const [editError, setEditError] = useState('');
 
   const currentPicture = pictures[currentIndex];
+
+  // Detect image orientation when it loads
+  const handleImageLoad = (e) => {
+    const img = e.target;
+    setIsPortrait(img.naturalHeight > img.naturalWidth);
+  };
 
   // Check if user can edit (admin or branche)
   const canEdit = user && (user.role === 'ADMIN' || user.role === 'BRANCHE_ECLAIREURS');
@@ -124,9 +133,12 @@ const ImagePreviewer = ({
 
   if (!currentPicture) return null;
 
+  // Determine layout class based on orientation (only on desktop)
+  const layoutClass = isPortrait ? 'layout-portrait' : 'layout-landscape';
+
   return (
     <div className="image-previewer-overlay" onClick={onClose}>
-      <div className="image-previewer" onClick={(e) => e.stopPropagation()}>
+      <div className={`image-previewer ${layoutClass}`} onClick={(e) => e.stopPropagation()}>
         {/* Close Button */}
         <button className="previewer-close" onClick={onClose} aria-label="Close">
           ✕
@@ -181,6 +193,7 @@ const ImagePreviewer = ({
             alt={currentPicture.caption || `Picture ${currentIndex + 1}`}
             style={{ transform: `scale(${zoom})` }}
             className="previewer-image"
+            onLoad={handleImageLoad}
           />
         </div>
 

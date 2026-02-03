@@ -18,11 +18,19 @@ const Browse = () => {
   const [schematicCategories, setSchematicCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Filter states
-  const [typeFilter, setTypeFilter] = useState('');
+  // Filter states - default to Photos, restore from sessionStorage if available
+  const [typeFilter, setTypeFilter] = useState(() => {
+    const saved = sessionStorage.getItem('browseTypeFilter');
+    return saved !== null ? saved : 'INSTALLATION_PHOTO';
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('photos'); // 'default', 'name', 'photos'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
+
+  // Persist type filter to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('browseTypeFilter', typeFilter);
+  }, [typeFilter]);
 
   useEffect(() => {
     loadCategories();
@@ -220,7 +228,7 @@ const Browse = () => {
                     {filteredPhotoCategories.map((category) => (
                       <article key={category.id} className="category-card-wrapper">
                         <Link
-                          to={`/category/${category.id}?type=INSTALLATION_PHOTO`}
+                          to={`/category/${category.id}${typeFilter ? `?type=${typeFilter}` : ''}`}
                           className="category-card"
                           aria-label={`Voir les photos de type ${category.name}`}
                         >
@@ -276,7 +284,7 @@ const Browse = () => {
                     {filteredSchematicCategories.map((category) => (
                       <article key={category.id} className="category-card-wrapper">
                         <Link
-                          to={`/category/${category.id}?type=SCHEMATIC`}
+                          to={`/category/${category.id}${typeFilter ? `?type=${typeFilter}` : ''}`}
                           className="category-card"
                           aria-label={`Voir les schémas de type ${category.name}`}
                         >

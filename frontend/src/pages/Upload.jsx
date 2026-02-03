@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
+import Modal from '../components/Modal';
 import './Upload.css';
 
 // Helper to format bytes
@@ -23,6 +24,8 @@ const Upload = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Progress state
   const [uploadProgress, setUploadProgress] = useState({
@@ -214,6 +217,28 @@ const Upload = () => {
               </ul>
             </div>
 
+            {/* Terms and Conditions Checkbox */}
+            <div className="terms-checkbox">
+              <label className="terms-label">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  required
+                />
+                <span>
+                  I agree to the{' '}
+                  <button
+                    type="button"
+                    className="terms-link"
+                    onClick={() => setShowTermsModal(true)}
+                  >
+                    terms and conditions
+                  </button>
+                </span>
+              </label>
+            </div>
+
             {/* Progress Bar - shown during upload */}
             {loading && (
               <div className="upload-progress-container">
@@ -243,13 +268,47 @@ const Upload = () => {
             <button
               type="submit"
               className="btn-submit primary"
-              disabled={loading || files.length === 0}
+              disabled={loading || files.length === 0 || !agreedToTerms}
             >
               {loading ? `Uploading... ${uploadProgress.percent}%` : `Upload ${files.length || 0} Picture${files.length !== 1 ? 's' : ''}`}
             </button>
           </form>
         </div>
       </div>
+
+      {/* Terms and Conditions Modal */}
+      <Modal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        title="Terms and Conditions"
+        size="large"
+      >
+        <Modal.Body>
+          <p>By submitting your design to Nodus, you agree to the following terms:</p>
+          <ol className="terms-list">
+            <li>
+              <strong>Grant of Rights:</strong> You grant the Association a worldwide, irrevocable, perpetual, non-exclusive, and royalty-free license to use, reproduce, modify, display, and distribute the Work in connection with its website and wood craft activities.
+            </li>
+            <li>
+              <strong>Public Disclosure:</strong> You understand and agree that the Work will be made available to the public. You waive any expectation of privacy regarding the Work.
+            </li>
+            <li>
+              <strong>Waiver of Compensation:</strong> You expressly acknowledge that You are submitting the Work as a volunteer contribution. You waive any right to royalties, fees, commissions, or other material benefits resulting from the Association's display of the Work.
+            </li>
+            <li>
+              <strong>Release and Indemnity:</strong> You hereby release, discharge, and agree to hold harmless the Association, its officers, and volunteers from any and all claims, demands, or causes of action that you have or may have in the future regarding the use of the Work.
+            </li>
+            <li>
+              <strong>Warranty of Ownership:</strong> You warrant that You are the sole creator and owner of the Work and have the full legal right to grant these permissions.
+            </li>
+          </ol>
+        </Modal.Body>
+        <Modal.Actions>
+          <button className="btn-primary" onClick={() => setShowTermsModal(false)}>
+            Close
+          </button>
+        </Modal.Actions>
+      </Modal>
     </div>
   );
 };

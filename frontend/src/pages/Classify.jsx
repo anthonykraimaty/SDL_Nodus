@@ -11,6 +11,9 @@ const Classify = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Check if user can create/manage design groups (only admin and branche)
+  const canManageGroups = user && (user.role === 'ADMIN' || user.role === 'BRANCHE_ECLAIREURS');
+
   const [pictureSets, setPictureSets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -348,8 +351,8 @@ const Classify = () => {
                   </div>
                 </div>
 
-                {/* Design Group Picker - only show when 2+ pictures selected and category chosen */}
-                {selectedPictures.size >= 2 && bulkClassification.categoryId && (
+                {/* Design Group Picker - only show when 2+ pictures selected and category chosen, and user can manage groups */}
+                {canManageGroups && selectedPictures.size >= 2 && bulkClassification.categoryId && (
                   <div className="bulk-form-group bulk-form-group-wide">
                     <DesignGroupPicker
                       categoryId={parseInt(bulkClassification.categoryId)}

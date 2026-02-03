@@ -13,7 +13,7 @@ import './CategoryView.css';
 
 const CategoryView = () => {
   const { categoryId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const initialType = searchParams.get('type') || '';
   const { user } = useAuth();
 
@@ -148,12 +148,8 @@ const CategoryView = () => {
 
   const handleTypeFilter = (type) => {
     setTypeFilter(type);
-    // Update URL search params
-    if (type) {
-      setSearchParams({ type });
-    } else {
-      setSearchParams({});
-    }
+    // Note: We don't update URL params here - the filter is local to CategoryView
+    // and shouldn't affect the Browse page filter (stored in sessionStorage)
   };
 
   const handleSort = (field) => {
