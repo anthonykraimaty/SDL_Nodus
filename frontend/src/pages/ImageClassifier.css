@@ -373,21 +373,20 @@
 }
 
 /* Pictures Grid */
-.pictures-grid {
+.image-classifier-page .pictures-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--spacing-lg);
   margin-bottom: var(--spacing-xxl);
 }
 
-.picture-card {
+.image-classifier-page .picture-card {
   background: var(--bg-medium);
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 2px solid var(--border);
   transition: all 0.3s ease;
-  min-width: 320px;
-  max-width: 500px;
+  min-width: 0;
 }
 
 .picture-card.selected {
@@ -919,14 +918,8 @@
     width: 100%;
   }
 
-  .pictures-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  .image-classifier-page .pictures-grid {
     gap: var(--spacing-md);
-  }
-
-  .picture-card {
-    min-width: 280px;
-    max-width: 100%;
   }
 
   .picture-preview {
@@ -942,14 +935,8 @@
 }
 
 @media (max-width: 480px) {
-  .pictures-grid {
+  .image-classifier-page .pictures-grid {
     grid-template-columns: 1fr;
-  }
-
-  .picture-card {
-    min-width: unset;
-    max-width: 100%;
-    margin: 0 auto;
   }
 
   .bulk-actions-card {
