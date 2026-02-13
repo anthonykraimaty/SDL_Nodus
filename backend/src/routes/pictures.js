@@ -112,7 +112,17 @@ router.get('/', optionalAuth, async (req, res) => {
           tags: true,
           pictures: {
             orderBy: { displayOrder: 'asc' },
-            include: { category: true },
+            include: {
+              category: true,
+              designGroup: {
+                include: {
+                  pictures: {
+                    select: { id: true, filePath: true, displayOrder: true },
+                    orderBy: { displayOrder: 'asc' },
+                  },
+                },
+              },
+            },
           },
         },
         orderBy: { uploadedAt: 'desc' },
@@ -157,7 +167,17 @@ router.get('/:id', optionalAuth, async (req, res) => {
         tags: true,
         pictures: {
           orderBy: { displayOrder: 'asc' },
-          include: { category: true },
+          include: {
+            category: true,
+            designGroup: {
+              include: {
+                pictures: {
+                  select: { id: true, filePath: true, displayOrder: true },
+                  orderBy: { displayOrder: 'asc' },
+                },
+              },
+            },
+          },
         },
         approvedBy: { select: { id: true, name: true } },
         classifiedBy: { select: { id: true, name: true } },

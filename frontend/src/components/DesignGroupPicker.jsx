@@ -9,6 +9,7 @@ const DesignGroupPicker = ({
   onSelectGroup,
   onCreateGroup,
   disabled = false,
+  createOnly = false,
 }) => {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -17,10 +18,10 @@ const DesignGroupPicker = ({
   const [newGroupName, setNewGroupName] = useState('');
 
   useEffect(() => {
-    if (categoryId) {
+    if (categoryId && !createOnly) {
       loadGroups();
     }
-  }, [categoryId]);
+  }, [categoryId, createOnly]);
 
   const loadGroups = async () => {
     try {
@@ -78,7 +79,7 @@ const DesignGroupPicker = ({
       ) : (
         <>
           {/* Selected group display */}
-          {selectedGroup && (
+          {!createOnly && selectedGroup && (
             <div className="selected-group-display">
               <div className="selected-group-preview">
                 {selectedGroup.primaryPicture && (
@@ -100,7 +101,7 @@ const DesignGroupPicker = ({
           )}
 
           {/* Group selection grid */}
-          {!selectedGroup && groups.length > 0 && (
+          {!createOnly && !selectedGroup && groups.length > 0 && (
             <div className="groups-grid">
               {groups.map((group) => (
                 <button
@@ -139,14 +140,14 @@ const DesignGroupPicker = ({
           )}
 
           {/* No groups message */}
-          {!selectedGroup && groups.length === 0 && !showCreateNew && (
+          {!createOnly && !selectedGroup && groups.length === 0 && !showCreateNew && (
             <div className="no-groups-message">
               No design groups in this category yet.
             </div>
           )}
 
           {/* Create new group section */}
-          {!selectedGroup && (
+          {(createOnly || !selectedGroup) && (
             <div className="create-group-section">
               {showCreateNew ? (
                 <div className="create-group-form">

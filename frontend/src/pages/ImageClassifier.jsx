@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService } from '../services/api';
+import { pictureService, categoryService, designGroupService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -26,6 +26,12 @@ const ImageClassifier = () => {
   const [pictureType, setPictureType] = useState('');
   const [showSchematicWarning, setShowSchematicWarning] = useState(false);
   const [editingPicture, setEditingPicture] = useState(null);
+  const [createNewGroup, setCreateNewGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [viewingGroup, setViewingGroup] = useState(null);
+  const [viewingGroupIndex, setViewingGroupIndex] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -40,7 +46,7 @@ const ImageClassifier = () => {
       ]);
 
       setPictureSet(pictureSetData);
-      setCategories(categoriesData);
+      setCategories([...categoriesData].sort((a, b) => a.name.localeCompare(b.name)));
       setPictureType(pictureSetData.type || 'INSTALLATION_PHOTO');
 
       // Initialize classification data for each picture (including woodCount)
@@ -69,6 +75,20 @@ const ImageClassifier = () => {
         [field]: value,
       },
     }));
+  };
+
+  // Update category for all pictures in a design group at once
+  const handleGroupCategoryChange = (group, value) => {
+    setClassificationData(prev => {
+      const updates = { ...prev };
+      group.pictures.forEach(pic => {
+        updates[pic.id] = {
+          ...updates[pic.id],
+          categoryId: value,
+        };
+      });
+      return updates;
+    });
   };
 
   const togglePictureSelection = (pictureId) => {
@@ -121,6 +141,49 @@ const ImageClassifier = () => {
     setSuccess('Bulk classification applied! Click "Save All Classifications" to save.');
   };
 
+  const handleCreateGroup = async () => {
+    if (selectedPictures.size < 2) {
+      setError('Select at least 2 pictures to create a group');
+      return;
+    }
+    try {
+      setCreatingGroup(true);
+      setError('');
+      const pictureIds = Array.from(selectedPictures);
+      await designGroupService.create({
+        name: newGroupName || undefined,
+        pictureIds,
+      });
+      setSuccess('Design group created successfully!');
+      setShowGroupForm(false);
+      setNewGroupName('');
+      setSelectedPictures(new Set());
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      setError('Failed to create design group');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  const handleRemoveFromGroup = async (groupId, pictureId) => {
+    try {
+      setError('');
+      const result = await designGroupService.removePicture(groupId, pictureId);
+      if (result.groupDeleted || viewingGroup?.pictures?.length <= 2) {
+        setViewingGroup(null);
+      } else {
+        // Adjust index if needed
+        setViewingGroupIndex(prev => prev >= viewingGroup.pictures.length - 1 ? Math.max(0, prev - 1) : prev);
+      }
+      await loadData();
+      setSuccess('Picture removed from group');
+    } catch (err) {
+      console.error('Failed to remove from group:', err);
+      setError('Failed to remove picture from group');
+    }
+  };
+
   // Count classified pictures
   const getClassifiedCount = () => {
     return pictureSet?.pictures?.filter(pic => classificationData[pic.id]?.categoryId).length || 0;
@@ -128,6 +191,28 @@ const ImageClassifier = () => {
 
   const getUnclassifiedCount = () => {
     return (pictureSet?.pictures?.length || 0) - getClassifiedCount();
+  };
+
+  // Organize pictures into design groups and ungrouped
+  const getGroupedPictures = () => {
+    if (!pictureSet?.pictures) return { groups: [], ungrouped: [] };
+    const groupMap = new Map();
+    const ungrouped = [];
+    pictureSet.pictures.forEach(pic => {
+      if (pic.designGroupId && pic.designGroup) {
+        if (!groupMap.has(pic.designGroupId)) {
+          groupMap.set(pic.designGroupId, {
+            id: pic.designGroupId,
+            name: pic.designGroup.name,
+            pictures: [],
+          });
+        }
+        groupMap.get(pic.designGroupId).pictures.push(pic);
+      } else {
+        ungrouped.push(pic);
+      }
+    });
+    return { groups: Array.from(groupMap.values()), ungrouped };
   };
 
   const handleSaveAll = async () => {
@@ -352,6 +437,48 @@ const ImageClassifier = () => {
                 </button>
               </div>
 
+              {selectedPictures.size >= 2 && (
+                <div className="create-group-inline">
+                  {!showGroupForm ? (
+                    <button
+                      onClick={() => setShowGroupForm(true)}
+                      className="btn-create-group"
+                    >
+                      + Create Group for Selected ({selectedPictures.size})
+                    </button>
+                  ) : (
+                    <div className="create-group-form-inline">
+                      <input
+                        type="text"
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Group name (optional)"
+                        className="form-input"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateGroup();
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={handleCreateGroup}
+                        className="btn-primary"
+                        disabled={creatingGroup}
+                      >
+                        {creatingGroup ? 'Creating...' : 'Create'}
+                      </button>
+                      <button
+                        onClick={() => { setShowGroupForm(false); setNewGroupName(''); }}
+                        className="btn-secondary"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="bulk-actions-controls">
                 <button onClick={selectAll} className="btn-secondary">
                   {selectedPictures.size === pictureSet.pictures.length ? 'Deselect All' : 'Select All'}
@@ -416,6 +543,7 @@ const ImageClassifier = () => {
                     Apply to Selected ({selectedPictures.size})
                   </button>
                 </div>
+
               </div>
             </>
           )}
@@ -423,151 +551,216 @@ const ImageClassifier = () => {
 
         {/* Pictures Grid */}
         <div className="pictures-grid">
-          {pictureSet.pictures?.map(picture => (
-            <div
-              key={picture.id}
-              className={`picture-card ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
-            >
-              <div className="picture-preview">
-                <input
-                  type="checkbox"
-                  className="picture-checkbox"
-                  checked={selectedPictures.has(picture.id)}
-                  onChange={() => togglePictureSelection(picture.id)}
-                />
-                <img
-                  src={getImageUrl(picture.filePath)}
-                  alt={`Picture ${picture.displayOrder}`}
-                  onClick={() => setSelectedImage(picture)}
-                />
-                <div className="picture-overlay">
-                  <span>#{picture.displayOrder}</span>
-                </div>
-                <button
-                  className="picture-edit-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingPicture(picture);
-                  }}
-                  title="Edit image (crop/rotate)"
-                >
-                  ✎
-                </button>
-                {classificationData[picture.id]?.categoryId ? (
-                  <div className="picture-classified-badge">✓</div>
-                ) : (
-                  <div className="picture-unclassified-badge">!</div>
-                )}
-              </div>
-
-              {/* Show individual controls only when NOT selected for bulk */}
-              {!selectedPictures.has(picture.id) ? (
-                <div className="picture-controls">
-                  <div className="form-group">
-                    <label>Category *</label>
-                    <select
-                      value={classificationData[picture.id]?.categoryId || ''}
-                      onChange={(e) => handleClassificationChange(picture.id, 'categoryId', e.target.value)}
-                      className="form-select"
-                    >
-                      <option value="">Select Category</option>
-                      {categories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Date</label>
-                    <div className="date-picker-container">
-                      <select
-                        value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getMonth() + 1 : ''}
-                        onChange={(e) => {
-                          const month = e.target.value;
-                          const year = classificationData[picture.id]?.takenAt
-                            ? new Date(classificationData[picture.id].takenAt).getFullYear()
-                            : new Date().getFullYear();
-                          if (month) {
-                            handleClassificationChange(picture.id, 'takenAt', `${year}-${month.padStart(2, '0')}-01`);
-                          } else {
-                            handleClassificationChange(picture.id, 'takenAt', '');
-                          }
-                        }}
-                        className="form-select date-select"
+          {/* Grouped pictures (stacked) */}
+          {(() => {
+            const { groups, ungrouped } = getGroupedPictures();
+            return (
+              <>
+                {groups.map(group => {
+                  const previewPics = group.pictures.slice(0, 3);
+                  const groupCategoryId = classificationData[group.pictures[0]?.id]?.categoryId || '';
+                  return (
+                    <div key={`group-${group.id}`} className="picture-card grouped-card">
+                      <div
+                        className="picture-preview stacked-preview"
+                        onClick={() => { setViewingGroup(group); setViewingGroupIndex(0); }}
+                        title="Click to view group"
                       >
-                        <option value="">Month</option>
-                        <option value="1">Jan</option>
-                        <option value="2">Feb</option>
-                        <option value="3">Mar</option>
-                        <option value="4">Apr</option>
-                        <option value="5">May</option>
-                        <option value="6">Jun</option>
-                        <option value="7">Jul</option>
-                        <option value="8">Aug</option>
-                        <option value="9">Sep</option>
-                        <option value="10">Oct</option>
-                        <option value="11">Nov</option>
-                        <option value="12">Dec</option>
-                      </select>
-                      <select
-                        value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getFullYear() : ''}
-                        onChange={(e) => {
-                          const year = e.target.value;
-                          const month = classificationData[picture.id]?.takenAt
-                            ? new Date(classificationData[picture.id].takenAt).getMonth() + 1
-                            : new Date().getMonth() + 1;
-                          if (year) {
-                            handleClassificationChange(picture.id, 'takenAt', `${year}-${String(month).padStart(2, '0')}-01`);
-                          } else {
-                            handleClassificationChange(picture.id, 'takenAt', '');
-                          }
-                        }}
-                        className="form-select date-select"
-                      >
-                        <option value="">Year</option>
-                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
+                        {previewPics.length >= 3 && (
+                          <div className="stack-card stack-card-3">
+                            <img src={getImageUrl(previewPics[2].filePath)} alt="" />
+                          </div>
+                        )}
+                        {previewPics.length >= 2 && (
+                          <div className="stack-card stack-card-2">
+                            <img src={getImageUrl(previewPics[1].filePath)} alt="" />
+                          </div>
+                        )}
+                        <div className="stack-card stack-card-1">
+                          <img
+                            src={getImageUrl(previewPics[0].filePath)}
+                            alt={group.name || 'Group'}
+                          />
+                        </div>
+                        <div className="stack-count-badge">
+                          {group.pictures.length} photos
+                        </div>
+                        {groupCategoryId ? (
+                          <div className="picture-classified-badge">✓</div>
+                        ) : (
+                          <div className="picture-unclassified-badge">!</div>
+                        )}
+                      </div>
+                      <div className="picture-controls">
+                        {group.name && (
+                          <div className="group-name-label">{group.name}</div>
+                        )}
+                        <div className="form-group">
+                          <label>Category * (shared)</label>
+                          <select
+                            value={groupCategoryId}
+                            onChange={(e) => handleGroupCategoryChange(group, e.target.value)}
+                            className="form-select"
+                          >
+                            <option value="">Select Category</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  );
+                })}
 
-                  <div className="form-group">
-                    <label>Nombre de bois</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={classificationData[picture.id]?.woodCount || ''}
-                      onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
-                      placeholder="e.g., 12"
-                      className="form-input picture-wood-input"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="picture-selected-indicator">
-                  <span className="selected-badge">Selected for bulk classification</span>
-                  <div className="form-group">
-                    <label>Nombre de bois</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={classificationData[picture.id]?.woodCount || ''}
-                      onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
-                      placeholder="e.g., 12"
-                      className="form-input picture-wood-input"
-                    />
-                  </div>
-                  <button
-                    className="btn-deselect"
-                    onClick={() => togglePictureSelection(picture.id)}
+                {/* Ungrouped pictures (normal cards) */}
+                {ungrouped.map(picture => (
+                  <div
+                    key={picture.id}
+                    className={`picture-card ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
                   >
-                    Deselect
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                    <div className="picture-preview">
+                      <input
+                        type="checkbox"
+                        className="picture-checkbox"
+                        checked={selectedPictures.has(picture.id)}
+                        onChange={() => togglePictureSelection(picture.id)}
+                      />
+                      <img
+                        src={getImageUrl(picture.filePath)}
+                        alt={`Picture ${picture.displayOrder}`}
+                        onClick={() => setSelectedImage(picture)}
+                      />
+                      <div className="picture-overlay">
+                        <span>#{picture.displayOrder}</span>
+                      </div>
+                      <button
+                        className="picture-edit-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPicture(picture);
+                        }}
+                        title="Edit image (crop/rotate)"
+                      >
+                        ✎
+                      </button>
+                      {classificationData[picture.id]?.categoryId ? (
+                        <div className="picture-classified-badge">✓</div>
+                      ) : (
+                        <div className="picture-unclassified-badge">!</div>
+                      )}
+                    </div>
+
+                    {!selectedPictures.has(picture.id) ? (
+                      <div className="picture-controls">
+                        <div className="form-group">
+                          <label>Category *</label>
+                          <select
+                            value={classificationData[picture.id]?.categoryId || ''}
+                            onChange={(e) => handleClassificationChange(picture.id, 'categoryId', e.target.value)}
+                            className="form-select"
+                          >
+                            <option value="">Select Category</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label>Date</label>
+                          <div className="date-picker-container">
+                            <select
+                              value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getMonth() + 1 : ''}
+                              onChange={(e) => {
+                                const month = e.target.value;
+                                const year = classificationData[picture.id]?.takenAt
+                                  ? new Date(classificationData[picture.id].takenAt).getFullYear()
+                                  : new Date().getFullYear();
+                                if (month) {
+                                  handleClassificationChange(picture.id, 'takenAt', `${year}-${month.padStart(2, '0')}-01`);
+                                } else {
+                                  handleClassificationChange(picture.id, 'takenAt', '');
+                                }
+                              }}
+                              className="form-select date-select"
+                            >
+                              <option value="">Month</option>
+                              <option value="1">Jan</option>
+                              <option value="2">Feb</option>
+                              <option value="3">Mar</option>
+                              <option value="4">Apr</option>
+                              <option value="5">May</option>
+                              <option value="6">Jun</option>
+                              <option value="7">Jul</option>
+                              <option value="8">Aug</option>
+                              <option value="9">Sep</option>
+                              <option value="10">Oct</option>
+                              <option value="11">Nov</option>
+                              <option value="12">Dec</option>
+                            </select>
+                            <select
+                              value={classificationData[picture.id]?.takenAt ? new Date(classificationData[picture.id].takenAt).getFullYear() : ''}
+                              onChange={(e) => {
+                                const year = e.target.value;
+                                const month = classificationData[picture.id]?.takenAt
+                                  ? new Date(classificationData[picture.id].takenAt).getMonth() + 1
+                                  : new Date().getMonth() + 1;
+                                if (year) {
+                                  handleClassificationChange(picture.id, 'takenAt', `${year}-${String(month).padStart(2, '0')}-01`);
+                                } else {
+                                  handleClassificationChange(picture.id, 'takenAt', '');
+                                }
+                              }}
+                              className="form-select date-select"
+                            >
+                              <option value="">Year</option>
+                              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                                <option key={year} value={year}>{year}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label>Nombre de bois</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={classificationData[picture.id]?.woodCount || ''}
+                            onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
+                            placeholder="e.g., 12"
+                            className="form-input picture-wood-input"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="picture-selected-indicator">
+                        <span className="selected-badge">Selected for bulk classification</span>
+                        <div className="form-group">
+                          <label>Nombre de bois</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={classificationData[picture.id]?.woodCount || ''}
+                            onChange={(e) => handleClassificationChange(picture.id, 'woodCount', e.target.value)}
+                            placeholder="e.g., 12"
+                            className="form-input picture-wood-input"
+                          />
+                        </div>
+                        <button
+                          className="btn-deselect"
+                          onClick={() => togglePictureSelection(picture.id)}
+                        >
+                          Deselect
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </div>
 
         {/* Save Button */}
@@ -591,6 +784,31 @@ const ImageClassifier = () => {
           onNavigate={(index) => setSelectedImage(pictureSet?.pictures?.[index])}
           renderInfo={(img, index) => (
             <span>#{img.displayOrder} of {pictureSet?.pictures?.length}</span>
+          )}
+        />
+
+        {/* Group Viewer Modal */}
+        <Modal.ImageViewer
+          isOpen={!!viewingGroup}
+          onClose={() => setViewingGroup(null)}
+          images={viewingGroup?.pictures?.map(p => ({
+            id: p.id,
+            src: getImageUrl(p.filePath),
+            alt: `#${p.displayOrder}`,
+            displayOrder: p.displayOrder,
+          })) || []}
+          currentIndex={viewingGroupIndex}
+          onNavigate={(index) => setViewingGroupIndex(index)}
+          renderInfo={(img, index) => (
+            <div className="group-viewer-info">
+              <span>{viewingGroup?.name || 'Group'} - #{index + 1} of {viewingGroup?.pictures?.length}</span>
+              <button
+                className="btn-remove-from-group"
+                onClick={() => handleRemoveFromGroup(viewingGroup.id, img.id)}
+              >
+                Remove from Group
+              </button>
+            </div>
           )}
         />
 
