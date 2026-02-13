@@ -263,7 +263,7 @@ const ReviewQueue = () => {
                           onClick={(e) => togglePictureExclusion(set.id, picture.id, e)}
                           title={isPictureExcluded(set.id, picture.id) ? 'Click to include' : 'Click to exclude'}
                         >
-                          {isPictureExcluded(set.id, picture.id) ? '✗' : '✓'}
+                          {isPictureExcluded(set.id, picture.id) ? '' : '✓'}
                         </button>
                       </div>
                     ))}

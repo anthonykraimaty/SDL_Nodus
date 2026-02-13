@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { pictureService } from '../services/api';
+import { inpaint } from '../lib/inpaint';
 import './ImageEditor.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -43,6 +44,17 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const [selectedBlurIndex, setSelectedBlurIndex] = useState(-1); // Index of selected blur region for resize/move
   const [blurHandle, setBlurHandle] = useState(null); // Which handle is being dragged
   const [blurDragStart, setBlurDragStart] = useState(null); // Starting position for blur drag
+
+  // Healing brush state
+  const [isHealing, setIsHealing] = useState(false);
+  const [healBrushSize, setHealBrushSize] = useState(15);
+  const [healRadius, setHealRadius] = useState(5);
+  const [isProcessingHeal, setIsProcessingHeal] = useState(false);
+  const [isErasingMask, setIsErasingMask] = useState(false);
+  const maskCanvasRef = useRef(null);
+  const isPaintingMask = useRef(false);
+  const lastMaskPos = useRef(null);
+  const [hasMask, setHasMask] = useState(false);
 
   // Original image restoration
   const [hasOriginal, setHasOriginal] = useState(false);
@@ -480,7 +492,14 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       ctx.lineTo(x + w, y + (2 * h) / 3);
       ctx.stroke();
     }
-  }, [displaySize, rotation, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring]);
+
+    // Draw healing mask overlay
+    if (isHealing && maskCanvasRef.current) {
+      ctx.globalAlpha = 0.4;
+      ctx.drawImage(maskCanvasRef.current, 0, 0);
+      ctx.globalAlpha = 1.0;
+    }
+  }, [displaySize, rotation, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask]);
 
   useEffect(() => {
     drawImage();
@@ -492,6 +511,11 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setCropStart(null);
     setCropEnd(null);
     setBlurRegions([]);
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+      setHasMask(false);
+    }
   };
 
   const rotateRight = () => {
@@ -499,6 +523,11 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setCropStart(null);
     setCropEnd(null);
     setBlurRegions([]);
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+      setHasMask(false);
+    }
   };
 
   // Toggle crop mode
@@ -509,6 +538,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     }
     setIsCropping(!isCropping);
     setIsBlurring(false);
+    setIsHealing(false);
   };
 
   // Toggle blur mode
@@ -518,6 +548,174 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setCropStart(null);
     setCropEnd(null);
     setSelectedBlurIndex(-1);
+    setIsHealing(false);
+  };
+
+  // Toggle healing mode
+  const toggleHealMode = () => {
+    const entering = !isHealing;
+    setIsHealing(entering);
+    setIsCropping(false);
+    setIsBlurring(false);
+    setCropStart(null);
+    setCropEnd(null);
+    setSelectedBlurIndex(-1);
+    if (entering) {
+      // Initialize mask canvas
+      initMaskCanvas();
+    }
+  };
+
+  // Initialize or reset mask canvas
+  const initMaskCanvas = () => {
+    if (!maskCanvasRef.current) {
+      maskCanvasRef.current = document.createElement('canvas');
+    }
+    maskCanvasRef.current.width = displaySize.width;
+    maskCanvasRef.current.height = displaySize.height;
+    const ctx = maskCanvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, displaySize.width, displaySize.height);
+    setHasMask(false);
+  };
+
+  // Clear the mask
+  const clearMask = () => {
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+      setHasMask(false);
+      drawImage();
+    }
+  };
+
+  // Paint on the mask canvas at position
+  const paintMaskAt = (x, y) => {
+    if (!maskCanvasRef.current) return;
+    const ctx = maskCanvasRef.current.getContext('2d');
+    const radius = healBrushSize / 2;
+
+    if (isErasingMask) {
+      ctx.globalCompositeOperation = 'destination-out';
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(255, 0, 0, 1)';
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    if (!isErasingMask) setHasMask(true);
+  };
+
+  // Paint a line on the mask (Bresenham interpolation to avoid gaps)
+  const paintMaskLine = (from, to) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const steps = Math.max(1, Math.ceil(dist / (healBrushSize / 4)));
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = from.x + dx * t;
+      const y = from.y + dy * t;
+      paintMaskAt(x, y);
+    }
+  };
+
+  // Apply healing / inpainting
+  const applyHeal = async () => {
+    if (!maskCanvasRef.current || !imageRef.current) return;
+
+    setIsProcessingHeal(true);
+
+    try {
+      // Use setTimeout to let the UI update with the processing state
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const img = imageRef.current;
+
+      // Create a full-resolution canvas with the current image (with rotation applied)
+      let srcWidth = img.width;
+      let srcHeight = img.height;
+      if (rotation % 180 !== 0) {
+        [srcWidth, srcHeight] = [srcHeight, srcWidth];
+      }
+
+      const fullCanvas = document.createElement('canvas');
+      fullCanvas.width = srcWidth;
+      fullCanvas.height = srcHeight;
+      const fullCtx = fullCanvas.getContext('2d');
+
+      // Apply rotation
+      fullCtx.translate(srcWidth / 2, srcHeight / 2);
+      fullCtx.rotate((rotation * Math.PI) / 180);
+      fullCtx.drawImage(img, -img.width / 2, -img.height / 2);
+      fullCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+      // Scale mask to full resolution
+      const scaleX = srcWidth / displaySize.width;
+      const scaleY = srcHeight / displaySize.height;
+
+      const fullMaskCanvas = document.createElement('canvas');
+      fullMaskCanvas.width = srcWidth;
+      fullMaskCanvas.height = srcHeight;
+      const fullMaskCtx = fullMaskCanvas.getContext('2d');
+      fullMaskCtx.drawImage(maskCanvasRef.current, 0, 0, srcWidth, srcHeight);
+
+      // Extract mask as Uint8Array
+      const maskImageData = fullMaskCtx.getImageData(0, 0, srcWidth, srcHeight);
+      const maskArray = new Uint8Array(srcWidth * srcHeight);
+      for (let i = 0; i < maskArray.length; i++) {
+        // Red channel > 128 means masked
+        maskArray[i] = maskImageData.data[i * 4] > 128 ? 1 : 0;
+      }
+
+      // Check if there are any masked pixels
+      let hasMaskedPixels = false;
+      for (let i = 0; i < maskArray.length; i++) {
+        if (maskArray[i] === 1) { hasMaskedPixels = true; break; }
+      }
+      if (!hasMaskedPixels) {
+        setIsProcessingHeal(false);
+        return;
+      }
+
+      // Get image data
+      const imageData = fullCtx.getImageData(0, 0, srcWidth, srcHeight);
+
+      // Scale heal radius proportionally
+      const scaledRadius = Math.round(healRadius * Math.max(scaleX, scaleY));
+
+      // Run inpainting
+      const result = inpaint(imageData, maskArray, scaledRadius);
+
+      // Put result back
+      fullCtx.putImageData(result, 0, 0);
+
+      // Convert to new image
+      const dataUrl = fullCanvas.toDataURL('image/jpeg', 0.95);
+      const newImg = new Image();
+      await new Promise((resolve, reject) => {
+        newImg.onload = resolve;
+        newImg.onerror = reject;
+        newImg.src = dataUrl;
+      });
+
+      // Update image ref (reset rotation since we baked it in)
+      imageRef.current = newImg;
+      setOriginalSize({ width: newImg.width, height: newImg.height });
+      setRotation(0);
+
+      // Clear mask
+      clearMask();
+      setHasMask(false);
+    } catch (error) {
+      console.error('Healing failed:', error);
+      alert('Healing failed: ' + error.message);
+    } finally {
+      setIsProcessingHeal(false);
+    }
   };
 
   // Get mouse position relative to canvas
@@ -675,6 +873,16 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const handleMouseDown = (e) => {
     const pos = getMousePos(e);
 
+    if (isHealing) {
+      isPaintingMask.current = true;
+      // Check for Alt key for eraser mode
+      if (e.altKey) setIsErasingMask(true);
+      paintMaskAt(pos.x, pos.y);
+      lastMaskPos.current = pos;
+      drawImage();
+      return;
+    }
+
     if (isBlurring) {
       // First check if clicking on a selected region's handle
       if (selectedBlurIndex >= 0) {
@@ -729,6 +937,16 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const handleMouseMove = (e) => {
     const pos = getMousePos(e);
     const canvas = canvasRef.current;
+
+    if (isHealing) {
+      canvas.style.cursor = isErasingMask ? 'cell' : 'crosshair';
+      if (isPaintingMask.current && lastMaskPos.current) {
+        paintMaskLine(lastMaskPos.current, pos);
+        lastMaskPos.current = pos;
+        drawImage();
+      }
+      return;
+    }
 
     if (isBlurring) {
       // If dragging a blur handle, resize/move the region
@@ -855,6 +1073,13 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
   // Mouse up handler
   const handleMouseUp = () => {
+    if (isHealing) {
+      isPaintingMask.current = false;
+      lastMaskPos.current = null;
+      setIsErasingMask(false);
+      return;
+    }
+
     if (isBlurring) {
       // If we were resizing/moving a blur region
       if (blurHandle) {
@@ -1096,6 +1321,12 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       setIsCropping(false);
       setIsBlurring(false);
       setBlurRegions([]);
+      setIsHealing(false);
+      if (maskCanvasRef.current) {
+        const ctx = maskCanvasRef.current.getContext('2d');
+        ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+      }
+      setHasMask(false);
     };
     img.src = blobUrl;
   };
@@ -1200,7 +1431,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     Math.abs(cropEnd.x - cropStart.x) > 10 &&
     Math.abs(cropEnd.y - cropStart.y) > 10;
 
-  const hasChanges = rotation !== 0 || blurRegions.length > 0 || imageRef.current?.src !== blobUrl;
+  const hasChanges = rotation !== 0 || blurRegions.length > 0 || hasMask || imageRef.current?.src !== blobUrl;
 
   return (
     <div className="image-editor">
@@ -1303,6 +1534,67 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         )}
 
         <div className="image-editor__toolbar-group">
+          <span className="toolbar-label">Heal</span>
+          <button
+            className={`image-editor__btn ${isHealing ? 'active' : ''}`}
+            onClick={toggleHealMode}
+            title={isHealing ? 'Exit healing mode' : 'Healing brush to remove objects'}
+          >
+            {isHealing ? 'Exit Heal' : 'Healing Brush'}
+          </button>
+        </div>
+
+        {isHealing && (
+          <>
+            <div className="image-editor__toolbar-group">
+              <span className="toolbar-label">Brush</span>
+              <input
+                type="range"
+                min="3"
+                max="50"
+                value={healBrushSize}
+                onChange={(e) => setHealBrushSize(Number(e.target.value))}
+                className="blur-slider"
+                title="Brush size"
+              />
+              <span className="blur-value">{healBrushSize}px</span>
+            </div>
+
+            <div className="image-editor__toolbar-group">
+              <span className="toolbar-label">Radius</span>
+              <input
+                type="range"
+                min="3"
+                max="15"
+                value={healRadius}
+                onChange={(e) => setHealRadius(Number(e.target.value))}
+                className="blur-slider"
+                title="Search radius for surrounding texture"
+              />
+              <span className="blur-value">{healRadius}px</span>
+            </div>
+
+            <div className="image-editor__toolbar-group">
+              <button
+                className="image-editor__btn"
+                onClick={clearMask}
+                title="Clear the painted mask"
+              >
+                Clear Mask
+              </button>
+              <button
+                className="image-editor__btn image-editor__btn--primary"
+                onClick={applyHeal}
+                disabled={isProcessingHeal || !hasMask}
+                title={!hasMask ? 'Paint over the area to remove first' : 'Apply healing to remove painted areas'}
+              >
+                {isProcessingHeal ? 'Processing...' : 'Apply Heal'}
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="image-editor__toolbar-group">
           <button
             className="image-editor__btn"
             onClick={resetEdits}
@@ -1335,6 +1627,12 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         </div>
       )}
 
+      {isHealing && (
+        <div className="image-editor__help image-editor__help--heal">
+          Paint over the area to remove. Hold Alt to erase parts of the mask. Click "Apply Heal" when ready.
+        </div>
+      )}
+
       {blurRegions.length > 0 && !isBlurring && (
         <div className="image-editor__blur-list">
           <span>Blur regions (double-click on image to remove):</span>
@@ -1351,10 +1649,15 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         </div>
       )}
 
-      <div className="image-editor__canvas-container" ref={containerRef}>
+      <div className="image-editor__canvas-container" ref={containerRef} style={{ position: 'relative' }}>
+        {isProcessingHeal && (
+          <div className="image-editor__processing-overlay">
+            <div className="spinner"></div>
+          </div>
+        )}
         <canvas
           ref={canvasRef}
-          className={`image-editor__canvas ${isCropping ? 'cropping' : ''} ${isBlurring ? 'blurring' : ''}`}
+          className={`image-editor__canvas ${isCropping ? 'cropping' : ''} ${isBlurring ? 'blurring' : ''} ${isHealing ? 'healing' : ''}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

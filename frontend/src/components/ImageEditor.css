@@ -212,6 +212,37 @@
   cursor: crosshair;
 }
 
+.image-editor__canvas.healing {
+  cursor: crosshair;
+}
+
+.image-editor__help--heal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.image-editor__processing-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.image-editor__processing-overlay .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 .image-editor__actions {
   display: flex;
   justify-content: flex-end;

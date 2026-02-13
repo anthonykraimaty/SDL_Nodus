@@ -348,7 +348,7 @@
   right: var(--spacing-xs);
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -357,18 +357,19 @@
   box-shadow: var(--shadow-md);
   transition: all 0.2s ease;
   cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid white;
   z-index: 5;
 }
 
 .review-queue-page .picture-toggle-btn.included {
-  background: var(--success);
+  background: rgba(255, 255, 255, 0.25);
   color: white;
 }
 
 .review-queue-page .picture-toggle-btn.excluded {
-  background: var(--error);
+  background: rgba(0, 0, 0, 0.4);
   color: white;
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .review-queue-page .picture-toggle-btn:hover {

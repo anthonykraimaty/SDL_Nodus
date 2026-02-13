@@ -322,9 +322,9 @@
   box-shadow: 0 4px 12px rgba(212, 165, 116, 0.4);
 }
 
-.pictures-grid {
+.classify-page .pictures-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--spacing-lg);
 }
 
@@ -334,6 +334,7 @@
   overflow: hidden;
   border: 2px solid var(--border);
   transition: all 0.3s ease;
+  min-width: 0;
 }
 
 .picture-card:hover {
@@ -343,13 +344,13 @@
 }
 
 .picture-card.selected {
-  border-color: var(--success);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+  border-color: white;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
   transform: translateY(-4px);
 }
 
 .picture-card.selected:hover {
-  border-color: var(--success);
+  border-color: white;
 }
 
 .picture-preview {
@@ -403,13 +404,13 @@
 }
 
 .picture-select-checkbox:hover {
-  background: rgba(76, 175, 80, 0.8);
-  border-color: var(--success);
+  background: rgba(255, 255, 255, 0.4);
+  border-color: white;
 }
 
 .picture-select-checkbox.checked {
-  background: var(--success);
-  border-color: var(--success);
+  background: rgba(255, 255, 255, 0.3);
+  border-color: white;
 }
 
 /* Selected indicator when picture is selected */
@@ -419,11 +420,11 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-sm);
-  background: rgba(76, 175, 80, 0.1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .selected-badge {
-  color: var(--success);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.85rem;
   text-align: center;
@@ -450,6 +451,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  overflow: hidden;
 }
 
 .form-group {
@@ -475,6 +477,8 @@
   color: var(--text-primary);
   font-size: 0.9rem;
   transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-select:focus,
@@ -625,8 +629,7 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
-  .pictures-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  .classify-page .pictures-grid {
     gap: var(--spacing-md);
   }
 
@@ -678,9 +681,10 @@
 }
 
 @media (max-width: 480px) {
-  .pictures-grid {
+  .classify-page .pictures-grid {
     grid-template-columns: 1fr;
   }
+
 
   .modal-content {
     padding: var(--spacing-md);
