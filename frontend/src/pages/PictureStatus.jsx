@@ -142,10 +142,16 @@ const PictureStatus = () => {
   // Save edited image
   const handleSaveEdit = async (blob, pictureId) => {
     try {
-      await pictureService.editImage(pictureId, blob);
+      const result = await pictureService.editImage(pictureId, blob);
       setSuccess('Image updated successfully!');
       setEditingPicture(null);
-      await loadPictureSet();
+      // Update picture filePath in existing state — preserves selections
+      setPictureSet(prev => ({
+        ...prev,
+        pictures: prev.pictures.map(pic =>
+          pic.id === pictureId ? { ...pic, filePath: result.picture.filePath } : pic
+        ),
+      }));
     } catch (err) {
       console.error('Failed to save edited image:', err);
       setError('Failed to save edited image: ' + err.message);

@@ -377,11 +377,16 @@ const ReviewQueue = () => {
               onCancel={() => setEditingPicture(null)}
               onSave={async (blob, pictureId) => {
                 try {
-                  await pictureService.editImage(pictureId, blob);
+                  const result = await pictureService.editImage(pictureId, blob);
                   setSuccess('Image updated successfully!');
                   setEditingPicture(null);
-                  // Reload data to get updated image
-                  await loadData();
+                  // Update picture filePath in existing state — preserves selections
+                  setPictureSets(prev => prev.map(set => ({
+                    ...set,
+                    pictures: set.pictures.map(pic =>
+                      pic.id === pictureId ? { ...pic, filePath: result.picture.filePath } : pic
+                    ),
+                  })));
                 } catch (err) {
                   console.error('Failed to save edited image:', err);
                   setError('Failed to save edited image: ' + err.message);

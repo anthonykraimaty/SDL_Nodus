@@ -630,6 +630,32 @@
   transform: scale(1.1);
 }
 
+/* Archive button on picture */
+.picture-archive-btn {
+  position: absolute;
+  bottom: var(--spacing-sm);
+  right: var(--spacing-sm);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.picture-archive-btn:hover {
+  background: var(--error, #ef5350);
+  border-color: var(--error, #ef5350);
+  transform: scale(1.1);
+}
+
 /* Classification status badges */
 .picture-classified-badge,
 .picture-unclassified-badge {

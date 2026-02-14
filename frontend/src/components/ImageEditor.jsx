@@ -1345,12 +1345,42 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     try {
       await pictureService.restoreOriginal(pictureId);
       setHasOriginal(false);
-      // Reload the image
-      window.location.reload();
+
+      // Reload the image within the editor instead of full page reload
+      const proxyUrl = `${API_URL}/api/pictures/${pictureId}/image-proxy`;
+      const token = localStorage.getItem('token');
+      const response = await fetch(proxyUrl, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch restored image');
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      setBlobUrl(objectUrl);
+
+      const img = new Image();
+      img.onload = () => {
+        imageRef.current = img;
+        setOriginalSize({ width: img.width, height: img.height });
+        setRotation(0);
+        setCropStart(null);
+        setCropEnd(null);
+        setIsCropping(false);
+        setIsBlurring(false);
+        setBlurRegions([]);
+        setIsHealing(false);
+        if (maskCanvasRef.current) {
+          const ctx = maskCanvasRef.current.getContext('2d');
+          ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+        }
+        setHasMask(false);
+        setRestoringOriginal(false);
+      };
+      img.src = objectUrl;
     } catch (error) {
       console.error('Failed to restore original:', error);
       alert('Failed to restore original image: ' + error.message);
-    } finally {
       setRestoringOriginal(false);
     }
   };
