@@ -165,6 +165,21 @@ const Classify = () => {
     }
   };
 
+  const handleBulkArchive = async () => {
+    if (!confirm(`Archive ${selectedPictures.size} picture(s)?`)) return;
+    try {
+      for (const key of selectedPictures) {
+        const [setId, pictureId] = key.split(':');
+        await pictureService.archivePicture(parseInt(setId), parseInt(pictureId));
+      }
+      setSelectedPictures(new Set());
+      await loadData();
+    } catch (err) {
+      console.error('Bulk archive error:', err);
+      setError(err.message || 'Failed to archive pictures');
+    }
+  };
+
   // Toggle picture selection for bulk classification
   const togglePictureSelection = (pictureId, setId) => {
     setSelectedPictures(prev => {
@@ -585,6 +600,17 @@ const Classify = () => {
                                 >
                                   {isSelected ? '✓' : ''}
                                 </div>
+                                {/* Archive icon */}
+                                <button
+                                  className="picture-archive-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchivePicture(set.id, picture.id);
+                                  }}
+                                  title="Archive this picture"
+                                >
+                                  🗑
+                                </button>
                               </div>
 
                               {/* Show individual controls only when NOT selected */}
@@ -664,32 +690,32 @@ const Classify = () => {
                                     </div>
                                   </div>
 
-                                  <div className="picture-actions-row">
-                                    <button
-                                      onClick={() => handleClassifyPicture(set, picture)}
-                                      className="btn-classify"
-                                      disabled={!classificationData[picture.id]?.categoryId}
-                                    >
-                                      Classify
-                                    </button>
-                                    <button
-                                      onClick={() => handleArchivePicture(set.id, picture.id)}
-                                      className="btn-archive"
-                                      title="Move to archive"
-                                    >
-                                      Archive
-                                    </button>
-                                  </div>
+                                  <button
+                                    onClick={() => handleClassifyPicture(set, picture)}
+                                    className="btn-classify"
+                                    disabled={!classificationData[picture.id]?.categoryId}
+                                  >
+                                    Classify
+                                  </button>
                                 </div>
                               ) : (
                                 <div className="picture-selected-indicator">
                                   <span className="selected-badge">Selected for bulk classification</span>
-                                  <button
-                                    className="btn-deselect"
-                                    onClick={() => togglePictureSelection(picture.id, set.id)}
-                                  >
-                                    Deselect
-                                  </button>
+                                  <div className="selected-actions-row">
+                                    <button
+                                      className="btn-deselect"
+                                      onClick={() => togglePictureSelection(picture.id, set.id)}
+                                    >
+                                      Deselect
+                                    </button>
+                                    <button
+                                      className="btn-archive-selected"
+                                      onClick={() => handleArchivePicture(set.id, picture.id)}
+                                      title="Archive this picture"
+                                    >
+                                      🗑
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>
