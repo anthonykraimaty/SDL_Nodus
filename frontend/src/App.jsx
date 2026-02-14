@@ -27,6 +27,7 @@ import SchematicUpload from './pages/SchematicUpload';
 import SchematicReview from './pages/SchematicReview';
 import SchematicProgress from './pages/SchematicProgress';
 import ShareTarget from './pages/ShareTarget';
+import Archive from './pages/Archive';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
@@ -108,6 +109,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS']}>
                   <ImageClassifier />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="archive"
+              element={
+                <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN']}>
+                  <Archive />
                 </ProtectedRoute>
               }
             />

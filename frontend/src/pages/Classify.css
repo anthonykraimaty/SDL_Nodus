@@ -22,6 +22,19 @@
   color: var(--text-secondary);
 }
 
+.btn-archive-link {
+  display: inline-block;
+  margin-top: var(--spacing-sm);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.btn-archive-link:hover {
+  color: var(--text-primary);
+}
+
 .empty-state {
   text-align: center;
   padding: var(--spacing-xxl);
@@ -58,6 +71,9 @@
 .classification-panel.bulk-mode {
   border-color: var(--success);
   background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
+  position: sticky;
+  top: 70px;
+  z-index: 100;
 }
 
 /* Instructions */
@@ -538,6 +554,31 @@
 .btn-classify:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.picture-actions-row {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.picture-actions-row .btn-classify {
+  flex: 1;
+}
+
+.btn-archive {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-archive:hover {
+  color: var(--error, #ef5350);
+  border-color: var(--error, #ef5350);
 }
 
 /* Grouped / Stacked Cards */

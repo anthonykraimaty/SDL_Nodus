@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService, designGroupService } from '../services/api';
 import { getImageUrl } from '../config/api';
@@ -151,6 +151,17 @@ const Classify = () => {
       await loadData();
     } catch (err) {
       console.error('Failed to remove from group:', err);
+    }
+  };
+
+  const handleArchivePicture = async (setId, pictureId) => {
+    if (!confirm('Archive this picture? You can restore it later from the archive.')) return;
+    try {
+      await pictureService.archivePicture(setId, pictureId);
+      await loadData();
+    } catch (err) {
+      console.error('Archive error:', err);
+      setError(err.message || 'Failed to archive picture');
     }
   };
 
@@ -306,6 +317,7 @@ const Classify = () => {
         <div className="classify-header">
           <h1>Classify Pictures</h1>
           <p>Add categories and dates to your uploaded pictures</p>
+          <Link to="/archive" className="btn-archive-link">View Archive</Link>
         </div>
 
         {error && (
@@ -652,13 +664,22 @@ const Classify = () => {
                                     </div>
                                   </div>
 
-                                  <button
-                                    onClick={() => handleClassifyPicture(set, picture)}
-                                    className="btn-classify"
-                                    disabled={!classificationData[picture.id]?.categoryId}
-                                  >
-                                    Classify
-                                  </button>
+                                  <div className="picture-actions-row">
+                                    <button
+                                      onClick={() => handleClassifyPicture(set, picture)}
+                                      className="btn-classify"
+                                      disabled={!classificationData[picture.id]?.categoryId}
+                                    >
+                                      Classify
+                                    </button>
+                                    <button
+                                      onClick={() => handleArchivePicture(set.id, picture.id)}
+                                      className="btn-archive"
+                                      title="Move to archive"
+                                    >
+                                      Archive
+                                    </button>
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="picture-selected-indicator">

@@ -13,6 +13,185 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// =====================================================
+// Archive endpoints (defined before /:id to avoid param conflicts)
+// =====================================================
+
+// GET /api/pictures/archive/list - List archived pictures
+router.get('/archive/list', authenticate, async (req, res) => {
+  try {
+    const { page = 1, limit = 50 } = req.query;
+    const where = { isArchived: true };
+
+    // Role-based filtering
+    if (req.user.role === 'CHEF_TROUPE') {
+      where.pictureSet = { uploadedById: req.user.id };
+    } else if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+        where: { userId: req.user.id },
+        select: { districtId: true },
+      });
+      const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+      if (allowedDistrictIds.length === 0) {
+        return res.json({ pictures: [], pagination: { total: 0, page: 1, limit: parseInt(limit), totalPages: 0 } });
+      }
+      where.pictureSet = {
+        troupe: { group: { districtId: { in: allowedDistrictIds } } },
+      };
+    }
+    // ADMIN sees all
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [pictures, total] = await Promise.all([
+      prisma.picture.findMany({
+        where,
+        include: {
+          category: true,
+          pictureSet: {
+            include: {
+              uploadedBy: { select: { id: true, name: true } },
+              troupe: {
+                include: {
+                  group: { include: { district: true } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { archivedAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.picture.count({ where }),
+    ]);
+
+    res.json({
+      pictures,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Get archived pictures error:', error);
+    res.status(500).json({ error: 'Failed to fetch archived pictures' });
+  }
+});
+
+// DELETE /api/pictures/archive/bulk-delete - Permanently delete multiple archived pictures
+router.delete('/archive/bulk-delete', authenticate, async (req, res) => {
+  try {
+    const { pictureIds } = req.body;
+    if (!pictureIds || !Array.isArray(pictureIds) || pictureIds.length === 0) {
+      return res.status(400).json({ error: 'pictureIds array is required' });
+    }
+
+    const pictures = await prisma.picture.findMany({
+      where: { id: { in: pictureIds }, isArchived: true },
+      include: {
+        pictureSet: {
+          include: {
+            troupe: { include: { group: { include: { district: true } } } },
+          },
+        },
+      },
+    });
+
+    // Only ADMIN and BRANCHE can permanently delete archived pictures
+    const isAdmin = req.user.role === 'ADMIN';
+    const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
+    if (!isAdmin && !isBranche) {
+      return res.status(403).json({ error: 'Only administrators and branch members can permanently delete archived pictures' });
+    }
+
+    // Delete files and records
+    let deleted = 0;
+    for (const picture of pictures) {
+      try {
+        if (picture.filePath.startsWith('http')) {
+          await deleteFromR2(picture.filePath);
+        } else {
+          await fs.unlink(picture.filePath).catch(() => {});
+        }
+        if (picture.originalFilePath) {
+          if (picture.originalFilePath.startsWith('http')) {
+            await deleteFromR2(picture.originalFilePath);
+          } else {
+            await fs.unlink(picture.originalFilePath).catch(() => {});
+          }
+        }
+      } catch (fileError) {
+        console.error(`Failed to delete file ${picture.filePath}:`, fileError.message);
+      }
+      await prisma.picture.delete({ where: { id: picture.id } });
+      deleted++;
+    }
+
+    res.json({ message: `${deleted} picture(s) permanently deleted`, deleted });
+  } catch (error) {
+    console.error('Bulk delete archived error:', error);
+    res.status(500).json({ error: 'Failed to delete archived pictures' });
+  }
+});
+
+// DELETE /api/pictures/archive/:pictureId - Permanently delete one archived picture
+router.delete('/archive/:pictureId', authenticate, async (req, res) => {
+  try {
+    const picture = await prisma.picture.findUnique({
+      where: { id: parseInt(req.params.pictureId) },
+      include: {
+        pictureSet: {
+          include: {
+            troupe: { include: { group: { include: { district: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!picture) {
+      return res.status(404).json({ error: 'Picture not found' });
+    }
+    if (!picture.isArchived) {
+      return res.status(400).json({ error: 'Picture is not archived. Archive it first.' });
+    }
+
+    // Only ADMIN and BRANCHE can permanently delete archived pictures
+    const isAdmin = req.user.role === 'ADMIN';
+    const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
+    if (!isAdmin && !isBranche) {
+      return res.status(403).json({ error: 'Only administrators and branch members can permanently delete archived pictures' });
+    }
+
+    // Delete files
+    try {
+      if (picture.filePath.startsWith('http')) {
+        await deleteFromR2(picture.filePath);
+      } else {
+        await fs.unlink(picture.filePath).catch(() => {});
+      }
+      if (picture.originalFilePath) {
+        if (picture.originalFilePath.startsWith('http')) {
+          await deleteFromR2(picture.originalFilePath);
+        } else {
+          await fs.unlink(picture.originalFilePath).catch(() => {});
+        }
+      }
+    } catch (fileError) {
+      console.error(`Failed to delete file ${picture.filePath}:`, fileError.message);
+    }
+
+    await prisma.picture.delete({ where: { id: picture.id } });
+
+    res.json({ message: 'Picture permanently deleted' });
+  } catch (error) {
+    console.error('Permanent delete error:', error);
+    res.status(500).json({ error: 'Failed to permanently delete picture' });
+  }
+});
+
 // GET /api/pictures - Get all picture sets (public for approved, filtered for authenticated)
 router.get('/', optionalAuth, async (req, res) => {
   try {
@@ -111,6 +290,7 @@ router.get('/', optionalAuth, async (req, res) => {
           subCategory: true,
           tags: true,
           pictures: {
+            where: { isArchived: false },
             orderBy: { displayOrder: 'asc' },
             include: {
               category: true,
@@ -166,6 +346,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
         subCategory: true,
         tags: true,
         pictures: {
+          where: { isArchived: false },
           orderBy: { displayOrder: 'asc' },
           include: {
             category: true,
@@ -320,7 +501,7 @@ router.post(
           patrouille: true,
           category: true,
           subCategory: true,
-          pictures: { orderBy: { displayOrder: 'asc' } },
+          pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
         },
       });
 
@@ -415,7 +596,7 @@ router.put('/:id/classify', authenticate, async (req, res) => {
         category: true,
         subCategory: true,
         tags: true,
-        pictures: { orderBy: { displayOrder: 'asc' } },
+        pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
       },
     });
 
@@ -506,6 +687,7 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       include: {
         category: true,
         pictures: {
+          where: { isArchived: false },
           orderBy: { displayOrder: 'asc' },
           include: { category: true },
         },
@@ -577,6 +759,7 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       include: {
         approvedBy: { select: { id: true, name: true } },
         pictures: {
+          where: { isArchived: false },
           orderBy: { displayOrder: 'asc' },
           include: { category: true },
         },
@@ -611,7 +794,7 @@ router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'
         rejectionReason,
       },
       include: {
-        pictures: { orderBy: { displayOrder: 'asc' } },
+        pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
       },
     });
 
@@ -813,6 +996,122 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
   }
 });
 
+// POST /api/pictures/:id/picture/:pictureId/archive - Archive individual picture
+router.post('/:id/picture/:pictureId/archive', authenticate, async (req, res) => {
+  try {
+    const { id, pictureId } = req.params;
+
+    const pictureSet = await prisma.pictureSet.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        pictures: true,
+        troupe: {
+          include: {
+            group: { include: { district: true } },
+          },
+        },
+      },
+    });
+
+    if (!pictureSet) return res.status(404).json({ error: 'Picture set not found' });
+
+    const picture = pictureSet.pictures.find(p => p.id === parseInt(pictureId));
+    if (!picture) return res.status(404).json({ error: 'Picture not found in this set' });
+    if (picture.isArchived) return res.status(400).json({ error: 'Picture is already archived' });
+
+    const isOwner = pictureSet.uploadedById === req.user.id;
+    const isAdmin = req.user.role === 'ADMIN';
+    const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
+
+    if (!isOwner && !isAdmin) {
+      if (isBranche) {
+        const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+          where: { userId: req.user.id },
+          select: { districtId: true },
+        });
+        const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+        const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
+        if (allowedDistrictIds.length === 0 || !allowedDistrictIds.includes(pictureDistrictId)) {
+          return res.status(403).json({ error: 'You do not have access to archive pictures from this district' });
+        }
+      } else {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+    }
+
+    // Prevent archiving the last non-archived picture
+    const activePictures = pictureSet.pictures.filter(p => !p.isArchived);
+    if (activePictures.length <= 1) {
+      return res.status(400).json({ error: 'Cannot archive the last active picture. Delete the entire set instead.' });
+    }
+
+    await prisma.picture.update({
+      where: { id: parseInt(pictureId) },
+      data: { isArchived: true, archivedAt: new Date() },
+    });
+
+    res.json({ message: 'Picture archived successfully' });
+  } catch (error) {
+    console.error('Archive picture error:', error);
+    res.status(500).json({ error: 'Failed to archive picture' });
+  }
+});
+
+// POST /api/pictures/:id/picture/:pictureId/restore - Restore picture from archive
+router.post('/:id/picture/:pictureId/restore', authenticate, async (req, res) => {
+  try {
+    const { id, pictureId } = req.params;
+
+    const pictureSet = await prisma.pictureSet.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        pictures: true,
+        troupe: {
+          include: {
+            group: { include: { district: true } },
+          },
+        },
+      },
+    });
+
+    if (!pictureSet) return res.status(404).json({ error: 'Picture set not found' });
+
+    const picture = pictureSet.pictures.find(p => p.id === parseInt(pictureId));
+    if (!picture) return res.status(404).json({ error: 'Picture not found in this set' });
+    if (!picture.isArchived) return res.status(400).json({ error: 'Picture is not archived' });
+
+    const isAdmin = req.user.role === 'ADMIN';
+    const isBranche = req.user.role === 'BRANCHE_ECLAIREURS';
+
+    // Only ADMIN and BRANCHE can restore archived pictures
+    if (isAdmin) {
+      // Admin can restore anything
+    } else if (isBranche) {
+      const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+        where: { userId: req.user.id },
+        select: { districtId: true },
+      });
+      const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+      const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
+      if (allowedDistrictIds.length === 0 || !allowedDistrictIds.includes(pictureDistrictId)) {
+        return res.status(403).json({ error: 'You do not have access to restore pictures from this district' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Only administrators and branch members can restore archived pictures' });
+    }
+
+    await prisma.picture.update({
+      where: { id: parseInt(pictureId) },
+      data: { isArchived: false, archivedAt: null },
+    });
+
+    res.json({ message: 'Picture restored successfully' });
+  } catch (error) {
+    console.error('Restore picture error:', error);
+    res.status(500).json({ error: 'Failed to restore picture' });
+  }
+});
+
 // GET /api/pictures/individual - Get individual pictures (admin only)
 router.get('/individual/list', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
@@ -832,6 +1131,7 @@ router.get('/individual/list', authenticate, authorize('ADMIN'), async (req, res
 
     // Build where clause for pictures
     const pictureWhere = {
+      isArchived: false,
       pictureSet: pictureSetWhere,
     };
     if (categoryId) pictureWhere.categoryId = parseInt(categoryId);

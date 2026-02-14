@@ -244,6 +244,36 @@ export const pictureService = {
     }
     return response.json();
   },
+  // Archive operations
+  archivePicture: (setId, pictureId) => api.post(`/api/pictures/${setId}/picture/${pictureId}/archive`, {}, true),
+  restorePicture: (setId, pictureId) => api.post(`/api/pictures/${setId}/picture/${pictureId}/restore`, {}, true),
+  getArchivedPictures: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/pictures/archive/list${query ? '?' + query : ''}`, true);
+  },
+  permanentlyDeleteArchived: async (pictureId) => {
+    const response = await fetch(`${API_URL}/api/pictures/archive/${pictureId}`, {
+      method: 'DELETE',
+      headers: getHeaders(true),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
+  bulkDeleteArchived: async (pictureIds) => {
+    const response = await fetch(`${API_URL}/api/pictures/archive/bulk-delete`, {
+      method: 'DELETE',
+      headers: getHeaders(true),
+      body: JSON.stringify({ pictureIds }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || response.statusText);
+    }
+    return response.json();
+  },
 };
 
 // Categories

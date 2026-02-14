@@ -277,6 +277,10 @@ model Picture {
   // Pictures that use this as primary in a design group
   primaryForGroups DesignGroup[] @relation("DesignGroupPrimary")
 
+  // Archive support
+  isArchived    Boolean      @default(false)
+  archivedAt    DateTime?
+
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -285,6 +289,7 @@ model Picture {
   @@index([categoryId])
   @@index([type])
   @@index([designGroupId])
+  @@index([isArchived])
 }
 
 // Tagging system for additional classification
