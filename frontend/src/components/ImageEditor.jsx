@@ -26,6 +26,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const containerRef = useRef(null);
 
   const [rotation, setRotation] = useState(0);
+  const [flipH, setFlipH] = useState(false);
+  const [flipV, setFlipV] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -285,10 +287,11 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.translate(w / 2, h / 2);
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
     ctx.rotate((rotation * Math.PI) / 180);
     ctx.drawImage(img, -img.width / 2, -img.height / 2);
     return canvas.toDataURL('image/jpeg', 0.92);
-  }, [rotation]);
+  }, [rotation, flipH, flipV]);
 
   // Push current state to undo stack before destructive operations
   const pushUndo = useCallback(() => {
@@ -326,6 +329,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       imageRef.current = img;
       setOriginalSize({ width: img.width, height: img.height });
       setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
       setBlurRegions([]);
       setCropStart(null);
       setCropEnd(null);
@@ -353,6 +358,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       imageRef.current = img;
       setOriginalSize({ width: img.width, height: img.height });
       setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
       setBlurRegions([]);
       setCropStart(null);
       setCropEnd(null);
@@ -385,9 +392,10 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
     const scale = displaySize.width / srcWidth;
 
-    // Apply rotation
+    // Apply rotation and flip
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
     ctx.rotate((rotation * Math.PI) / 180);
 
     // Draw image centered
@@ -596,7 +604,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       ctx.drawImage(maskCanvasRef.current, 0, 0);
       ctx.globalAlpha = 1.0;
     }
-  }, [displaySize, rotation, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask]);
+  }, [displaySize, rotation, flipH, flipV, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask]);
 
   useEffect(() => {
     drawImage();
@@ -643,6 +651,25 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
       setHasMask(false);
     }
+  };
+
+  // Flip handlers
+  const flipHorizontal = () => {
+    pushUndo();
+    setFlipH(prev => !prev);
+    setCropStart(null);
+    setCropEnd(null);
+    setBlurRegions([]);
+    clearMaskCanvas();
+  };
+
+  const flipVertical = () => {
+    pushUndo();
+    setFlipV(prev => !prev);
+    setCropStart(null);
+    setCropEnd(null);
+    setBlurRegions([]);
+    clearMaskCanvas();
   };
 
   // Toggle crop mode
@@ -762,8 +789,9 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       fullCanvas.height = srcHeight;
       const fullCtx = fullCanvas.getContext('2d');
 
-      // Apply rotation
+      // Apply rotation and flip
       fullCtx.translate(srcWidth / 2, srcHeight / 2);
+      fullCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
       fullCtx.rotate((rotation * Math.PI) / 180);
       fullCtx.drawImage(img, -img.width / 2, -img.height / 2);
       fullCtx.setTransform(1, 0, 0, 1, 0, 0);
@@ -818,10 +846,12 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         newImg.src = dataUrl;
       });
 
-      // Update image ref (reset rotation since we baked it in)
+      // Update image ref (reset rotation/flip since we baked them in)
       imageRef.current = newImg;
       setOriginalSize({ width: newImg.width, height: newImg.height });
       setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
 
       // Clear mask
       clearMask();
@@ -1278,6 +1308,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     const tempCtx = tempCanvas.getContext('2d');
 
     tempCtx.translate(srcWidth / 2, srcHeight / 2);
+    tempCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
     tempCtx.rotate((rotation * Math.PI) / 180);
     tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
 
@@ -1295,6 +1326,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       imageRef.current = croppedImg;
       setOriginalSize({ width: croppedImg.width, height: croppedImg.height });
       setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
       setCropStart(null);
       setCropEnd(null);
       setIsCropping(false);
@@ -1443,6 +1476,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       imageRef.current = img;
       setOriginalSize({ width: img.width, height: img.height });
       setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
       setCropStart(null);
       setCropEnd(null);
       setIsCropping(false);
@@ -1485,6 +1520,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         imageRef.current = img;
         setOriginalSize({ width: img.width, height: img.height });
         setRotation(0);
+        setFlipH(false);
+        setFlipV(false);
         setCropStart(null);
         setCropEnd(null);
         setIsCropping(false);
@@ -1543,6 +1580,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       const ctx = finalCanvas.getContext('2d');
 
       ctx.translate(finalWidth / 2, finalHeight / 2);
+      ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
       ctx.rotate((rotation * Math.PI) / 180);
       ctx.drawImage(img, -img.width / 2, -img.height / 2);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1596,7 +1634,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     Math.abs(cropEnd.x - cropStart.x) > 10 &&
     Math.abs(cropEnd.y - cropStart.y) > 10;
 
-  const hasChanges = rotation !== 0 || blurRegions.length > 0 || hasMask || undoStack.length > 0 || imageRef.current?.src !== blobUrl;
+  const hasChanges = rotation !== 0 || flipH || flipV || blurRegions.length > 0 || hasMask || undoStack.length > 0 || imageRef.current?.src !== blobUrl;
 
   return (
     <div className="image-editor">
@@ -1615,6 +1653,20 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
             title="Rotate right 90°"
           >
             ↻
+          </button>
+          <button
+            className={`image-editor__btn ${flipH ? 'active' : ''}`}
+            onClick={flipHorizontal}
+            title="Flip horizontal"
+          >
+            ⇔
+          </button>
+          <button
+            className={`image-editor__btn ${flipV ? 'active' : ''}`}
+            onClick={flipVertical}
+            title="Flip vertical"
+          >
+            ⇕
           </button>
         </div>
 
