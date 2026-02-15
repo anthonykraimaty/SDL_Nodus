@@ -50,13 +50,18 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   // Healing brush state
   const [isHealing, setIsHealing] = useState(false);
   const [healBrushSize, setHealBrushSize] = useState(15);
-  const [healRadius, setHealRadius] = useState(5);
   const [isProcessingHeal, setIsProcessingHeal] = useState(false);
   const [isErasingMask, setIsErasingMask] = useState(false);
   const maskCanvasRef = useRef(null);
   const isPaintingMask = useRef(false);
   const lastMaskPos = useRef(null);
+  const wasErasingRef = useRef(false);
   const [hasMask, setHasMask] = useState(false);
+
+  // Undo/Redo state
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const MAX_UNDO = 15;
 
   // Original image restoration
   const [hasOriginal, setHasOriginal] = useState(false);
@@ -509,8 +514,25 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     drawImage();
   }, [drawImage]);
 
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
   // Rotation handlers
   const rotateLeft = () => {
+    pushUndo();
     setRotation((prev) => (prev - 90 + 360) % 360);
     setCropStart(null);
     setCropEnd(null);
@@ -523,6 +545,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   const rotateRight = () => {
+    pushUndo();
     setRotation((prev) => (prev + 90) % 360);
     setCropStart(null);
     setCropEnd(null);
@@ -591,6 +614,85 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       drawImage();
     }
   };
+
+  // Capture current state for undo stack
+  const captureState = useCallback(() => {
+    const img = imageRef.current;
+    if (!img) return null;
+
+    const canvas = document.createElement('canvas');
+    let w = img.width, h = img.height;
+    if (rotation % 180 !== 0) [w, h] = [h, w];
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }, [rotation]);
+
+  // Push current state to undo stack before destructive operations
+  const pushUndo = useCallback(() => {
+    const dataUrl = captureState();
+    if (!dataUrl) return;
+    setUndoStack(prev => [...prev.slice(-(MAX_UNDO - 1)), dataUrl]);
+    setRedoStack([]);
+  }, [captureState]);
+
+  // Undo last operation
+  const undo = useCallback(() => {
+    if (undoStack.length === 0) return;
+
+    // Save current state to redo
+    const currentDataUrl = captureState();
+    if (currentDataUrl) {
+      setRedoStack(prev => [...prev, currentDataUrl]);
+    }
+
+    // Pop last undo state
+    const dataUrl = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+
+    const img = new Image();
+    img.onload = () => {
+      imageRef.current = img;
+      setOriginalSize({ width: img.width, height: img.height });
+      setRotation(0);
+      setBlurRegions([]);
+      setCropStart(null);
+      setCropEnd(null);
+      clearMask();
+    };
+    img.src = dataUrl;
+  }, [undoStack, captureState]);
+
+  // Redo last undone operation
+  const redo = useCallback(() => {
+    if (redoStack.length === 0) return;
+
+    // Save current state to undo
+    const currentDataUrl = captureState();
+    if (currentDataUrl) {
+      setUndoStack(prev => [...prev, currentDataUrl]);
+    }
+
+    // Pop last redo state
+    const dataUrl = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+
+    const img = new Image();
+    img.onload = () => {
+      imageRef.current = img;
+      setOriginalSize({ width: img.width, height: img.height });
+      setRotation(0);
+      setBlurRegions([]);
+      setCropStart(null);
+      setCropEnd(null);
+      clearMask();
+    };
+    img.src = dataUrl;
+  }, [redoStack, captureState]);
 
   // Paint on the mask canvas at position
   const paintMaskAt = (x, y) => {
@@ -688,8 +790,9 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       // Get image data
       const imageData = fullCtx.getImageData(0, 0, srcWidth, srcHeight);
 
-      // Scale heal radius proportionally
-      const scaledRadius = Math.round(healRadius * Math.max(scaleX, scaleY));
+      // Auto-calculate heal radius from brush size
+      const autoHealRadius = Math.max(5, Math.ceil(healBrushSize / 3));
+      const scaledRadius = Math.round(autoHealRadius * Math.max(scaleX, scaleY));
 
       // Run inpainting
       const result = inpaint(imageData, maskArray, scaledRadius);
@@ -880,7 +983,9 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     if (isHealing) {
       isPaintingMask.current = true;
       // Check for Alt key for eraser mode
-      if (e.altKey) setIsErasingMask(true);
+      const erasing = e.altKey;
+      setIsErasingMask(erasing);
+      wasErasingRef.current = erasing;
       paintMaskAt(pos.x, pos.y);
       lastMaskPos.current = pos;
       drawImage();
@@ -1076,11 +1181,19 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   // Mouse up handler
-  const handleMouseUp = () => {
+  const handleMouseUp = async () => {
     if (isHealing) {
       isPaintingMask.current = false;
       lastMaskPos.current = null;
+      const wasErasing = wasErasingRef.current;
       setIsErasingMask(false);
+      wasErasingRef.current = false;
+
+      // Auto-apply heal on mouse up if mask was painted (not erased)
+      if (hasMask && !wasErasing && !isProcessingHeal) {
+        pushUndo();
+        await applyHeal();
+      }
       return;
     }
 
@@ -1132,6 +1245,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const applyCrop = () => {
     if (!cropStart || !cropEnd) return;
 
+    pushUndo();
     const img = imageRef.current;
 
     // Calculate crop in original image coordinates
@@ -1331,6 +1445,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
       }
       setHasMask(false);
+      setUndoStack([]);
+      setRedoStack([]);
     };
     img.src = blobUrl;
   };
@@ -1471,37 +1587,37 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     Math.abs(cropEnd.x - cropStart.x) > 10 &&
     Math.abs(cropEnd.y - cropStart.y) > 10;
 
-  const hasChanges = rotation !== 0 || blurRegions.length > 0 || hasMask || imageRef.current?.src !== blobUrl;
+  const hasChanges = rotation !== 0 || blurRegions.length > 0 || hasMask || undoStack.length > 0 || imageRef.current?.src !== blobUrl;
 
   return (
     <div className="image-editor">
       <div className="image-editor__toolbar">
         <div className="image-editor__toolbar-group">
-          <span className="toolbar-label">Rotate</span>
           <button
             className="image-editor__btn"
             onClick={rotateLeft}
             title="Rotate left 90°"
           >
-            ↺ Left
+            ↺
           </button>
           <button
             className="image-editor__btn"
             onClick={rotateRight}
             title="Rotate right 90°"
           >
-            ↻ Right
+            ↻
           </button>
         </div>
 
+        <div className="image-editor__toolbar-divider" />
+
         <div className="image-editor__toolbar-group">
-          <span className="toolbar-label">Crop</span>
           <button
             className={`image-editor__btn ${isCropping ? 'active' : ''}`}
             onClick={toggleCropMode}
             title={isCropping ? 'Cancel crop' : 'Start cropping'}
           >
-            {isCropping ? 'Cancel Crop' : 'Crop'}
+            Crop
           </button>
           {isCropping && hasCropSelection && (
             <button
@@ -1509,23 +1625,52 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
               onClick={applyCrop}
               title="Apply crop"
             >
-              Apply Crop
+              Apply
             </button>
           )}
         </div>
 
+        <div className="image-editor__toolbar-divider" />
+
         <div className="image-editor__toolbar-group">
-          <span className="toolbar-label">Blur</span>
           <button
             className={`image-editor__btn ${isBlurring ? 'active' : ''}`}
             onClick={toggleBlurMode}
             title={isBlurring ? 'Exit blur mode' : 'Add blur regions for privacy'}
           >
-            {isBlurring ? 'Exit Blur' : 'Blur Tool'}
+            Blur
           </button>
+          {isBlurring && (
+            <>
+              <button
+                className={`image-editor__btn ${blurShape === 'rect' ? 'active' : ''}`}
+                onClick={() => setBlurShape('rect')}
+                title="Rectangle blur shape"
+              >
+                ▭
+              </button>
+              <button
+                className={`image-editor__btn ${blurShape === 'circle' ? 'active' : ''}`}
+                onClick={() => setBlurShape('circle')}
+                title="Circle/ellipse blur shape (good for faces)"
+              >
+                ○
+              </button>
+              <input
+                type="range"
+                min="5"
+                max="30"
+                value={blurIntensity}
+                onChange={(e) => setBlurIntensity(Number(e.target.value))}
+                className="blur-slider"
+                title="Blur intensity"
+              />
+              <span className="blur-value">{blurIntensity}px</span>
+            </>
+          )}
           {blurRegions.length > 0 && (
             <>
-              <span className="blur-count">{blurRegions.length} region(s)</span>
+              <span className="blur-count">{blurRegions.length}</span>
               <button
                 className="image-editor__btn"
                 onClick={clearBlurRegions}
@@ -1537,57 +1682,18 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
           )}
         </div>
 
-        {isBlurring && (
-          <>
-            <div className="image-editor__toolbar-group">
-              <span className="toolbar-label">Shape</span>
-              <button
-                className={`image-editor__btn ${blurShape === 'rect' ? 'active' : ''}`}
-                onClick={() => setBlurShape('rect')}
-                title="Rectangle blur shape"
-              >
-                ▭ Rectangle
-              </button>
-              <button
-                className={`image-editor__btn ${blurShape === 'circle' ? 'active' : ''}`}
-                onClick={() => setBlurShape('circle')}
-                title="Circle/ellipse blur shape (good for faces)"
-              >
-                ○ Circle
-              </button>
-            </div>
-
-            <div className="image-editor__toolbar-group">
-              <span className="toolbar-label">Intensity</span>
-              <input
-                type="range"
-                min="5"
-                max="30"
-                value={blurIntensity}
-                onChange={(e) => setBlurIntensity(Number(e.target.value))}
-                className="blur-slider"
-                title="Blur intensity"
-              />
-              <span className="blur-value">{blurIntensity}px</span>
-            </div>
-          </>
-        )}
+        <div className="image-editor__toolbar-divider" />
 
         <div className="image-editor__toolbar-group">
-          <span className="toolbar-label">Heal</span>
           <button
             className={`image-editor__btn ${isHealing ? 'active' : ''}`}
             onClick={toggleHealMode}
             title={isHealing ? 'Exit healing mode' : 'Healing brush to remove objects'}
           >
-            {isHealing ? 'Exit Heal' : 'Healing Brush'}
+            Heal
           </button>
-        </div>
-
-        {isHealing && (
-          <>
-            <div className="image-editor__toolbar-group">
-              <span className="toolbar-label">Brush</span>
+          {isHealing && (
+            <>
               <input
                 type="range"
                 min="3"
@@ -1598,41 +1704,32 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
                 title="Brush size"
               />
               <span className="blur-value">{healBrushSize}px</span>
-            </div>
+            </>
+          )}
+        </div>
 
-            <div className="image-editor__toolbar-group">
-              <span className="toolbar-label">Radius</span>
-              <input
-                type="range"
-                min="3"
-                max="15"
-                value={healRadius}
-                onChange={(e) => setHealRadius(Number(e.target.value))}
-                className="blur-slider"
-                title="Search radius for surrounding texture"
-              />
-              <span className="blur-value">{healRadius}px</span>
-            </div>
+        <div className="image-editor__toolbar-divider" />
 
-            <div className="image-editor__toolbar-group">
-              <button
-                className="image-editor__btn"
-                onClick={clearMask}
-                title="Clear the painted mask"
-              >
-                Clear Mask
-              </button>
-              <button
-                className="image-editor__btn image-editor__btn--primary"
-                onClick={applyHeal}
-                disabled={isProcessingHeal || !hasMask}
-                title={!hasMask ? 'Paint over the area to remove first' : 'Apply healing to remove painted areas'}
-              >
-                {isProcessingHeal ? 'Processing...' : 'Apply Heal'}
-              </button>
-            </div>
-          </>
-        )}
+        <div className="image-editor__toolbar-group">
+          <button
+            className="image-editor__btn"
+            onClick={undo}
+            disabled={undoStack.length === 0}
+            title="Undo (Ctrl+Z)"
+          >
+            Undo
+          </button>
+          <button
+            className="image-editor__btn"
+            onClick={redo}
+            disabled={redoStack.length === 0}
+            title="Redo (Ctrl+Y)"
+          >
+            Redo
+          </button>
+        </div>
+
+        <div className="image-editor__toolbar-divider" />
 
         <div className="image-editor__toolbar-group">
           <button
@@ -1649,7 +1746,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
               disabled={restoringOriginal}
               title="Restore original uploaded image"
             >
-              {restoringOriginal ? 'Restoring...' : 'Restore Original'}
+              {restoringOriginal ? 'Restoring...' : 'Restore'}
             </button>
           )}
         </div>
@@ -1669,7 +1766,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
       {isHealing && (
         <div className="image-editor__help image-editor__help--heal">
-          Paint over the area to remove. Hold Alt to erase parts of the mask. Click "Apply Heal" when ready.
+          Paint over the area to remove — healing applies automatically. Hold Alt to erase.
         </div>
       )}
 

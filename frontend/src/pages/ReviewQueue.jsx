@@ -263,7 +263,7 @@ const ReviewQueue = () => {
                           src={getImageUrl(picture.filePath)}
                           alt={`Picture ${picture.displayOrder}`}
                           className="preview-image"
-                          onClick={() => setSelectedImage(picture)}
+                          onClick={() => setSelectedImage({ ...picture, _set: set })}
                           title="Click to view full size"
                         />
                         {picture.category && (
@@ -379,14 +379,55 @@ const ReviewQueue = () => {
           isOpen={!!selectedImage}
           onClose={() => setSelectedImage(null)}
           variant="image"
-          size="fullscreen"
+          size="large"
         >
           {selectedImage && (
-            <img
-              src={getImageUrl(selectedImage.filePath)}
-              alt="Full size preview"
-              style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '8px' }}
-            />
+            <div className="review-image-preview">
+              <div className="review-image-preview__image">
+                <img
+                  src={getImageUrl(selectedImage.filePath)}
+                  alt="Full size preview"
+                />
+              </div>
+              <div className="review-image-preview__details">
+                {selectedImage.category && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Category</span>
+                    <span className="detail-value">{selectedImage.category.name}</span>
+                  </div>
+                )}
+                {selectedImage._set?.woodCount && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Nombre de bois</span>
+                    <span className="detail-value">{selectedImage._set.woodCount}</span>
+                  </div>
+                )}
+                {selectedImage.takenAt && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Date</span>
+                    <span className="detail-value">{new Date(selectedImage.takenAt).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {selectedImage._set?.troupe && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Troupe</span>
+                    <span className="detail-value">{selectedImage._set.troupe.name}</span>
+                  </div>
+                )}
+                {selectedImage._set?.uploadedBy && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Uploaded by</span>
+                    <span className="detail-value">{selectedImage._set.uploadedBy.name}</span>
+                  </div>
+                )}
+                {selectedImage._set?.uploadedAt && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Upload date</span>
+                    <span className="detail-value">{new Date(selectedImage._set.uploadedAt).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </Modal>
 

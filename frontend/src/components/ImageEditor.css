@@ -41,8 +41,9 @@
 .image-editor__toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  padding: 16px;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
   background: #f5f5f5;
   border-bottom: 1px solid #e0e0e0;
 }
@@ -50,29 +51,29 @@
 .image-editor__toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
-.toolbar-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #333;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.image-editor__toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: #ddd;
+  margin: 0 4px;
 }
 
 .image-editor__btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   border: 1px solid #ccc;
   border-radius: 6px;
   background: #fff;
   color: #333;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .image-editor__btn:hover:not(:disabled) {
@@ -81,7 +82,7 @@
 }
 
 .image-editor__btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -124,10 +125,10 @@
 }
 
 .image-editor__help {
-  padding: 8px 16px;
+  padding: 6px 16px;
   background: #e3f2fd;
   color: #1565c0;
-  font-size: 13px;
+  font-size: 12px;
   text-align: center;
   border-bottom: 1px solid #e0e0e0;
 }
@@ -137,14 +138,19 @@
   color: #e65100;
 }
 
+.image-editor__help--heal {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
 .image-editor__blur-list {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 6px 16px;
   background: #fafafa;
   border-bottom: 1px solid #e0e0e0;
-  font-size: 13px;
+  font-size: 12px;
   color: #666;
   flex-wrap: wrap;
 }
@@ -153,12 +159,12 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   background: #ff6b6b;
   color: #fff;
   border: none;
   border-radius: 16px;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   transition: background 0.2s ease;
 }
@@ -168,23 +174,23 @@
 }
 
 .blur-count {
-  font-size: 12px;
+  font-size: 11px;
   color: #666;
-  padding: 4px 10px;
+  padding: 3px 8px;
   background: #e0e0e0;
   border-radius: 12px;
 }
 
 .blur-slider {
-  width: 100px;
+  width: 80px;
   cursor: pointer;
   accent-color: #d4a574;
 }
 
 .blur-value {
-  font-size: 12px;
+  font-size: 11px;
   color: #666;
-  min-width: 35px;
+  min-width: 30px;
 }
 
 .image-editor__canvas-container {
@@ -216,11 +222,6 @@
   cursor: crosshair;
 }
 
-.image-editor__help--heal {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
 .image-editor__processing-overlay {
   position: absolute;
   top: 0;
@@ -247,7 +248,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 16px;
   background: #f5f5f5;
   border-top: 1px solid #e0e0e0;
 }
@@ -255,8 +256,12 @@
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .image-editor__toolbar {
-    flex-direction: column;
-    gap: 12px;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .image-editor__toolbar-divider {
+    display: none;
   }
 
   .image-editor__toolbar-group {
@@ -264,8 +269,8 @@
   }
 
   .image-editor__btn {
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 5px 10px;
+    font-size: 12px;
   }
 
   .image-editor__canvas-container {
@@ -282,6 +287,6 @@
   }
 
   .blur-slider {
-    width: 80px;
+    width: 60px;
   }
 }
