@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getImageUrl } from '../config/api';
 import { pictureService } from '../services/api';
 import './ImagePreviewer.css';
@@ -13,6 +13,14 @@ const ImagePreviewer = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const panStart = useRef({ x: 0, y: 0 });
+  const imageContainerRef = useRef(null);
+  const pinchStartDist = useRef(null);
+  const pinchStartZoom = useRef(1);
+  const lastTapRef = useRef(0);
   const [showDetails, setShowDetails] = useState(true);
 
   // Image orientation state
@@ -65,24 +73,140 @@ const ImagePreviewer = ({
   const handlePrevious = () => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : pictures.length - 1));
     setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev < pictures.length - 1 ? prev + 1 : 0));
     setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.5, 3));
+    setZoom((prev) => Math.min(prev + 0.5, 5));
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.5, 0.5));
+    setZoom((prev) => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next <= 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
   };
 
   const handleZoomReset = () => {
     setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
+
+  // Clamp pan to keep image in bounds
+  const clampPan = useCallback((newPan, currentZoom) => {
+    if (currentZoom <= 1) return { x: 0, y: 0 };
+    const container = imageContainerRef.current;
+    if (!container) return newPan;
+    const cRect = container.getBoundingClientRect();
+    const maxX = Math.max(0, (cRect.width * currentZoom - cRect.width) / 2);
+    const maxY = Math.max(0, (cRect.height * currentZoom - cRect.height) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, newPan.x)),
+      y: Math.max(-maxY, Math.min(maxY, newPan.y)),
+    };
+  }, []);
+
+  // Mouse wheel zoom
+  useEffect(() => {
+    const el = imageContainerRef.current;
+    if (!el) return;
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      setZoom(prev => {
+        const next = Math.max(1, Math.min(5, prev + delta));
+        if (next <= 1) setPan({ x: 0, y: 0 });
+        else setPan(p => clampPan(p, next));
+        return next;
+      });
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [clampPan]);
+
+  // Mouse drag to pan
+  const handleImageMouseDown = useCallback((e) => {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    panStart.current = { ...pan };
+  }, [zoom, pan]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e) => {
+      const dx = e.clientX - dragStart.current.x;
+      const dy = e.clientY - dragStart.current.y;
+      setPan(clampPan({ x: panStart.current.x + dx, y: panStart.current.y + dy }, zoom));
+    };
+    const handleMouseUp = () => setIsDragging(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, zoom, clampPan]);
+
+  // Touch: pinch to zoom + drag to pan
+  const getTouchDist = (touches) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      pinchStartDist.current = getTouchDist(e.touches);
+      pinchStartZoom.current = zoom;
+    } else if (e.touches.length === 1 && zoom > 1) {
+      setIsDragging(true);
+      dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      panStart.current = { ...pan };
+    }
+  }, [zoom, pan]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2 && pinchStartDist.current !== null) {
+      e.preventDefault();
+      const currentDist = getTouchDist(e.touches);
+      const scale = currentDist / pinchStartDist.current;
+      const newZoom = Math.max(1, Math.min(5, pinchStartZoom.current * scale));
+      setZoom(newZoom);
+      if (newZoom <= 1) setPan({ x: 0, y: 0 });
+      else setPan(p => clampPan(p, newZoom));
+    } else if (e.touches.length === 1 && isDragging) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - dragStart.current.x;
+      const dy = e.touches[0].clientY - dragStart.current.y;
+      setPan(clampPan({ x: panStart.current.x + dx, y: panStart.current.y + dy }, zoom));
+    }
+  }, [isDragging, zoom, clampPan]);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (e.touches.length < 2) pinchStartDist.current = null;
+    if (e.touches.length === 0) setIsDragging(false);
+  }, []);
+
+  // Double tap to toggle zoom
+  const handleImageClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (zoom > 1) { setZoom(1); setPan({ x: 0, y: 0 }); }
+      else setZoom(2.5);
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+    }
+  }, [zoom]);
 
   const handleStartEdit = () => {
     setIsEditing(true);
@@ -187,13 +311,22 @@ const ImagePreviewer = ({
         </div>
 
         {/* Image Display */}
-        <div className="previewer-image-container">
+        <div
+          ref={imageContainerRef}
+          className={`previewer-image-container ${zoom > 1 ? 'zoomed' : ''} ${isDragging ? 'dragging' : ''}`}
+          onMouseDown={handleImageMouseDown}
+          onClick={handleImageClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           <img
             src={getImageUrl(currentPicture.filePath)}
             alt={currentPicture.caption || `Picture ${currentIndex + 1}`}
-            style={{ transform: `scale(${zoom})` }}
+            style={{ transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` }}
             className="previewer-image"
             onLoad={handleImageLoad}
+            draggable={false}
           />
         </div>
 

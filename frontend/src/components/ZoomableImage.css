@@ -1,0 +1,45 @@
+.zoomable-image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: pan-x pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.zoomable-image-container.zoomed {
+  cursor: grab;
+  touch-action: none;
+}
+
+.zoomable-image-container.dragging {
+  cursor: grabbing;
+}
+
+.zoomable-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.zoomable-image-container.dragging .zoomable-image {
+  transition: none;
+}
+
+.zoom-indicator {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}

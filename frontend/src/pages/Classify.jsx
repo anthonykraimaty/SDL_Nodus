@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { ToastContainer, useToast } from '../components/Toast';
 import DesignGroupPicker from '../components/DesignGroupPicker';
+import ZoomableImage from '../components/ZoomableImage';
 import './Classify.css';
 
 const Classify = () => {
@@ -799,10 +800,10 @@ const Classify = () => {
           size="fullscreen"
         >
           {selectedPicture && (
-            <img
+            <ZoomableImage
               src={getImageUrl(selectedPicture.filePath)}
               alt="Full size preview"
-              style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '8px' }}
+              style={{ width: '100%', maxHeight: '85vh', borderRadius: '8px' }}
             />
           )}
         </Modal>

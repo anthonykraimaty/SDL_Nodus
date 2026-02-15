@@ -158,20 +158,33 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   margin: 80px 0 20px;
+  touch-action: pan-x pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.previewer-image-container.zoomed {
+  cursor: grab;
+  touch-action: none;
+}
+
+.previewer-image-container.dragging {
+  cursor: grabbing;
 }
 
 .previewer-image {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  transition: transform 0.3s ease;
-  cursor: grab;
+  transition: transform 0.1s ease-out;
+  will-change: transform;
+  pointer-events: none;
 }
 
-.previewer-image:active {
-  cursor: grabbing;
+.previewer-image-container.dragging .previewer-image {
+  transition: none;
 }
 
 /* Picture Counter */

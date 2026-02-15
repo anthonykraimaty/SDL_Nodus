@@ -5,6 +5,7 @@ import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
+import ZoomableImage from '../components/ZoomableImage';
 import { ToastContainer, useToast } from '../components/Toast';
 import './ReviewQueue.css';
 
@@ -115,6 +116,43 @@ const ReviewQueue = () => {
       console.error('Approval error:', err);
       setError('Failed to approve picture set');
     }
+  };
+
+  const handleApproveSinglePicture = async (picture) => {
+    try {
+      setError('');
+      setSuccess('');
+      const set = picture._set;
+      if (!set) return;
+
+      // Exclude all other pictures in this set
+      const otherPictureIds = (set.pictures || [])
+        .filter(p => p.id !== picture.id)
+        .map(p => p.id);
+
+      const archiveIds = set._unclassifiedPictureIds || [];
+      await pictureService.approve(set.id, false, otherPictureIds, archiveIds);
+
+      setSuccess('Picture approved successfully!');
+      setSelectedImage(null);
+      await loadData();
+    } catch (err) {
+      console.error('Single picture approval error:', err);
+      setError('Failed to approve picture');
+    }
+  };
+
+  const selectAllPictures = (setId) => {
+    setExcludedPictures(prev => {
+      const next = { ...prev };
+      delete next[setId];
+      return next;
+    });
+  };
+
+  const deselectAllPictures = (set) => {
+    const allIds = new Set((set.pictures || []).map(p => p.id));
+    setExcludedPictures(prev => ({ ...prev, [set.id]: allIds }));
   };
 
   const handleReject = async (pictureSetId) => {
@@ -289,12 +327,32 @@ const ReviewQueue = () => {
                       </div>
                     ))}
                   </div>
-                  <p className="picture-count">
-                    {getIncludedCount(set)} of {set.pictures?.length || 0} picture{set.pictures?.length !== 1 ? 's' : ''} will be approved
-                    {excludedPictures[set.id]?.size > 0 && (
-                      <span className="excluded-count"> ({excludedPictures[set.id].size} excluded)</span>
+                  <div className="picture-count-row">
+                    <p className="picture-count">
+                      {getIncludedCount(set)} of {set.pictures?.length || 0} picture{set.pictures?.length !== 1 ? 's' : ''} will be approved
+                      {excludedPictures[set.id]?.size > 0 && (
+                        <span className="excluded-count"> ({excludedPictures[set.id].size} excluded)</span>
+                      )}
+                    </p>
+                    {set.pictures?.length > 1 && (
+                      <div className="select-all-actions">
+                        <button
+                          className="btn-select-all"
+                          onClick={() => selectAllPictures(set.id)}
+                          disabled={!excludedPictures[set.id]?.size}
+                        >
+                          Select All
+                        </button>
+                        <button
+                          className="btn-deselect-all"
+                          onClick={() => deselectAllPictures(set)}
+                          disabled={excludedPictures[set.id]?.size >= set.pictures.length}
+                        >
+                          Deselect All
+                        </button>
+                      </div>
                     )}
-                  </p>
+                  </div>
                 </div>
 
                 <div className="review-actions">
@@ -384,7 +442,7 @@ const ReviewQueue = () => {
           {selectedImage && (
             <div className="review-image-preview">
               <div className="review-image-preview__image">
-                <img
+                <ZoomableImage
                   src={getImageUrl(selectedImage.filePath)}
                   alt="Full size preview"
                 />
@@ -438,6 +496,14 @@ const ReviewQueue = () => {
                     <span className="detail-value">{new Date(selectedImage._set.uploadedAt).toLocaleDateString()}</span>
                   </div>
                 )}
+              </div>
+              <div className="review-image-preview__actions">
+                <button
+                  className="btn-approve"
+                  onClick={() => handleApproveSinglePicture(selectedImage)}
+                >
+                  Approve This Picture
+                </button>
               </div>
             </div>
           )}

@@ -5,6 +5,7 @@ import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import ZoomableImage from '../components/ZoomableImage';
 import './Archive.css';
 
 const Archive = () => {
@@ -242,15 +243,15 @@ const Archive = () => {
         <Modal
           isOpen={!!selectedImage}
           onClose={() => setSelectedImage(null)}
+          variant="image"
+          size="large"
         >
           {selectedImage && (
-            <div style={{ textAlign: 'center' }}>
-              <img
-                src={getImageUrl(selectedImage.filePath)}
-                alt="Archived picture preview"
-                style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: '8px' }}
-              />
-            </div>
+            <ZoomableImage
+              src={getImageUrl(selectedImage.filePath)}
+              alt="Archived picture preview"
+              style={{ width: '100%', maxHeight: '80vh', borderRadius: '8px' }}
+            />
           )}
         </Modal>
       </div>
