@@ -408,6 +408,18 @@ const ReviewQueue = () => {
                     <span className="detail-value">{new Date(selectedImage.takenAt).toLocaleDateString()}</span>
                   </div>
                 )}
+                {selectedImage._set?.troupe?.group?.district && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">District</span>
+                    <span className="detail-value">{selectedImage._set.troupe.group.district.name}</span>
+                  </div>
+                )}
+                {selectedImage._set?.troupe?.group && (
+                  <div className="review-image-preview__detail">
+                    <span className="detail-label">Groupe</span>
+                    <span className="detail-value">{selectedImage._set.troupe.group.name}</span>
+                  </div>
+                )}
                 {selectedImage._set?.troupe && (
                   <div className="review-image-preview__detail">
                     <span className="detail-label">Troupe</span>
