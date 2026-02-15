@@ -338,14 +338,20 @@ router.get('/pictures/by-category', authenticate, authorize('BRANCHE_ECLAIREURS'
       };
     }
 
-    // Group pictures by categoryId and count
-    const grouped = await prisma.picture.groupBy({
-      by: ['categoryId'],
-      where: pictureWhere,
-      _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 8,
-    });
+    // Build a where clause for total count (same filters but without categoryId restriction)
+    const totalWhere = { ...pictureWhere };
+    delete totalWhere.categoryId;
+
+    // Count total pictures matching the filter (all categories) and group by categoryId
+    const [grouped, totalPictures] = await Promise.all([
+      prisma.picture.groupBy({
+        by: ['categoryId'],
+        where: pictureWhere,
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
+      prisma.picture.count({ where: totalWhere }),
+    ]);
 
     // Fetch category names
     const categoryIds = grouped.map(g => g.categoryId);
@@ -361,7 +367,7 @@ router.get('/pictures/by-category', authenticate, authorize('BRANCHE_ECLAIREURS'
       count: g._count.id,
     }));
 
-    res.json({ categories: result });
+    res.json({ categories: result, totalPictures });
   } catch (error) {
     console.error('Get pictures by category error:', error);
     res.status(500).json({ error: 'Failed to fetch pictures by category' });

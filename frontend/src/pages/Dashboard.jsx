@@ -30,6 +30,7 @@ const Dashboard = () => {
     total: 0,
   });
   const [categoryStats, setCategoryStats] = useState([]);
+  const [categoryTotal, setCategoryTotal] = useState(0);
   const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
@@ -107,6 +108,7 @@ const Dashboard = () => {
         try {
           const catData = await analyticsService.getPicturesByCategory();
           setCategoryStats(catData.categories || []);
+          setCategoryTotal(catData.totalPictures || 0);
         } catch (err) {
           console.error('Failed to load category stats:', err);
         }
@@ -133,6 +135,7 @@ const Dashboard = () => {
       if (status && status !== 'all') params.status = status.toUpperCase();
       const catData = await analyticsService.getPicturesByCategory(params);
       setCategoryStats(catData.categories || []);
+      setCategoryTotal(catData.totalPictures || 0);
     } catch (err) {
       console.error('Failed to load category stats:', err);
     }
@@ -327,7 +330,7 @@ const Dashboard = () => {
             </div>
             <div className="category-chart">
               {categoryStats.map((cat, index) => {
-                const maxCount = Math.max(...categoryStats.map(c => c.count), 1);
+                const barWidth = categoryTotal > 0 ? (cat.count / categoryTotal) * 100 : 0;
                 return (
                   <div key={index} className="chart-bar-row">
                     <span className="chart-label" title={cat.name}>
@@ -336,10 +339,10 @@ const Dashboard = () => {
                     <div className="chart-bar-container">
                       <div
                         className="chart-bar"
-                        style={{ width: `${(cat.count / maxCount) * 100}%` }}
+                        style={{ width: `${barWidth}%` }}
                       />
                     </div>
-                    <span className="chart-value">{cat.count}</span>
+                    <span className="chart-value">{cat.count}/{categoryTotal}</span>
                   </div>
                 );
               })}
