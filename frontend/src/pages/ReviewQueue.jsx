@@ -126,24 +126,18 @@ const ReviewQueue = () => {
   const handleApproveSinglePicture = async (picture) => {
     try {
       setError('');
-      setSuccess('');
       const set = picture._set;
       if (!set) return;
 
-      // Exclude all other pictures in this set
-      const otherPictureIds = (set.pictures || [])
-        .filter(p => p.id !== picture.id)
-        .map(p => p.id);
+      await pictureService.approveSingle(set.id, picture.id);
 
-      const archiveIds = set._unclassifiedPictureIds || [];
-      await pictureService.approve(set.id, false, otherPictureIds, archiveIds);
-
-      setSuccess('Picture approved successfully!');
+      addToast('Picture approved!', 'success');
       setSelectedImage(null);
+      setModalEditing(false);
       await loadData();
     } catch (err) {
       console.error('Single picture approval error:', err);
-      setError('Failed to approve picture');
+      addToast(err.message || 'Failed to approve picture', 'error');
     }
   };
 

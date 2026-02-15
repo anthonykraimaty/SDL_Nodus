@@ -273,6 +273,94 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     return imageData;
   };
 
+  // Capture current state for undo stack
+  const captureState = useCallback(() => {
+    const img = imageRef.current;
+    if (!img) return null;
+
+    const canvas = document.createElement('canvas');
+    let w = img.width, h = img.height;
+    if (rotation % 180 !== 0) [w, h] = [h, w];
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }, [rotation]);
+
+  // Push current state to undo stack before destructive operations
+  const pushUndo = useCallback(() => {
+    const dataUrl = captureState();
+    if (!dataUrl) return;
+    setUndoStack(prev => [...prev.slice(-(MAX_UNDO - 1)), dataUrl]);
+    setRedoStack([]);
+  }, [captureState]);
+
+  // Helper to clear mask canvas without triggering drawImage
+  const clearMaskCanvas = useCallback(() => {
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+    }
+    setHasMask(false);
+  }, []);
+
+  // Undo last operation
+  const undo = useCallback(() => {
+    if (undoStack.length === 0) return;
+
+    // Save current state to redo
+    const currentDataUrl = captureState();
+    if (currentDataUrl) {
+      setRedoStack(prev => [...prev, currentDataUrl]);
+    }
+
+    // Pop last undo state
+    const dataUrl = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+
+    const img = new Image();
+    img.onload = () => {
+      imageRef.current = img;
+      setOriginalSize({ width: img.width, height: img.height });
+      setRotation(0);
+      setBlurRegions([]);
+      setCropStart(null);
+      setCropEnd(null);
+      clearMaskCanvas();
+    };
+    img.src = dataUrl;
+  }, [undoStack, captureState, clearMaskCanvas]);
+
+  // Redo last undone operation
+  const redo = useCallback(() => {
+    if (redoStack.length === 0) return;
+
+    // Save current state to undo
+    const currentDataUrl = captureState();
+    if (currentDataUrl) {
+      setUndoStack(prev => [...prev, currentDataUrl]);
+    }
+
+    // Pop last redo state
+    const dataUrl = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+
+    const img = new Image();
+    img.onload = () => {
+      imageRef.current = img;
+      setOriginalSize({ width: img.width, height: img.height });
+      setRotation(0);
+      setBlurRegions([]);
+      setCropStart(null);
+      setCropEnd(null);
+      clearMaskCanvas();
+    };
+    img.src = dataUrl;
+  }, [redoStack, captureState, clearMaskCanvas]);
+
   // Draw the image on canvas
   const drawImage = useCallback(() => {
     if (!canvasRef.current || !imageRef.current || !imageLoaded) return;
@@ -614,94 +702,6 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       drawImage();
     }
   };
-
-  // Capture current state for undo stack
-  const captureState = useCallback(() => {
-    const img = imageRef.current;
-    if (!img) return null;
-
-    const canvas = document.createElement('canvas');
-    let w = img.width, h = img.height;
-    if (rotation % 180 !== 0) [w, h] = [h, w];
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.translate(w / 2, h / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.drawImage(img, -img.width / 2, -img.height / 2);
-    return canvas.toDataURL('image/jpeg', 0.92);
-  }, [rotation]);
-
-  // Push current state to undo stack before destructive operations
-  const pushUndo = useCallback(() => {
-    const dataUrl = captureState();
-    if (!dataUrl) return;
-    setUndoStack(prev => [...prev.slice(-(MAX_UNDO - 1)), dataUrl]);
-    setRedoStack([]);
-  }, [captureState]);
-
-  // Helper to clear mask canvas without triggering drawImage
-  const clearMaskCanvas = useCallback(() => {
-    if (maskCanvasRef.current) {
-      const ctx = maskCanvasRef.current.getContext('2d');
-      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
-    }
-    setHasMask(false);
-  }, []);
-
-  // Undo last operation
-  const undo = useCallback(() => {
-    if (undoStack.length === 0) return;
-
-    // Save current state to redo
-    const currentDataUrl = captureState();
-    if (currentDataUrl) {
-      setRedoStack(prev => [...prev, currentDataUrl]);
-    }
-
-    // Pop last undo state
-    const dataUrl = undoStack[undoStack.length - 1];
-    setUndoStack(prev => prev.slice(0, -1));
-
-    const img = new Image();
-    img.onload = () => {
-      imageRef.current = img;
-      setOriginalSize({ width: img.width, height: img.height });
-      setRotation(0);
-      setBlurRegions([]);
-      setCropStart(null);
-      setCropEnd(null);
-      clearMaskCanvas();
-    };
-    img.src = dataUrl;
-  }, [undoStack, captureState, clearMaskCanvas]);
-
-  // Redo last undone operation
-  const redo = useCallback(() => {
-    if (redoStack.length === 0) return;
-
-    // Save current state to undo
-    const currentDataUrl = captureState();
-    if (currentDataUrl) {
-      setUndoStack(prev => [...prev, currentDataUrl]);
-    }
-
-    // Pop last redo state
-    const dataUrl = redoStack[redoStack.length - 1];
-    setRedoStack(prev => prev.slice(0, -1));
-
-    const img = new Image();
-    img.onload = () => {
-      imageRef.current = img;
-      setOriginalSize({ width: img.width, height: img.height });
-      setRotation(0);
-      setBlurRegions([]);
-      setCropStart(null);
-      setCropEnd(null);
-      clearMaskCanvas();
-    };
-    img.src = dataUrl;
-  }, [redoStack, captureState, clearMaskCanvas]);
 
   // Paint on the mask canvas at position
   const paintMaskAt = (x, y) => {

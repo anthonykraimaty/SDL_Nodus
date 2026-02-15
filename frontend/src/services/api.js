@@ -182,6 +182,7 @@ export const pictureService = {
   classify: (id, data) => api.put(`/api/pictures/${id}/classify`, data, true),
   classifyBulk: (id, data) => api.put(`/api/pictures/${id}/classify-bulk`, data, true),
   approve: (id, isHighlight = false, excludedPictureIds = [], archivePictureIds = []) => api.post(`/api/pictures/${id}/approve`, { isHighlight, excludedPictureIds, archivePictureIds }, true),
+  approveSingle: (setId, pictureId) => api.post(`/api/pictures/${setId}/approve-single/${pictureId}`, {}, true),
   reject: (id, rejectionReason) => api.post(`/api/pictures/${id}/reject`, { rejectionReason }, true),
   delete: (id) => api.delete(`/api/pictures/${id}`, true),
   deletePicture: (setId, pictureId) => api.delete(`/api/pictures/${setId}/picture/${pictureId}`, true),

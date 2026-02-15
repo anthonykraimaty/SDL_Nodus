@@ -811,6 +811,100 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
   }
 });
 
+// POST /api/pictures/:setId/approve-single/:pictureId - Approve a single picture from a set
+// Moves the picture to a new approved set, leaving the rest in the original set
+router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+  try {
+    const setId = parseInt(req.params.setId);
+    const pictureId = parseInt(req.params.pictureId);
+
+    // Get the original set with all its data
+    const originalSet = await prisma.pictureSet.findUnique({
+      where: { id: setId },
+      include: {
+        pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
+        troupe: true,
+      },
+    });
+
+    if (!originalSet) {
+      return res.status(404).json({ error: 'Picture set not found' });
+    }
+
+    const picture = originalSet.pictures.find(p => p.id === pictureId);
+    if (!picture) {
+      return res.status(404).json({ error: 'Picture not found in this set' });
+    }
+
+    // If this is the only picture in the set, just approve the whole set
+    if (originalSet.pictures.length === 1) {
+      const pictureSet = await prisma.pictureSet.update({
+        where: { id: setId },
+        data: {
+          status: 'APPROVED',
+          approvedById: req.user.id,
+          approvedAt: new Date(),
+        },
+        include: {
+          approvedBy: { select: { id: true, name: true } },
+          pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' }, include: { category: true } },
+        },
+      });
+      return res.json({ message: 'Picture approved successfully', pictureSet });
+    }
+
+    // Create a new approved set for this single picture
+    const newSet = await prisma.pictureSet.create({
+      data: {
+        title: originalSet.title,
+        description: originalSet.description,
+        type: originalSet.type,
+        status: 'APPROVED',
+        uploadedById: originalSet.uploadedById,
+        troupeId: originalSet.troupeId,
+        patrouilleId: originalSet.patrouilleId,
+        categoryId: originalSet.categoryId,
+        subCategoryId: originalSet.subCategoryId,
+        schematicCategoryId: originalSet.schematicCategoryId,
+        classifiedById: originalSet.classifiedById,
+        classifiedAt: originalSet.classifiedAt,
+        approvedById: req.user.id,
+        approvedAt: new Date(),
+        location: originalSet.location,
+        latitude: originalSet.latitude,
+        longitude: originalSet.longitude,
+        woodCount: originalSet.woodCount,
+      },
+    });
+
+    // Move the picture to the new set
+    await prisma.picture.update({
+      where: { id: pictureId },
+      data: {
+        pictureSetId: newSet.id,
+        displayOrder: 0,
+      },
+    });
+
+    // Return the new approved set
+    const approvedSet = await prisma.pictureSet.findUnique({
+      where: { id: newSet.id },
+      include: {
+        approvedBy: { select: { id: true, name: true } },
+        pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' }, include: { category: true } },
+      },
+    });
+
+    res.json({
+      message: 'Picture approved successfully',
+      pictureSet: approvedSet,
+    });
+  } catch (error) {
+    console.error('Approve single picture error:', error);
+    res.status(500).json({ error: 'Failed to approve picture' });
+  }
+});
+
 // POST /api/pictures/:id/reject - Reject picture set (branche only)
 router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
