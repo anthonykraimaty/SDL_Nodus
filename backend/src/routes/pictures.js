@@ -1637,9 +1637,8 @@ router.put(
       let canEdit = false;
       if (isAdmin) {
         canEdit = true;
-      } else if (isBranche && (status === 'CLASSIFIED' || status === 'PENDING')) {
-        // Branche can edit during review (CLASSIFIED) or classification (PENDING)
-        // Check district access
+      } else if (isBranche) {
+        // Branche can edit pictures in any status they have district access to
         const userDistrictAccess = await prisma.userDistrictAccess.findMany({
           where: { userId: req.user.id },
           select: { districtId: true },
@@ -1776,7 +1775,8 @@ router.post(
       let canEdit = false;
       if (isAdmin) {
         canEdit = true;
-      } else if (isBranche && (status === 'CLASSIFIED' || status === 'PENDING')) {
+      } else if (isBranche) {
+        // Branche can restore pictures they have district access to
         const userDistrictAccess = await prisma.userDistrictAccess.findMany({
           where: { userId: req.user.id },
           select: { districtId: true },
