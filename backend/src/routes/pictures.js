@@ -483,6 +483,7 @@ router.post(
         pictureData = r2Results.map((result, index) => ({
           filePath: result.url, // Full CDN URL for R2
           displayOrder: index + 1,
+          type, // Inherit type from the set
         }));
       } else {
         // Local storage
@@ -491,6 +492,7 @@ router.post(
           return {
             filePath: `uploads/${relativePath}`,
             displayOrder: index + 1,
+            type, // Inherit type from the set
           };
         });
       }
@@ -658,6 +660,9 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Invalid picture type' });
     }
 
+    // Determine the effective type: from request body or fall back to set type
+    const effectiveType = type || pictureSet.type;
+
     // Update each picture with its classification
     const updatePromises = classifications.map(({ pictureId, categoryId, takenAt, woodCount: picWoodCount }) => {
       const updateData = { categoryId: parseInt(categoryId) };
@@ -668,6 +673,9 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       } else {
         updateData.woodCount = null;
       }
+
+      // Set picture type from the set type so browse filtering works
+      if (effectiveType) updateData.type = effectiveType;
 
       return prisma.picture.update({
         where: { id: parseInt(pictureId) },
@@ -877,12 +885,13 @@ router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCH
       },
     });
 
-    // Move the picture to the new set
+    // Move the picture to the new set, ensuring type is set
     await prisma.picture.update({
       where: { id: pictureId },
       data: {
         pictureSetId: newSet.id,
         displayOrder: 0,
+        type: picture.type || originalSet.type,
       },
     });
 

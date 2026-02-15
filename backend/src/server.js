@@ -127,6 +127,22 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+
+  // Backfill: set Picture.type from PictureSet.type for pictures with null type
+  try {
+    const result = await prisma.$executeRaw`
+      UPDATE "Picture" p
+      SET type = ps.type
+      FROM "PictureSet" ps
+      WHERE p."pictureSetId" = ps.id
+      AND p.type IS NULL
+    `;
+    if (result > 0) {
+      console.log(`Backfilled Picture.type for ${result} pictures`);
+    }
+  } catch (err) {
+    console.error('Picture type backfill error:', err.message);
+  }
 });
