@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService, designGroupService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import DesignGroupPicker from '../components/DesignGroupPicker';
 import './Classify.css';
 
@@ -34,6 +35,7 @@ const Classify = () => {
   const [bulkClassifying, setBulkClassifying] = useState(false);
   const [viewingGroup, setViewingGroup] = useState(null);
   const [viewingGroupIndex, setViewingGroupIndex] = useState(0);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -164,30 +166,46 @@ const Classify = () => {
     }
   };
 
-  const handleArchivePicture = async (setId, pictureId) => {
-    if (!confirm('Archive this picture? You can restore it later from the archive.')) return;
-    try {
-      await pictureService.archivePicture(setId, pictureId);
-      await loadData();
-    } catch (err) {
-      console.error('Archive error:', err);
-      setError(err.message || 'Failed to archive picture');
-    }
+  const handleArchivePicture = (setId, pictureId) => {
+    setConfirmAction({
+      title: 'Archive picture?',
+      message: 'Archive this picture? You can restore it later from the archive.',
+      confirmText: 'Archive',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          await pictureService.archivePicture(setId, pictureId);
+          await loadData();
+        } catch (err) {
+          console.error('Archive error:', err);
+          setError(err.message || 'Failed to archive picture');
+        }
+      },
+    });
   };
 
-  const handleBulkArchive = async () => {
-    if (!confirm(`Archive ${selectedPictures.size} picture(s)?`)) return;
-    try {
-      for (const key of selectedPictures) {
-        const [setId, pictureId] = key.split(':');
-        await pictureService.archivePicture(parseInt(setId), parseInt(pictureId));
-      }
-      setSelectedPictures(new Set());
-      await loadData();
-    } catch (err) {
-      console.error('Bulk archive error:', err);
-      setError(err.message || 'Failed to archive pictures');
-    }
+  const handleBulkArchive = () => {
+    setConfirmAction({
+      title: 'Archive pictures?',
+      message: `Archive ${selectedPictures.size} picture(s)?`,
+      confirmText: 'Archive All',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          for (const key of selectedPictures) {
+            const [setId, pictureId] = key.split(':');
+            await pictureService.archivePicture(parseInt(setId), parseInt(pictureId));
+          }
+          setSelectedPictures(new Set());
+          await loadData();
+        } catch (err) {
+          console.error('Bulk archive error:', err);
+          setError(err.message || 'Failed to archive pictures');
+        }
+      },
+    });
   };
 
   // Toggle picture selection for bulk classification
@@ -786,6 +804,12 @@ const Classify = () => {
             />
           )}
         </Modal>
+
+        <ConfirmModal
+          isOpen={!!confirmAction}
+          onCancel={() => setConfirmAction(null)}
+          {...confirmAction}
+        />
       </div>
     </div>
   );

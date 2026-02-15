@@ -1074,10 +1074,27 @@ router.post('/:id/picture/:pictureId/archive', authenticate, async (req, res) =>
       }
     }
 
-    // Prevent archiving the last non-archived picture
+    // If this is the last active picture, delete the picture and the entire set
     const activePictures = pictureSet.pictures.filter(p => !p.isArchived);
     if (activePictures.length <= 1) {
-      return res.status(400).json({ error: 'Cannot archive the last active picture. Delete the entire set instead.' });
+      // Delete all picture files from storage
+      for (const pic of pictureSet.pictures) {
+        try {
+          if (pic.filePath.startsWith('http')) {
+            await deleteFromR2(pic.filePath);
+          } else {
+            await fs.unlink(pic.filePath).catch(() => {});
+          }
+        } catch (fileError) {
+          console.error(`Failed to delete file ${pic.filePath}:`, fileError.message);
+        }
+      }
+
+      await prisma.pictureSet.delete({
+        where: { id: parseInt(id) },
+      });
+
+      return res.json({ message: 'Last picture archived — set deleted', setDeleted: true });
     }
 
     await prisma.picture.update({

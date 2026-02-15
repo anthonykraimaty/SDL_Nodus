@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -13,6 +14,7 @@ const AdminPatrouilles = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const [editingPatrouille, setEditingPatrouille] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -178,26 +180,33 @@ const AdminPatrouilles = () => {
     setPatrouilleForm({ ...patrouilleForm, troupeId: '' });
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this patrouille?')) return;
+  const handleDelete = (id) => {
+    setConfirmAction({
+      title: 'Delete patrouille?',
+      message: 'Are you sure you want to delete this patrouille?',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${API_URL}/api/patrouilles/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/patrouilles/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to delete patrouille');
+          }
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete patrouille');
-      }
-
-      setSuccess('Patrouille deleted successfully!');
-      loadData();
-    } catch (err) {
-      setError(err.message);
-    }
+          setSuccess('Patrouille deleted successfully!');
+          loadData();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
   const resetForm = () => {
@@ -595,6 +604,12 @@ const AdminPatrouilles = () => {
           </Modal.Actions>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };

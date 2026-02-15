@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import './Archive.css';
 
 const Archive = () => {
@@ -17,6 +18,7 @@ const Archive = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
     loadArchive();
@@ -59,20 +61,28 @@ const Archive = () => {
     }
   };
 
-  const handlePermanentDelete = async (picture) => {
-    if (!confirm('Permanently delete this picture? This cannot be undone.')) return;
-    try {
-      await pictureService.permanentlyDeleteArchived(picture.id);
-      setSelectedPictures(prev => {
-        const next = new Set(prev);
-        next.delete(picture.id);
-        return next;
-      });
-      await loadArchive();
-    } catch (err) {
-      console.error('Delete error:', err);
-      setError(err.message || 'Failed to delete picture');
-    }
+  const handlePermanentDelete = (picture) => {
+    setConfirmAction({
+      title: 'Delete permanently?',
+      message: 'Permanently delete this picture? This cannot be undone.',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          await pictureService.permanentlyDeleteArchived(picture.id);
+          setSelectedPictures(prev => {
+            const next = new Set(prev);
+            next.delete(picture.id);
+            return next;
+          });
+          await loadArchive();
+        } catch (err) {
+          console.error('Delete error:', err);
+          setError(err.message || 'Failed to delete picture');
+        }
+      },
+    });
   };
 
   const handleBulkRestore = async () => {
@@ -90,17 +100,25 @@ const Archive = () => {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (!confirm(`Permanently delete ${selectedPictures.size} picture(s)? This cannot be undone.`)) return;
-    try {
-      setError('');
-      await pictureService.bulkDeleteArchived(Array.from(selectedPictures));
-      setSelectedPictures(new Set());
-      await loadArchive();
-    } catch (err) {
-      console.error('Bulk delete error:', err);
-      setError(err.message || 'Failed to delete pictures');
-    }
+  const handleBulkDelete = () => {
+    setConfirmAction({
+      title: 'Delete permanently?',
+      message: `Permanently delete ${selectedPictures.size} picture(s)? This cannot be undone.`,
+      confirmText: 'Delete All',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          setError('');
+          await pictureService.bulkDeleteArchived(Array.from(selectedPictures));
+          setSelectedPictures(new Set());
+          await loadArchive();
+        } catch (err) {
+          console.error('Bulk delete error:', err);
+          setError(err.message || 'Failed to delete pictures');
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -213,6 +231,12 @@ const Archive = () => {
             )}
           </>
         )}
+
+        <ConfirmModal
+          isOpen={!!confirmAction}
+          onCancel={() => setConfirmAction(null)}
+          {...confirmAction}
+        />
 
         {/* Image Preview Modal */}
         <Modal

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminUsers.css';
 
@@ -24,6 +25,7 @@ const AdminUsers = () => {
   const [showNeverLoggedIn, setShowNeverLoggedIn] = useState(false);
   const [loadingNeverLoggedIn, setLoadingNeverLoggedIn] = useState(false);
   const [neverLoggedInSortKeys, setNeverLoggedInSortKeys] = useState([]); // Array of {key, direction}
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const [userForm, setUserForm] = useState({
     name: '',
@@ -292,20 +294,27 @@ const AdminUsers = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_URL}/api/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      setSuccess('User deleted successfully!');
-      loadData();
-    } catch (err) {
-      setError('Failed to delete user');
-    }
+  const handleDelete = (id) => {
+    setConfirmAction({
+      title: 'Delete user?',
+      message: 'Are you sure you want to delete this user?',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(`${API_URL}/api/admin/users/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          setSuccess('User deleted successfully!');
+          loadData();
+        } catch (err) {
+          setError('Failed to delete user');
+        }
+      },
+    });
   };
 
   const resetForm = () => {
@@ -911,6 +920,12 @@ const AdminUsers = () => {
           </Modal.Actions>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };

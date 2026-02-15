@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -13,6 +14,7 @@ const AdminTroupes = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingTroupe, setEditingTroupe] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
@@ -123,26 +125,33 @@ const AdminTroupes = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this troupe?')) return;
+  const handleDelete = (id) => {
+    setConfirmAction({
+      title: 'Delete troupe?',
+      message: 'Are you sure you want to delete this troupe?',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${API_URL}/api/troupes/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/troupes/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to delete troupe');
+          }
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete troupe');
-      }
-
-      setSuccess('Troupe deleted successfully!');
-      loadData();
-    } catch (err) {
-      setError(err.message);
-    }
+          setSuccess('Troupe deleted successfully!');
+          loadData();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
   const resetForm = () => {
@@ -460,6 +469,12 @@ const AdminTroupes = () => {
           </Modal.Actions>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };

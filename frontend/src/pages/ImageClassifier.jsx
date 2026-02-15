@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService, designGroupService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import ImageEditor from '../components/ImageEditor';
 import './ImageClassifier.css';
 
@@ -32,6 +33,7 @@ const ImageClassifier = () => {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [viewingGroup, setViewingGroup] = useState(null);
   const [viewingGroupIndex, setViewingGroupIndex] = useState(0);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -103,15 +105,23 @@ const ImageClassifier = () => {
     });
   };
 
-  const handleArchivePicture = async (pictureId) => {
-    if (!confirm('Archive this picture? You can restore it later from the archive.')) return;
-    try {
-      await pictureService.archivePicture(id, pictureId);
-      await loadData();
-    } catch (err) {
-      console.error('Archive error:', err);
-      setError(err.message || 'Failed to archive picture');
-    }
+  const handleArchivePicture = (pictureId) => {
+    setConfirmAction({
+      title: 'Archive picture?',
+      message: 'Archive this picture? You can restore it later from the archive.',
+      confirmText: 'Archive',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          await pictureService.archivePicture(id, pictureId);
+          await loadData();
+        } catch (err) {
+          console.error('Archive error:', err);
+          setError(err.message || 'Failed to archive picture');
+        }
+      },
+    });
   };
 
   const selectAll = () => {
@@ -226,31 +236,8 @@ const ImageClassifier = () => {
     return { groups: Array.from(groupMap.values()), ungrouped };
   };
 
-  const handleSaveAll = async () => {
+  const doSaveClassifications = async (picturesToClassify) => {
     try {
-      setError('');
-      setSuccess('');
-
-      // Get all pictures that have a category assigned
-      const picturesToClassify = pictureSet.pictures.filter(pic =>
-        classificationData[pic.id]?.categoryId
-      );
-
-      if (picturesToClassify.length === 0) {
-        setError('Please assign categories to at least one picture');
-        return;
-      }
-
-      // Warn if not all pictures are classified
-      const unclassifiedCount = pictureSet.pictures.length - picturesToClassify.length;
-      if (unclassifiedCount > 0) {
-        const proceed = window.confirm(
-          `${unclassifiedCount} picture(s) are not classified and will be excluded from approval.\n\nDo you want to continue?`
-        );
-        if (!proceed) return;
-      }
-
-      // Classify each picture individually (including per-picture woodCount)
       const classifications = picturesToClassify.map(pic => ({
         pictureId: pic.id,
         categoryId: classificationData[pic.id].categoryId,
@@ -271,6 +258,39 @@ const ImageClassifier = () => {
       console.error('Classification error:', err);
       setError('Failed to save classifications');
     }
+  };
+
+  const handleSaveAll = async () => {
+    setError('');
+    setSuccess('');
+
+    // Get all pictures that have a category assigned
+    const picturesToClassify = pictureSet.pictures.filter(pic =>
+      classificationData[pic.id]?.categoryId
+    );
+
+    if (picturesToClassify.length === 0) {
+      setError('Please assign categories to at least one picture');
+      return;
+    }
+
+    // Warn if not all pictures are classified
+    const unclassifiedCount = pictureSet.pictures.length - picturesToClassify.length;
+    if (unclassifiedCount > 0) {
+      setConfirmAction({
+        title: 'Unclassified pictures',
+        message: `${unclassifiedCount} picture(s) are not classified and will be excluded from approval. Do you want to continue?`,
+        confirmText: 'Continue',
+        variant: 'warning',
+        onConfirm: async () => {
+          setConfirmAction(null);
+          await doSaveClassifications(picturesToClassify);
+        },
+      });
+      return;
+    }
+
+    await doSaveClassifications(picturesToClassify);
   };
 
   if (loading) {
@@ -871,6 +891,12 @@ const ImageClassifier = () => {
             />
           )}
         </Modal>
+
+        <ConfirmModal
+          isOpen={!!confirmAction}
+          onCancel={() => setConfirmAction(null)}
+          {...confirmAction}
+        />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import { categoryService } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 import './Admin.css';
 
 const Admin = () => {
@@ -14,6 +15,7 @@ const Admin = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [expandedSection, setExpandedSection] = useState('form');
+  const [confirmAction, setConfirmAction] = useState(null);
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -282,38 +284,52 @@ const Admin = () => {
     setExpandedSection('form');
   };
 
-  const handleDeleteCategory = async (id) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
-
-    try {
-      await fetch(`${API_URL}/api/categories/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      setSuccess('Category deleted successfully!');
-      loadData();
-    } catch (err) {
-      setError('Failed to delete category');
-    }
+  const handleDeleteCategory = (id) => {
+    setConfirmAction({
+      title: 'Delete category?',
+      message: 'Are you sure you want to delete this category?',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          await fetch(`${API_URL}/api/categories/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+          });
+          setSuccess('Category deleted successfully!');
+          loadData();
+        } catch (err) {
+          setError('Failed to delete category');
+        }
+      },
+    });
   };
 
-  const handleDeleteUser = async (id) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      await fetch(`${API_URL}/api/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      setSuccess('User deleted successfully!');
-      loadData();
-    } catch (err) {
-      setError('Failed to delete user');
-    }
+  const handleDeleteUser = (id) => {
+    setConfirmAction({
+      title: 'Delete user?',
+      message: 'Are you sure you want to delete this user?',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          await fetch(`${API_URL}/api/admin/users/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+          });
+          setSuccess('User deleted successfully!');
+          loadData();
+        } catch (err) {
+          setError('Failed to delete user');
+        }
+      },
+    });
   };
 
   if (user?.role !== 'ADMIN') {
@@ -729,6 +745,12 @@ const Admin = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { pictureService } from '../services/api';
 import { inpaint } from '../lib/inpaint';
+import ConfirmModal from './ConfirmModal';
 import './ImageEditor.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -66,6 +67,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
   const [loadError, setLoadError] = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   // Check if original image is available for restoration
   useEffect(() => {
@@ -1332,15 +1334,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   // Restore original image from server
-  const handleRestoreOriginal = async () => {
-    if (!hasOriginal) return;
-
-    const confirmed = window.confirm(
-      'Are you sure you want to restore the original image? This will undo all previous edits saved to the server.'
-    );
-
-    if (!confirmed) return;
-
+  const doRestoreOriginal = async () => {
     setRestoringOriginal(true);
     try {
       await pictureService.restoreOriginal(pictureId);
@@ -1383,6 +1377,20 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       alert('Failed to restore original image: ' + error.message);
       setRestoringOriginal(false);
     }
+  };
+
+  const handleRestoreOriginal = () => {
+    if (!hasOriginal) return;
+    setConfirmAction({
+      title: 'Restore original?',
+      message: 'Are you sure you want to restore the original image? This will undo all previous edits saved to the server.',
+      confirmText: 'Restore',
+      variant: 'warning',
+      onConfirm: () => {
+        setConfirmAction(null);
+        doRestoreOriginal();
+      },
+    });
   };
 
   // Save the edited image
@@ -1713,6 +1721,12 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };

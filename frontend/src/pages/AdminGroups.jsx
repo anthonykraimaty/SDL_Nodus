@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import './Admin.css';
 
 const AdminGroups = () => {
@@ -10,6 +11,7 @@ const AdminGroups = () => {
   const [districts, setDistricts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -112,30 +114,35 @@ const AdminGroups = () => {
     }
   };
 
-  const handleDeleteGroup = async (id) => {
-    if (!confirm('Are you sure you want to delete this group? This will also delete all associated troupes and their data.')) {
-      return;
-    }
+  const handleDeleteGroup = (id) => {
+    setConfirmAction({
+      title: 'Delete group?',
+      message: 'Are you sure you want to delete this group? This will also delete all associated troupes and their data.',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${API_URL}/api/groups/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/groups/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete group');
+          }
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete group');
-      }
-
-      await loadData();
-    } catch (error) {
-      console.error('Error deleting group:', error);
-      alert(error.message);
-    }
+          await loadData();
+        } catch (error) {
+          console.error('Error deleting group:', error);
+          alert(error.message);
+        }
+      },
+    });
   };
 
   const handleImport = async (e) => {
@@ -344,6 +351,12 @@ const AdminGroups = () => {
           </Modal.Actions>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };

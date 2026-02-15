@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
 
@@ -13,6 +14,7 @@ const AdminDistricts = () => {
   const [success, setSuccess] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingDistrict, setEditingDistrict] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
 
@@ -87,26 +89,33 @@ const AdminDistricts = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this district? This will also delete all groups and troupes within it.')) return;
+  const handleDelete = (id) => {
+    setConfirmAction({
+      title: 'Delete district?',
+      message: 'Are you sure you want to delete this district? This will also delete all groups and troupes within it.',
+      confirmText: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmAction(null);
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${API_URL}/api/districts/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/districts/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to delete district');
+          }
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete district');
-      }
-
-      setSuccess('District deleted successfully!');
-      loadData();
-    } catch (err) {
-      setError(err.message);
-    }
+          setSuccess('District deleted successfully!');
+          loadData();
+        } catch (err) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
   const resetForm = () => {
@@ -355,6 +364,12 @@ const AdminDistricts = () => {
           </Modal.Actions>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        onCancel={() => setConfirmAction(null)}
+        {...confirmAction}
+      />
     </div>
   );
 };
