@@ -640,6 +640,15 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setRedoStack([]);
   }, [captureState]);
 
+  // Helper to clear mask canvas without triggering drawImage
+  const clearMaskCanvas = useCallback(() => {
+    if (maskCanvasRef.current) {
+      const ctx = maskCanvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+    }
+    setHasMask(false);
+  }, []);
+
   // Undo last operation
   const undo = useCallback(() => {
     if (undoStack.length === 0) return;
@@ -662,10 +671,10 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       setBlurRegions([]);
       setCropStart(null);
       setCropEnd(null);
-      clearMask();
+      clearMaskCanvas();
     };
     img.src = dataUrl;
-  }, [undoStack, captureState]);
+  }, [undoStack, captureState, clearMaskCanvas]);
 
   // Redo last undone operation
   const redo = useCallback(() => {
@@ -689,10 +698,10 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       setBlurRegions([]);
       setCropStart(null);
       setCropEnd(null);
-      clearMask();
+      clearMaskCanvas();
     };
     img.src = dataUrl;
-  }, [redoStack, captureState]);
+  }, [redoStack, captureState, clearMaskCanvas]);
 
   // Paint on the mask canvas at position
   const paintMaskAt = (x, y) => {

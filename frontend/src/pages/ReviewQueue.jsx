@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService } from '../services/api';
+import { pictureService, categoryService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -25,10 +25,15 @@ const ReviewQueue = () => {
   // Track excluded pictures per set: { setId: Set of pictureIds }
   const [excludedPictures, setExcludedPictures] = useState({});
   const [editingPicture, setEditingPicture] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [modalEditing, setModalEditing] = useState(false);
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
     loadData();
+    categoryService.getAll().then(data => setCategories(data || [])).catch(() => {});
   }, []);
 
   const loadData = async () => {
@@ -139,6 +144,49 @@ const ReviewQueue = () => {
     } catch (err) {
       console.error('Single picture approval error:', err);
       setError('Failed to approve picture');
+    }
+  };
+
+  const startModalEdit = () => {
+    if (!selectedImage) return;
+    setEditCategoryId(selectedImage.categoryId?.toString() || selectedImage.category?.id?.toString() || '');
+    setModalEditing(true);
+  };
+
+  const cancelModalEdit = () => {
+    setModalEditing(false);
+  };
+
+  const saveModalEdit = async () => {
+    if (!selectedImage) return;
+    setEditSaving(true);
+    try {
+      const result = await pictureService.updateIndividualPicture(selectedImage.id, {
+        categoryId: editCategoryId ? parseInt(editCategoryId) : null,
+      });
+      const updatedPicture = result.picture;
+      // Update the picture in the sets state
+      setPictureSets(prev => prev.map(set => ({
+        ...set,
+        pictures: set.pictures.map(pic =>
+          pic.id === selectedImage.id
+            ? { ...pic, categoryId: updatedPicture.categoryId, category: updatedPicture.category }
+            : pic
+        ),
+      })));
+      // Update selectedImage in place
+      setSelectedImage(prev => prev ? {
+        ...prev,
+        categoryId: updatedPicture.categoryId,
+        category: updatedPicture.category,
+      } : null);
+      setModalEditing(false);
+      addToast('Classification updated', 'success');
+    } catch (err) {
+      console.error('Failed to update classification:', err);
+      addToast(err.message || 'Failed to update classification', 'error');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -435,7 +483,7 @@ const ReviewQueue = () => {
         {/* Image Preview Modal */}
         <Modal
           isOpen={!!selectedImage}
-          onClose={() => setSelectedImage(null)}
+          onClose={() => { setSelectedImage(null); setModalEditing(false); }}
           variant="image"
           size="large"
         >
@@ -448,53 +496,100 @@ const ReviewQueue = () => {
                 />
               </div>
               <div className="review-image-preview__details">
-                {selectedImage.category && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Category</span>
-                    <span className="detail-value">{selectedImage.category.name}</span>
+                {modalEditing ? (
+                  <div className="review-image-preview__edit-form">
+                    <div className="review-edit-field">
+                      <label className="detail-label">Category</label>
+                      <select
+                        value={editCategoryId}
+                        onChange={(e) => setEditCategoryId(e.target.value)}
+                        disabled={editSaving}
+                        className="review-edit-select"
+                      >
+                        <option value="">-- No category --</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="review-edit-actions">
+                      <button
+                        className="review-edit-save"
+                        onClick={saveModalEdit}
+                        disabled={editSaving}
+                      >
+                        {editSaving ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        className="review-edit-cancel"
+                        onClick={cancelModalEdit}
+                        disabled={editSaving}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                )}
-                {selectedImage._set?.woodCount && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Nombre de bois</span>
-                    <span className="detail-value">{selectedImage._set.woodCount}</span>
-                  </div>
-                )}
-                {selectedImage.takenAt && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Date</span>
-                    <span className="detail-value">{new Date(selectedImage.takenAt).toLocaleDateString()}</span>
-                  </div>
-                )}
-                {selectedImage._set?.troupe?.group?.district && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">District</span>
-                    <span className="detail-value">{selectedImage._set.troupe.group.district.name}</span>
-                  </div>
-                )}
-                {selectedImage._set?.troupe?.group && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Groupe</span>
-                    <span className="detail-value">{selectedImage._set.troupe.group.name}</span>
-                  </div>
-                )}
-                {selectedImage._set?.troupe && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Troupe</span>
-                    <span className="detail-value">{selectedImage._set.troupe.name}</span>
-                  </div>
-                )}
-                {selectedImage._set?.uploadedBy && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Uploaded by</span>
-                    <span className="detail-value">{selectedImage._set.uploadedBy.name}</span>
-                  </div>
-                )}
-                {selectedImage._set?.uploadedAt && (
-                  <div className="review-image-preview__detail">
-                    <span className="detail-label">Upload date</span>
-                    <span className="detail-value">{new Date(selectedImage._set.uploadedAt).toLocaleDateString()}</span>
-                  </div>
+                ) : (
+                  <>
+                    <button
+                      className="review-details-edit-btn"
+                      onClick={startModalEdit}
+                      title="Edit classification"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    {selectedImage.category && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Category</span>
+                        <span className="detail-value">{selectedImage.category.name}</span>
+                      </div>
+                    )}
+                    {selectedImage._set?.woodCount && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Nombre de bois</span>
+                        <span className="detail-value">{selectedImage._set.woodCount}</span>
+                      </div>
+                    )}
+                    {selectedImage.takenAt && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Date</span>
+                        <span className="detail-value">{new Date(selectedImage.takenAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    {selectedImage._set?.troupe?.group?.district && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">District</span>
+                        <span className="detail-value">{selectedImage._set.troupe.group.district.name}</span>
+                      </div>
+                    )}
+                    {selectedImage._set?.troupe?.group && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Groupe</span>
+                        <span className="detail-value">{selectedImage._set.troupe.group.name}</span>
+                      </div>
+                    )}
+                    {selectedImage._set?.troupe && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Troupe</span>
+                        <span className="detail-value">{selectedImage._set.troupe.name}</span>
+                      </div>
+                    )}
+                    {selectedImage._set?.uploadedBy && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Uploaded by</span>
+                        <span className="detail-value">{selectedImage._set.uploadedBy.name}</span>
+                      </div>
+                    )}
+                    {selectedImage._set?.uploadedAt && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Upload date</span>
+                        <span className="detail-value">{new Date(selectedImage._set.uploadedAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <div className="review-image-preview__actions">

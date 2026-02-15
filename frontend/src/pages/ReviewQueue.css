@@ -827,6 +827,118 @@
   font-weight: 500;
 }
 
+/* Edit button in details bar */
+.review-details-edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-radius: 50%;
+  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.review-details-edit-btn:hover {
+  background: var(--accent, #d4a574);
+  color: white;
+  border-color: var(--accent, #d4a574);
+}
+
+/* Edit form in details bar */
+.review-image-preview__edit-form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.review-edit-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 200px;
+}
+
+.review-edit-field .detail-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.review-edit-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-medium, #ede7dc);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.review-edit-select:focus {
+  outline: none;
+  border-color: var(--accent, #d4a574);
+}
+
+.review-edit-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.review-edit-save {
+  padding: 5px 14px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--accent, #d4a574);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.review-edit-save:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.review-edit-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review-edit-cancel {
+  padding: 5px 14px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.review-edit-cancel:hover:not(:disabled) {
+  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.1));
+}
+
+.review-edit-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .review-image-preview__actions {
   display: flex;
   justify-content: center;
