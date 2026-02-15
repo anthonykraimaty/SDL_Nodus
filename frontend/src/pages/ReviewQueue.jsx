@@ -376,24 +376,22 @@ const ReviewQueue = () => {
                         <span className="excluded-count"> ({excludedPictures[set.id].size} excluded)</span>
                       )}
                     </p>
-                    {set.pictures?.length > 1 && (
-                      <div className="select-all-actions">
-                        <button
-                          className="btn-select-all"
-                          onClick={() => selectAllPictures(set.id)}
-                          disabled={!excludedPictures[set.id]?.size}
-                        >
-                          Select All
-                        </button>
-                        <button
-                          className="btn-deselect-all"
-                          onClick={() => deselectAllPictures(set)}
-                          disabled={excludedPictures[set.id]?.size >= set.pictures.length}
-                        >
-                          Deselect All
-                        </button>
-                      </div>
-                    )}
+                    <div className="select-all-actions">
+                      <button
+                        className="btn-select-all"
+                        onClick={() => selectAllPictures(set.id)}
+                        disabled={!excludedPictures[set.id]?.size}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        className="btn-deselect-all"
+                        onClick={() => deselectAllPictures(set)}
+                        disabled={excludedPictures[set.id]?.size >= set.pictures.length}
+                      >
+                        Deselect All
+                      </button>
+                    </div>
                   </div>
                 </div>
 
