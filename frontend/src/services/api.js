@@ -306,6 +306,10 @@ export const analyticsService = {
     return api.get(`/api/analytics/participation${query ? '?' + query : ''}`, true);
   },
   getPictureStats: () => api.get('/api/analytics/pictures/stats', true),
+  getPicturesByCategory: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/analytics/pictures/by-category${query ? '?' + query : ''}`, true);
+  },
   // Sync tools (admin only)
   checkCategorySync: () => api.get('/api/analytics/sync-picture-categories', true),
   syncCategories: () => api.post('/api/analytics/sync-picture-categories', {}, true),

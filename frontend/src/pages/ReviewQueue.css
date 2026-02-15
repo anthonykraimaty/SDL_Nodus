@@ -310,6 +310,30 @@
   white-space: nowrap;
 }
 
+/* Design group badge on picture thumbnail */
+.review-queue-page .picture-group-badge {
+  position: absolute;
+  top: var(--spacing-xs);
+  left: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.review-queue-page .picture-group-badge svg {
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
 /* Edit button on picture preview */
 .review-queue-page .picture-edit-btn {
   position: absolute;
@@ -825,6 +849,17 @@
   font-size: 0.9rem;
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.review-image-preview__detail .detail-value--group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.review-image-preview__detail .detail-value--group svg {
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 /* Edit button in details bar */

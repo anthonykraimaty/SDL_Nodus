@@ -1,5 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { initGA, trackPageView } from './services/analytics';
 import Layout from './components/layout/Layout';
 import AdminLayout from './components/layout/AdminLayout';
 import Landing from './pages/Landing';
@@ -30,6 +32,17 @@ import ShareTarget from './pages/ShareTarget';
 import Archive from './pages/Archive';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
+
+// Track page views on route changes
+function PageTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
+  return null;
+}
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -62,9 +75,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 function App() {
+  useEffect(() => {
+    initGA();
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
+        <PageTracker />
         <PWAInstallPrompt />
         <Routes>
           <Route path="/" element={<Layout />}>

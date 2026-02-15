@@ -306,6 +306,68 @@ router.get('/picture-type-debug', authenticate, authorize('ADMIN'), async (req, 
   }
 });
 
+// GET /api/analytics/pictures/by-category - Get individual picture counts per category
+router.get('/pictures/by-category', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    // Build where clause for pictures: non-archived, with a category
+    const pictureWhere = {
+      isArchived: false,
+      categoryId: { not: null },
+    };
+
+    // Filter by PictureSet status if provided
+    if (status) {
+      pictureWhere.pictureSet = { status };
+    }
+
+    // District-based filtering for BRANCHE_ECLAIREURS
+    if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+        where: { userId: req.user.id },
+        select: { districtId: true },
+      });
+      const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+      if (allowedDistrictIds.length === 0) {
+        return res.json({ categories: [] });
+      }
+      pictureWhere.pictureSet = {
+        ...pictureWhere.pictureSet,
+        troupe: { group: { districtId: { in: allowedDistrictIds } } },
+      };
+    }
+
+    // Group pictures by categoryId and count
+    const grouped = await prisma.picture.groupBy({
+      by: ['categoryId'],
+      where: pictureWhere,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 8,
+    });
+
+    // Fetch category names
+    const categoryIds = grouped.map(g => g.categoryId);
+    const categories = await prisma.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true, name: true },
+    });
+
+    const categoryMap = Object.fromEntries(categories.map(c => [c.id, c.name]));
+
+    const result = grouped.map(g => ({
+      name: categoryMap[g.categoryId] || 'Unknown',
+      count: g._count.id,
+    }));
+
+    res.json({ categories: result });
+  } catch (error) {
+    console.error('Get pictures by category error:', error);
+    res.status(500).json({ error: 'Failed to fetch pictures by category' });
+  }
+});
+
 // GET /api/analytics/pictures/stats - Get picture statistics
 router.get('/pictures/stats', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {

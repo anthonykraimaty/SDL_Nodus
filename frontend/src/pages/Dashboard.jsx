@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, schematicService, categoryService } from '../services/api';
+import { pictureService, schematicService, analyticsService } from '../services/api';
 import { getImageUrl, API_URL } from '../config/api';
 import Modal from '../components/Modal';
 import { ToastContainer, useToast } from '../components/Toast';
@@ -105,20 +105,8 @@ const Dashboard = () => {
 
         // Load category stats for Branche users
         try {
-          const categories = await categoryService.getAll();
-          const categoryPictureCounts = await Promise.all(
-            categories.slice(0, 8).map(async (cat) => {
-              const res = await fetch(`${API_URL}/api/pictures?categoryId=${cat.id}&status=APPROVED&limit=1`, {
-                headers: { 'Authorization': `Bearer ${token}` },
-              });
-              const catData = await res.json();
-              return {
-                name: cat.name,
-                count: catData.pagination?.total || 0,
-              };
-            })
-          );
-          setCategoryStats(categoryPictureCounts.sort((a, b) => b.count - a.count));
+          const catData = await analyticsService.getPicturesByCategory();
+          setCategoryStats(catData.categories || []);
         } catch (err) {
           console.error('Failed to load category stats:', err);
         }
@@ -138,6 +126,18 @@ const Dashboard = () => {
     }
   };
 
+  const loadCategoryStats = async (status) => {
+    if (user?.role !== 'BRANCHE_ECLAIREURS' && user?.role !== 'ADMIN') return;
+    try {
+      const params = {};
+      if (status && status !== 'all') params.status = status.toUpperCase();
+      const catData = await analyticsService.getPicturesByCategory(params);
+      setCategoryStats(catData.categories || []);
+    } catch (err) {
+      console.error('Failed to load category stats:', err);
+    }
+  };
+
   const filterByStatus = (status) => {
     setActiveFilter(status);
     if (status === 'all') {
@@ -145,6 +145,7 @@ const Dashboard = () => {
     } else {
       setPictures(allPictures.filter(p => p.status === status.toUpperCase()));
     }
+    loadCategoryStats(status);
   };
 
   // Check if user can delete a picture set
@@ -322,7 +323,7 @@ const Dashboard = () => {
           <div className="chart-section">
             <div className="section-header">
               <h3>Pictures by Category</h3>
-              <span className="section-subtitle">Top categories by approved pictures</span>
+              <span className="section-subtitle">Top categories by {activeFilter === 'all' ? 'all' : activeFilter} pictures</span>
             </div>
             <div className="category-chart">
               {categoryStats.map((cat, index) => {

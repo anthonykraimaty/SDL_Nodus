@@ -349,6 +349,15 @@ const ReviewQueue = () => {
                         {picture.category && (
                           <div className="picture-category-label">{picture.category.name}</div>
                         )}
+                        {picture.designGroup && (
+                          <div className="picture-group-badge" title={`Group: ${picture.designGroup.name || `${picture.designGroup.pictures?.length || 0} photos`}`}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                              <rect x="3" y="3" width="18" height="18" rx="2" />
+                              <rect x="7" y="7" width="10" height="10" rx="1" />
+                            </svg>
+                            <span>{picture.designGroup.pictures?.length || 0}</span>
+                          </div>
+                        )}
                         <button
                           className="picture-edit-btn"
                           onClick={(e) => {
@@ -579,6 +588,18 @@ const ReviewQueue = () => {
                       <div className="review-image-preview__detail">
                         <span className="detail-label">Upload date</span>
                         <span className="detail-value">{new Date(selectedImage._set.uploadedAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    {selectedImage.designGroup && (
+                      <div className="review-image-preview__detail">
+                        <span className="detail-label">Design Group</span>
+                        <span className="detail-value detail-value--group">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <rect x="7" y="7" width="10" height="10" rx="1" />
+                          </svg>
+                          {selectedImage.designGroup.name || `${selectedImage.designGroup.pictures?.length || 0} photos`}
+                        </span>
                       </div>
                     )}
                   </>
