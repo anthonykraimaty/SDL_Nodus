@@ -43,6 +43,9 @@ const Navbar = () => {
               {user?.role === 'ADMIN' && (
                 <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Administration</Link>
               )}
+              {(user?.role === 'CHEF_TROUPE' || user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+                <Link to="/classify" className="nav-link" onClick={closeMobileMenu}>Classification</Link>
+              )}
               {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
                 <Link to="/review" className="nav-link" onClick={closeMobileMenu}>Pour Valider</Link>
               )}

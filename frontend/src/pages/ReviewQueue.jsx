@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
@@ -31,12 +31,28 @@ const ReviewQueue = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Only load installation photos - schematics have their own review page
+      // Load sets with classified pictures (PENDING or CLASSIFIED status)
       const [classifiedData, rejectedData] = await Promise.all([
-        pictureService.getAll({ status: 'CLASSIFIED', type: 'INSTALLATION_PHOTO' }),
+        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'classified' }),
         pictureService.getAll({ status: 'REJECTED', type: 'INSTALLATION_PHOTO' })
       ]);
-      setPictureSets(classifiedData.pictures || []);
+
+      // Filter to show only classified pictures within each set, track unclassified count and IDs
+      const setsWithClassified = (classifiedData.pictures || []).map(set => {
+        const allNonArchived = set.pictures?.filter(pic => !pic.isArchived) || [];
+        const classifiedPictures = allNonArchived.filter(pic => pic.categoryId);
+        const unclassifiedPictures = allNonArchived.filter(pic => !pic.categoryId);
+        return {
+          ...set,
+          pictures: classifiedPictures,
+          _allPicturesCount: allNonArchived.length,
+          _unclassifiedCount: unclassifiedPictures.length,
+          _unclassifiedPictureIds: unclassifiedPictures.map(pic => pic.id),
+          _fullyClassified: unclassifiedPictures.length === 0,
+        };
+      }).filter(set => set.pictures.length > 0);
+
+      setPictureSets(setsWithClassified);
       setRejectedSets(rejectedData.pictures || []);
       // Reset excluded pictures when data reloads
       setExcludedPictures({});
@@ -85,10 +101,13 @@ const ReviewQueue = () => {
         return;
       }
 
-      await pictureService.approve(pictureSetId, asHighlight, excludedIds);
+      // Auto-archive unclassified pictures on approval
+      const archiveIds = set?._unclassifiedPictureIds || [];
+      await pictureService.approve(pictureSetId, asHighlight, excludedIds, archiveIds);
 
       const excludedMsg = excludedIds.length > 0 ? ` (${excludedIds.length} picture${excludedIds.length > 1 ? 's' : ''} excluded)` : '';
-      setSuccess(asHighlight ? `Picture set approved and marked as highlight!${excludedMsg}` : `Picture set approved successfully!${excludedMsg}`);
+      const archivedMsg = archiveIds.length > 0 ? ` (${archiveIds.length} unclassified picture${archiveIds.length > 1 ? 's' : ''} archived)` : '';
+      setSuccess(asHighlight ? `Picture set approved and marked as highlight!${excludedMsg}${archivedMsg}` : `Picture set approved successfully!${excludedMsg}${archivedMsg}`);
       await loadData();
     } catch (err) {
       console.error('Approval error:', err);
@@ -277,6 +296,13 @@ const ReviewQueue = () => {
                 </div>
 
                 <div className="review-actions">
+                  {!set._fullyClassified && activeTab === 'pending' && (
+                    <div className="classification-warning">
+                      <span className="warning-icon">!</span>
+                      <span>{set._unclassifiedCount} photo(s) non classifiée(s) seront archivée(s)</span>
+                      <Link to={`/classify/${set.id}`}>Classifier</Link>
+                    </div>
+                  )}
                   <button
                     onClick={() => handleApprove(set.id, false)}
                     className="btn-approve"

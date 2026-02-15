@@ -42,23 +42,29 @@ const Classify = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Load all pending installation photos (not schematics - those use separate workflow)
+      // Load sets with unclassified pictures (PENDING or CLASSIFIED status)
       const [pictureSetsData, categoriesData] = await Promise.all([
-        pictureService.getAll({ status: 'PENDING', type: 'INSTALLATION_PHOTO' }),
+        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'unclassified' }),
         categoryService.getAll({}),
       ]);
 
-      setPictureSets(pictureSetsData.pictures || []);
+      // Filter each set's pictures to show only unclassified ones
+      const setsWithUnclassified = (pictureSetsData.pictures || []).map(set => ({
+        ...set,
+        pictures: set.pictures?.filter(pic => !pic.categoryId) || [],
+      })).filter(set => set.pictures.length > 0);
+
+      setPictureSets(setsWithUnclassified);
       // Filter out categories where uploads are disabled
       setCategories(categoriesData.filter(cat => !cat.isUploadDisabled).sort((a, b) => a.name.localeCompare(b.name)));
 
       // Initialize classification data for each picture
       const initialData = {};
-      pictureSetsData.pictures?.forEach(set => {
+      setsWithUnclassified.forEach(set => {
         set.pictures?.forEach(pic => {
           initialData[pic.id] = {
-            categoryId: set.categoryId || '',
-            takenAt: set.uploadedAt ? new Date(set.uploadedAt).toISOString().split('T')[0] : '',
+            categoryId: '',
+            takenAt: '',
           };
         });
       });
@@ -126,9 +132,13 @@ const Classify = () => {
         return;
       }
 
-      await pictureService.classify(pictureSet.id, {
-        categoryId: data.categoryId,
-        takenAt: data.takenAt || null,
+      // Use classify-bulk for per-picture classification
+      await pictureService.classifyBulk(pictureSet.id, {
+        classifications: [{
+          pictureId: picture.id,
+          categoryId: data.categoryId,
+          takenAt: data.takenAt || null,
+        }],
       });
 
       // Reload data after classification
@@ -257,17 +267,19 @@ const Classify = () => {
       if (!selectionsBySet[setId]) {
         selectionsBySet[setId] = [];
       }
-      selectionsBySet[setId].push(key);
+      selectionsBySet[setId].push(parseInt(pictureId));
       allPictureIds.push(parseInt(pictureId));
     });
 
-    // Classify each set
+    // Classify each set using per-picture classification
     for (const setId of Object.keys(selectionsBySet)) {
       try {
-        await pictureService.classify(parseInt(setId), {
+        const classifications = selectionsBySet[setId].map(pictureId => ({
+          pictureId,
           categoryId: bulkClassification.categoryId,
           takenAt: takenAt,
-        });
+        }));
+        await pictureService.classifyBulk(parseInt(setId), { classifications });
         successCount++;
       } catch (err) {
         console.error(`Failed to classify set ${setId}:`, err);
@@ -315,7 +327,7 @@ const Classify = () => {
     );
   }
 
-  if (!user || (user.role !== 'CHEF_TROUPE' && user.role !== 'BRANCHE_ECLAIREURS')) {
+  if (!user || (user.role !== 'CHEF_TROUPE' && user.role !== 'BRANCHE_ECLAIREURS' && user.role !== 'ADMIN')) {
     return (
       <div className="container">
         <div className="error-page">

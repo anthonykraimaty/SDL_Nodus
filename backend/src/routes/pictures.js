@@ -205,6 +205,7 @@ router.get('/', optionalAuth, async (req, res) => {
       startDate,
       endDate,
       highlights,
+      classificationFilter,
       page = 1,
       limit = 20,
     } = req.query;
@@ -216,10 +217,15 @@ router.get('/', optionalAuth, async (req, res) => {
       where.status = 'APPROVED';
     } else {
       // Authenticated users filter based on role
+      // Parse status (supports comma-separated values like "PENDING,CLASSIFIED")
+      const parsedStatus = status
+        ? (status.includes(',') ? { in: status.split(',') } : status)
+        : null;
+
       if (req.user.role === 'CHEF_TROUPE') {
         // Chef troupe sees their own picture sets (all statuses) or approved picture sets
-        if (status) {
-          where.status = status;
+        if (parsedStatus) {
+          where.status = parsedStatus;
           where.uploadedById = req.user.id;
         } else {
           where.OR = [
@@ -249,10 +255,10 @@ router.get('/', optionalAuth, async (req, res) => {
           };
         }
 
-        if (status) where.status = status;
+        if (parsedStatus) where.status = parsedStatus;
       } else if (req.user.role === 'ADMIN') {
         // Admin sees all picture sets
-        if (status) where.status = status;
+        if (parsedStatus) where.status = parsedStatus;
       }
     }
 
@@ -264,6 +270,15 @@ router.get('/', optionalAuth, async (req, res) => {
     if (troupeId) where.troupeId = parseInt(troupeId);
     if (patrouilleId) where.patrouilleId = parseInt(patrouilleId);
     if (highlights === 'true') where.isHighlight = true;
+
+    // Filter by per-picture classification status
+    if (classificationFilter === 'unclassified') {
+      // Sets that have at least one non-archived picture without a category
+      where.pictures = { some: { isArchived: false, categoryId: null } };
+    } else if (classificationFilter === 'classified') {
+      // Sets that have at least one non-archived picture with a category
+      where.pictures = { some: { isArchived: false, categoryId: { not: null } } };
+    }
 
     if (startDate || endDate) {
       where.uploadedAt = {};
@@ -662,12 +677,21 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 
     await Promise.all(updatePromises);
 
-    // Update picture set status to CLASSIFIED and optionally woodCount and type
+    // Check if ALL non-archived pictures now have a categoryId
+    const allPictures = await prisma.picture.findMany({
+      where: { pictureSetId: parseInt(req.params.id), isArchived: false },
+      select: { categoryId: true },
+    });
+    const allClassified = allPictures.every(p => p.categoryId !== null);
+
+    // Only transition to CLASSIFIED when all pictures are classified
     const pictureSetUpdateData = {
-      status: 'CLASSIFIED',
       classifiedById: req.user.id,
       classifiedAt: new Date(),
     };
+    if (allClassified) {
+      pictureSetUpdateData.status = 'CLASSIFIED';
+    }
 
     if (woodCount !== undefined) {
       pictureSetUpdateData.woodCount = woodCount ? parseInt(woodCount) : null;
@@ -707,7 +731,18 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 // POST /api/pictures/:id/approve - Approve picture set (branche only)
 router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
-    const { isHighlight, excludedPictureIds } = req.body;
+    const { isHighlight, excludedPictureIds, archivePictureIds } = req.body;
+
+    // Archive unclassified pictures (e.g., when approving a partially-classified set)
+    if (archivePictureIds && archivePictureIds.length > 0) {
+      await prisma.picture.updateMany({
+        where: {
+          id: { in: archivePictureIds },
+          pictureSetId: parseInt(req.params.id),
+        },
+        data: { isArchived: true },
+      });
+    }
 
     // If there are excluded pictures, delete them first
     if (excludedPictureIds && excludedPictureIds.length > 0) {

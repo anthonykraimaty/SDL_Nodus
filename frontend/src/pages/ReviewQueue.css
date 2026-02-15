@@ -431,6 +431,44 @@
 }
 
 /* Review Actions */
+/* Classification warning for partially-classified sets */
+.classification-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  border-radius: var(--radius-sm);
+  color: #f9a825;
+  font-size: 0.875rem;
+  grid-column: 1 / -1;
+}
+
+.classification-warning .warning-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 193, 7, 0.3);
+  font-weight: bold;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.classification-warning a {
+  color: var(--primary);
+  font-weight: 600;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.classification-warning a:hover {
+  text-decoration: underline;
+}
+
 .review-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

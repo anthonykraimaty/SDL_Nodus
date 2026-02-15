@@ -98,7 +98,7 @@ function App() {
             <Route
               path="classify"
               element={
-                <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS']}>
+                <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN']}>
                   <Classify />
                 </ProtectedRoute>
               }
@@ -107,7 +107,7 @@ function App() {
             <Route
               path="classify/:id"
               element={
-                <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS']}>
+                <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN']}>
                   <ImageClassifier />
                 </ProtectedRoute>
               }
