@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { pictureService } from '../services/api';
 import { inpaint } from '../lib/inpaint';
 import ConfirmModal from './ConfirmModal';
+import { ToastContainer, useToast } from './Toast';
 import './ImageEditor.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -68,6 +69,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const [loadError, setLoadError] = useState(null);
   const [blobUrl, setBlobUrl] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
 
   // Check if original image is available for restoration
   useEffect(() => {
@@ -714,7 +716,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       setHasMask(false);
     } catch (error) {
       console.error('Healing failed:', error);
-      alert('Healing failed: ' + error.message);
+      addToast('Healing failed: ' + error.message, 'error');
     } finally {
       setIsProcessingHeal(false);
     }
@@ -1374,7 +1376,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       img.src = objectUrl;
     } catch (error) {
       console.error('Failed to restore original:', error);
-      alert('Failed to restore original image: ' + error.message);
+      addToast('Failed to restore original image: ' + error.message, 'error');
       setRestoringOriginal(false);
     }
   };
@@ -1727,6 +1729,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
         onCancel={() => setConfirmAction(null)}
         {...confirmAction}
       />
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

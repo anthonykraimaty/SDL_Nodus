@@ -5,6 +5,7 @@ import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
+import { ToastContainer, useToast } from '../components/Toast';
 import './ReviewQueue.css';
 
 const ReviewQueue = () => {
@@ -23,6 +24,7 @@ const ReviewQueue = () => {
   // Track excluded pictures per set: { setId: Set of pictureIds }
   const [excludedPictures, setExcludedPictures] = useState({});
   const [editingPicture, setEditingPicture] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -121,7 +123,7 @@ const ReviewQueue = () => {
       setSuccess('');
 
       if (!rejectionReason.trim()) {
-        alert('Please provide a reason for rejection');
+        addToast('Please provide a reason for rejection', 'warning');
         return;
       }
 
@@ -422,6 +424,8 @@ const ReviewQueue = () => {
           )}
         </Modal>
       </div>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

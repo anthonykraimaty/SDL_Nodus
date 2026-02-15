@@ -5,6 +5,7 @@ import { pictureService, categoryService, designGroupService } from '../services
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import { ToastContainer, useToast } from '../components/Toast';
 import ImageEditor from '../components/ImageEditor';
 import './ImageClassifier.css';
 
@@ -34,6 +35,7 @@ const ImageClassifier = () => {
   const [viewingGroup, setViewingGroup] = useState(null);
   const [viewingGroupIndex, setViewingGroupIndex] = useState(0);
   const [confirmAction, setConfirmAction] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -134,7 +136,7 @@ const ImageClassifier = () => {
 
   const applyBulkClassification = () => {
     if (selectedPictures.size === 0) {
-      alert('Please select at least one picture');
+      addToast('Please select at least one picture', 'warning');
       return;
     }
 
@@ -897,6 +899,8 @@ const ImageClassifier = () => {
           onCancel={() => setConfirmAction(null)}
           {...confirmAction}
         />
+
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
     </div>
   );

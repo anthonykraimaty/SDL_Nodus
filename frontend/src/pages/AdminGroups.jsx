@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import { ToastContainer, useToast } from '../components/Toast';
 import './Admin.css';
 
 const AdminGroups = () => {
@@ -12,6 +13,7 @@ const AdminGroups = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
   const [editingGroup, setEditingGroup] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -75,7 +77,7 @@ const AdminGroups = () => {
     e.preventDefault();
 
     if (!formData.name.trim() || !formData.code.trim() || !formData.districtId) {
-      alert('Please fill in all fields');
+      addToast('Please fill in all fields', 'warning');
       return;
     }
 
@@ -110,7 +112,7 @@ const AdminGroups = () => {
       setFormData({ name: '', code: '', districtId: '' });
     } catch (error) {
       console.error('Error saving group:', error);
-      alert(error.message);
+      addToast(error.message, 'error');
     }
   };
 
@@ -139,7 +141,7 @@ const AdminGroups = () => {
           await loadData();
         } catch (error) {
           console.error('Error deleting group:', error);
-          alert(error.message);
+          addToast(error.message, 'error');
         }
       },
     });
@@ -168,11 +170,11 @@ const AdminGroups = () => {
       }
 
       const result = await response.json();
-      alert(`Successfully imported ${result.count} groups`);
+      addToast(`Successfully imported ${result.count} groups`);
       await loadData();
     } catch (error) {
       console.error('Error importing groups:', error);
-      alert(error.message);
+      addToast(error.message, 'error');
     }
   };
 
@@ -357,6 +359,8 @@ const AdminGroups = () => {
         onCancel={() => setConfirmAction(null)}
         {...confirmAction}
       />
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

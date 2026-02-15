@@ -5,6 +5,7 @@ import { pictureService, categoryService, designGroupService } from '../services
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import { ToastContainer, useToast } from '../components/Toast';
 import DesignGroupPicker from '../components/DesignGroupPicker';
 import './Classify.css';
 
@@ -36,6 +37,7 @@ const Classify = () => {
   const [viewingGroup, setViewingGroup] = useState(null);
   const [viewingGroupIndex, setViewingGroupIndex] = useState(0);
   const [confirmAction, setConfirmAction] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -130,7 +132,7 @@ const Classify = () => {
       const data = classificationData[picture.id];
 
       if (!data.categoryId) {
-        alert('Please select a category');
+        addToast('Please select a category', 'warning');
         return;
       }
 
@@ -145,10 +147,10 @@ const Classify = () => {
 
       // Reload data after classification
       await loadData();
-      alert('Picture classified successfully!');
+      addToast('Picture classified successfully!');
     } catch (err) {
       console.error('Classification error:', err);
-      alert('Failed to classify picture');
+      addToast('Failed to classify picture', 'error');
     }
   };
 
@@ -258,12 +260,12 @@ const Classify = () => {
   // Handle bulk classification
   const handleBulkClassify = async () => {
     if (selectedPictures.size === 0) {
-      alert('Please select at least one picture');
+      addToast('Please select at least one picture', 'warning');
       return;
     }
 
     if (!bulkClassification.categoryId) {
-      alert('Please select a category for bulk classification');
+      addToast('Please select a category for bulk classification', 'warning');
       return;
     }
 
@@ -327,9 +329,9 @@ const Classify = () => {
     setBulkClassifying(false);
 
     if (failCount > 0) {
-      alert(`Classification complete: ${successCount} sets classified, ${failCount} failed`);
+      addToast(`Classification complete: ${successCount} sets classified, ${failCount} failed`, 'warning');
     } else {
-      alert(`Successfully classified ${successCount} picture set(s)!`);
+      addToast(`Successfully classified ${successCount} picture set(s)!`);
     }
 
     // Clear selections and reload
@@ -810,6 +812,8 @@ const Classify = () => {
           onCancel={() => setConfirmAction(null)}
           {...confirmAction}
         />
+
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
     </div>
   );

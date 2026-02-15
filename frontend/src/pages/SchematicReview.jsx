@@ -5,6 +5,7 @@ import { schematicService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import Modal from '../components/Modal';
+import { ToastContainer, useToast } from '../components/Toast';
 import './SchematicReview.css';
 
 const SchematicReview = () => {
@@ -14,6 +15,7 @@ const SchematicReview = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
 
   // Filters
   const [filters, setFilters] = useState({
@@ -90,14 +92,10 @@ const SchematicReview = () => {
 
       // Show success feedback
       if (result.progress?.setComplete) {
-        alert(
-          `Approved! ${result.progress.setName} set is now complete for this patrouille!`
-        );
+        addToast(`Approved! ${result.progress.setName} set is now complete for this patrouille!`);
       }
       if (result.progress?.allComplete) {
-        alert(
-          'Congratulations! This patrouille has completed ALL sets and is a winner!'
-        );
+        addToast('Congratulations! This patrouille has completed ALL sets and is a winner!');
       }
 
       // Reload list
@@ -115,7 +113,7 @@ const SchematicReview = () => {
 
   const handleRejectSubmit = async () => {
     if (!rejectModal.reason.trim()) {
-      alert('Please provide a rejection reason');
+      addToast('Please provide a rejection reason', 'warning');
       return;
     }
 
@@ -369,6 +367,8 @@ const SchematicReview = () => {
           />
         )}
       </div>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

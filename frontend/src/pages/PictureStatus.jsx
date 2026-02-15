@@ -5,6 +5,7 @@ import { pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
+import { ToastContainer, useToast } from '../components/Toast';
 import './PictureStatus.css';
 
 const PictureStatus = () => {
@@ -26,6 +27,7 @@ const PictureStatus = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [success, setSuccess] = useState('');
   const [editingPicture, setEditingPicture] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
     loadPictureSet();
@@ -115,7 +117,7 @@ const PictureStatus = () => {
   // Reject handler
   const handleReject = async () => {
     if (!rejectionReason.trim()) {
-      alert('Please provide a reason for rejection');
+      addToast('Please provide a reason for rejection', 'warning');
       return;
     }
 
@@ -708,6 +710,8 @@ const PictureStatus = () => {
           )}
         </Modal>
       </div>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { pictureService, schematicService, categoryService } from '../services/api';
 import { getImageUrl, API_URL } from '../config/api';
 import Modal from '../components/Modal';
+import { ToastContainer, useToast } from '../components/Toast';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -29,6 +30,7 @@ const Dashboard = () => {
     total: 0,
   });
   const [categoryStats, setCategoryStats] = useState([]);
+  const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
     loadDashboardData();
@@ -168,7 +170,7 @@ const Dashboard = () => {
       await loadDashboardData();
     } catch (err) {
       console.error('Failed to delete picture set:', err);
-      alert(err.error || 'Failed to delete picture set');
+      addToast(err.error || 'Failed to delete picture set', 'error');
     } finally {
       setDeleting(false);
     }
@@ -462,6 +464,8 @@ const Dashboard = () => {
           </Modal.Actions>
         </Modal>
       </div>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };
