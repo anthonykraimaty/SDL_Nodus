@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import ZoomableImage from './ZoomableImage';
 import './Modal.css';
 
 /**
@@ -95,7 +96,9 @@ Modal.Body = ({ children, className = '' }) => (
   </div>
 );
 
-// Image viewer with navigation
+// Image viewer with navigation, zoom, and swipe
+const SWIPE_THRESHOLD = 50;
+
 Modal.ImageViewer = ({
   isOpen,
   onClose,
@@ -106,16 +109,25 @@ Modal.ImageViewer = ({
 }) => {
   const currentImage = images[currentIndex];
   const hasMultiple = images.length > 1;
+  const [currentZoom, setCurrentZoom] = useState(1);
+  const swipeStartX = useRef(null);
+  const swipeStartY = useRef(null);
+  const isSwiping = useRef(false);
 
-  const handlePrev = () => {
+  // Reset zoom tracking when image changes
+  useEffect(() => {
+    setCurrentZoom(1);
+  }, [currentIndex]);
+
+  const handlePrev = useCallback(() => {
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : images.length - 1;
     onNavigate(prevIndex);
-  };
+  }, [currentIndex, images.length, onNavigate]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     const nextIndex = currentIndex < images.length - 1 ? currentIndex + 1 : 0;
     onNavigate(nextIndex);
-  };
+  }, [currentIndex, images.length, onNavigate]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -127,7 +139,47 @@ Modal.ImageViewer = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentIndex, images.length]);
+  }, [isOpen, handlePrev, handleNext]);
+
+  // Swipe touch handlers
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 1 && currentZoom <= 1) {
+      swipeStartX.current = e.touches[0].clientX;
+      swipeStartY.current = e.touches[0].clientY;
+      isSwiping.current = true;
+    }
+  }, [currentZoom]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isSwiping.current || swipeStartX.current === null) return;
+    if (e.touches.length !== 1) {
+      isSwiping.current = false;
+      return;
+    }
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    const dy = e.touches[0].clientY - swipeStartY.current;
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      isSwiping.current = false;
+    } else if (Math.abs(dx) > 10) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (isSwiping.current && swipeStartX.current !== null && e.changedTouches.length > 0) {
+      const dx = e.changedTouches[0].clientX - swipeStartX.current;
+      const dy = e.changedTouches[0].clientY - swipeStartY.current;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      if (absDx > SWIPE_THRESHOLD && absDx > absDy * 1.5 && hasMultiple) {
+        if (dx > 0) handlePrev();
+        else handleNext();
+      }
+    }
+    swipeStartX.current = null;
+    swipeStartY.current = null;
+    isSwiping.current = false;
+  }, [hasMultiple, handlePrev, handleNext]);
 
   if (!isOpen || !currentImage) return null;
 
@@ -144,10 +196,18 @@ Modal.ImageViewer = ({
           </button>
         )}
 
-        <div className="modal-image-viewer__content">
-          <img
+        <div
+          className="modal-image-viewer__content"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <ZoomableImage
+            key={currentIndex}
             src={currentImage.src}
             alt={currentImage.alt || `Image ${currentIndex + 1}`}
+            onZoomChange={setCurrentZoom}
+            className="modal-image-viewer__zoomable"
           />
         </div>
 

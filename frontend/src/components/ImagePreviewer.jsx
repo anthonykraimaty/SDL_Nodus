@@ -21,6 +21,9 @@ const ImagePreviewer = ({
   const pinchStartDist = useRef(null);
   const pinchStartZoom = useRef(1);
   const lastTapRef = useRef(0);
+  const swipeStartX = useRef(null);
+  const swipeStartY = useRef(null);
+  const isSwiping = useRef(false);
   const [showDetails, setShowDetails] = useState(true);
 
   // Image orientation state
@@ -70,17 +73,17 @@ const ImagePreviewer = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, isEditing]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : pictures.length - 1));
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  };
+  }, [pictures.length]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     setCurrentIndex((prev) => (prev < pictures.length - 1 ? prev + 1 : 0));
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  };
+  }, [pictures.length]);
 
   const handleZoomIn = () => {
     setZoom((prev) => Math.min(prev + 0.5, 5));
@@ -163,20 +166,30 @@ const ImagePreviewer = ({
     return Math.sqrt(dx * dx + dy * dy);
   };
 
+  const SWIPE_THRESHOLD = 50;
+
   const handleTouchStart = useCallback((e) => {
     if (e.touches.length === 2) {
       pinchStartDist.current = getTouchDist(e.touches);
       pinchStartZoom.current = zoom;
-    } else if (e.touches.length === 1 && zoom > 1) {
-      setIsDragging(true);
-      dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      panStart.current = { ...pan };
+      isSwiping.current = false;
+    } else if (e.touches.length === 1) {
+      if (zoom > 1) {
+        setIsDragging(true);
+        dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        panStart.current = { ...pan };
+      } else {
+        swipeStartX.current = e.touches[0].clientX;
+        swipeStartY.current = e.touches[0].clientY;
+        isSwiping.current = true;
+      }
     }
   }, [zoom, pan]);
 
   const handleTouchMove = useCallback((e) => {
     if (e.touches.length === 2 && pinchStartDist.current !== null) {
       e.preventDefault();
+      isSwiping.current = false;
       const currentDist = getTouchDist(e.touches);
       const scale = currentDist / pinchStartDist.current;
       const newZoom = Math.max(1, Math.min(5, pinchStartZoom.current * scale));
@@ -188,13 +201,38 @@ const ImagePreviewer = ({
       const dx = e.touches[0].clientX - dragStart.current.x;
       const dy = e.touches[0].clientY - dragStart.current.y;
       setPan(clampPan({ x: panStart.current.x + dx, y: panStart.current.y + dy }, zoom));
+    } else if (e.touches.length === 1 && isSwiping.current && swipeStartX.current !== null) {
+      const dx = e.touches[0].clientX - swipeStartX.current;
+      const dy = e.touches[0].clientY - swipeStartY.current;
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+        isSwiping.current = false;
+      } else if (Math.abs(dx) > 10) {
+        e.preventDefault();
+      }
     }
   }, [isDragging, zoom, clampPan]);
 
   const handleTouchEnd = useCallback((e) => {
     if (e.touches.length < 2) pinchStartDist.current = null;
-    if (e.touches.length === 0) setIsDragging(false);
-  }, []);
+    if (e.touches.length === 0) {
+      setIsDragging(false);
+
+      if (isSwiping.current && swipeStartX.current !== null && e.changedTouches.length > 0) {
+        const dx = e.changedTouches[0].clientX - swipeStartX.current;
+        const dy = e.changedTouches[0].clientY - swipeStartY.current;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        if (absDx > SWIPE_THRESHOLD && absDx > absDy * 1.5 && !isEditing) {
+          if (dx > 0) handlePrevious();
+          else handleNext();
+        }
+      }
+
+      swipeStartX.current = null;
+      swipeStartY.current = null;
+      isSwiping.current = false;
+    }
+  }, [isEditing, handlePrevious, handleNext]);
 
   // Double tap to toggle zoom
   const handleImageClick = useCallback(() => {

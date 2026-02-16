@@ -160,7 +160,7 @@
   justify-content: center;
   overflow: hidden;
   margin: 80px 0 20px;
-  touch-action: pan-x pan-y;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }

@@ -5,7 +5,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 const WHEEL_ZOOM_STEP = 0.15;
 
-const ZoomableImage = ({ src, alt, className = '', style = {} }) => {
+const ZoomableImage = ({ src, alt, className = '', style = {}, onZoomChange }) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -20,6 +20,11 @@ const ZoomableImage = ({ src, alt, className = '', style = {} }) => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
   }, [src]);
+
+  // Notify parent when zoom changes
+  useEffect(() => {
+    if (onZoomChange) onZoomChange(zoom);
+  }, [zoom, onZoomChange]);
 
   // Clamp pan to keep image in bounds
   const clampPan = useCallback((newPan, currentZoom) => {
