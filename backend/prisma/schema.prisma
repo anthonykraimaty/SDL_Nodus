@@ -92,6 +92,7 @@ model Patrouille {
   troupe             Troupe               @relation(fields: [troupeId], references: [id], onDelete: Cascade)
   pictureSets        PictureSet[]
   schematicProgress  SchematicProgress[]
+  categoryProgress   CategoryProgress[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -151,6 +152,8 @@ model Category {
   pictures               Picture[]        @relation("PictureCategory")
   designGroups           DesignGroup[]    // Design groups in this category
   monthlyCategories      MonthlyCategory[]
+  categorySetItems       CategorySetItem[]
+  categoryProgress       CategoryProgress[]
   isSchematicEnabled     Boolean          @default(false) // Enable/disable for schematic upload
   isUploadDisabled       Boolean          @default(false) // Disable uploads for this category
   isHiddenFromBrowse     Boolean          @default(false) // Hide from main Browse page
@@ -208,6 +211,7 @@ model PictureSet {
   schematicCategory   SchematicCategory? @relation(fields: [schematicCategoryId], references: [id], onDelete: SetNull)
   imageHash           String?            // MD5 hash for duplicate detection
   schematicProgress   SchematicProgress[] @relation("SchematicProgressPictureSet")
+  categoryProgress    CategoryProgress[]  @relation("CategoryProgressPictureSet")
 
   // Classification and approval
   classifiedById Int?
@@ -387,5 +391,50 @@ model SchematicProgress {
   @@unique([patrouilleId, schematicCategoryId])
   @@index([patrouilleId])
   @@index([schematicCategoryId])
+  @@index([status])
+}
+
+// Category Sets - Admin-defined groupings of existing categories
+model CategorySet {
+  id           Int              @id @default(autoincrement())
+  name         String           @unique
+  displayOrder Int              @default(0)
+  items        CategorySetItem[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model CategorySetItem {
+  id            Int         @id @default(autoincrement())
+  categorySetId Int
+  categorySet   CategorySet @relation(fields: [categorySetId], references: [id], onDelete: Cascade)
+  categoryId    Int
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  displayOrder  Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([categorySetId, categoryId])
+  @@index([categorySetId])
+  @@index([categoryId])
+}
+
+// Track progress for each patrouille per category (replaces SchematicProgress)
+model CategoryProgress {
+  id              Int              @id @default(autoincrement())
+  patrouilleId    Int
+  patrouille      Patrouille       @relation(fields: [patrouilleId], references: [id], onDelete: Cascade)
+  categoryId      Int
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  status          SchematicStatus  @default(PENDING)
+  pictureSetId    Int?
+  pictureSet      PictureSet?      @relation("CategoryProgressPictureSet", fields: [pictureSetId], references: [id], onDelete: SetNull)
+  completedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([patrouilleId, categoryId])
+  @@index([patrouilleId])
+  @@index([categoryId])
   @@index([status])
 }

@@ -360,6 +360,104 @@
   cursor: not-allowed;
 }
 
+/* Highlighted card (deep-link) */
+.schematic-card.highlighted {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(212, 165, 116, 0.3);
+}
+
+/* Image wrapper with edit overlay */
+.schematic-image-wrapper {
+  position: relative;
+}
+
+.schematic-image-wrapper img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.schematic-image-wrapper img:hover {
+  transform: scale(1.05);
+}
+
+.btn-edit-overlay {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.schematic-image-wrapper:hover .btn-edit-overlay {
+  opacity: 1;
+}
+
+.btn-edit-overlay:hover {
+  background: var(--accent);
+  color: var(--primary-dark);
+}
+
+/* PDF preview in review */
+.pdf-preview-review {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(244, 67, 54, 0.1);
+  border: 2px solid rgba(244, 67, 54, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.pdf-preview-review .pdf-icon {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ef5350;
+  background: rgba(244, 67, 54, 0.2);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* Clear filters button */
+.btn-clear-filters {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-dark);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-end;
+}
+
+.btn-clear-filters:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* Image Editor Overlay */
+.image-editor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: var(--bg-dark);
+}
+
 /* Loading */
 .loading-container {
   display: flex;

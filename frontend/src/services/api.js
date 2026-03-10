@@ -337,6 +337,7 @@ export const schematicService = {
   getCategoryStats: () => api.get('/api/schematics/stats/by-category', true),
 
   // Chef Troupe
+  getUnclassified: () => api.get('/api/schematics/unclassified', true),
   upload: (formData) => api.upload('/api/schematics/upload', formData),
   uploadWithProgress: (formData, onProgress, signal) =>
     api.uploadWithProgress('/api/schematics/upload', formData, onProgress, signal),
@@ -349,8 +350,23 @@ export const schematicService = {
   approve: (id) => api.post(`/api/schematics/${id}/approve`, {}, true),
   reject: (id, reason) => api.post(`/api/schematics/${id}/reject`, { reason }, true),
 
+  // Classify (CT only)
+  classify: (id, categoryId) => api.put(`/api/schematics/${id}/classify`, { categoryId }, true),
+
   // Delete
   delete: (id) => api.delete(`/api/schematics/${id}`, true),
+};
+
+// Category Sets
+export const categorySetService = {
+  getAll: () => api.get('/api/category-sets'),
+  getById: (id) => api.get(`/api/category-sets/${id}`),
+  create: (data) => api.post('/api/category-sets', data, true),
+  update: (id, data) => api.put(`/api/category-sets/${id}`, data, true),
+  delete: (id) => api.delete(`/api/category-sets/${id}`, true),
+  addItem: (setId, data) => api.post(`/api/category-sets/${setId}/items`, data, true),
+  removeItem: (setId, categoryId) => api.delete(`/api/category-sets/${setId}/items/${categoryId}`, true),
+  updateItemOrder: (setId, items) => api.put(`/api/category-sets/${setId}/items`, items, true),
 };
 
 // Patrouilles

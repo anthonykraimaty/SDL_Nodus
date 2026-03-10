@@ -644,6 +644,34 @@
    Gallery Section Styles
    ========================================== */
 
+/* Org Filters */
+.org-filters {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* Go to Validate Button */
+.btn-go-validate {
+  padding: 4px 12px;
+  background: var(--gradient-accent);
+  color: var(--primary-dark);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  margin-left: var(--spacing-sm);
+  transition: all 0.2s ease;
+}
+
+.btn-go-validate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(212, 165, 116, 0.4);
+}
+
 .gallery-section {
   margin-top: var(--spacing-lg);
 }

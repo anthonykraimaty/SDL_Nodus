@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { schematicService } from '../services/api';
+import { schematicService, organizationService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import './SchematicProgress.css';
@@ -22,6 +22,14 @@ const SchematicProgress = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedSets, setExpandedSets] = useState({});
+
+  // Org filters for Branche/Admin "all" view
+  const [districts, setDistricts] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [allFilters, setAllFilters] = useState({
+    districtId: '',
+    groupId: '',
+  });
 
   // Gallery state
   const [gallerySchematics, setGallerySchematics] = useState([]);
@@ -69,6 +77,7 @@ const SchematicProgress = () => {
       setView('all');
       loadAllProgress();
       loadCategoryStats();
+      loadOrgData();
     } else {
       // Public user - show gallery by default
       setView('gallery');
@@ -106,16 +115,32 @@ const SchematicProgress = () => {
     }
   };
 
-  const loadAllProgress = async () => {
+  const loadAllProgress = async (filters = {}) => {
     try {
       setLoading(true);
-      const data = await schematicService.getAllProgress();
+      const params = {};
+      if (filters.districtId) params.districtId = filters.districtId;
+      if (filters.groupId) params.groupId = filters.groupId;
+      const data = await schematicService.getAllProgress(params);
       setAllProgress(data);
     } catch (err) {
       setError('Failed to load progress data');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOrgData = async () => {
+    try {
+      const [districtsData, groupsData] = await Promise.all([
+        organizationService.getDistricts(),
+        organizationService.getGroups(),
+      ]);
+      setDistricts(districtsData);
+      setGroups(groupsData);
+    } catch (err) {
+      console.error('Failed to load organization data:', err);
     }
   };
 
@@ -240,8 +265,9 @@ const SchematicProgress = () => {
     if (newView === 'troupe' && user?.troupeId) {
       loadTroupeProgress(user.troupeId);
     } else if (newView === 'all') {
-      loadAllProgress();
+      loadAllProgress(allFilters);
       loadCategoryStats();
+      loadOrgData();
     } else if (newView === 'gallery') {
       loadGalleryCategories();
       loadGallerySchematics();
@@ -379,6 +405,61 @@ const SchematicProgress = () => {
         {/* All Patrouilles View */}
         {view === 'all' && allProgress && (
           <div className="all-progress">
+            {/* District/Group Filters */}
+            <div className="org-filters">
+              <div className="filter-group">
+                <label>District</label>
+                <select
+                  value={allFilters.districtId}
+                  onChange={(e) => {
+                    const newFilters = { districtId: e.target.value, groupId: '' };
+                    setAllFilters(newFilters);
+                    loadAllProgress(newFilters);
+                  }}
+                >
+                  <option value="">All Districts</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-group">
+                <label>Group</label>
+                <select
+                  value={allFilters.groupId}
+                  onChange={(e) => {
+                    const newFilters = { ...allFilters, groupId: e.target.value };
+                    setAllFilters(newFilters);
+                    loadAllProgress(newFilters);
+                  }}
+                >
+                  <option value="">All Groups</option>
+                  {(allFilters.districtId
+                    ? groups.filter((g) => String(g.districtId) === allFilters.districtId)
+                    : groups
+                  ).map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {(allFilters.districtId || allFilters.groupId) && (
+                <button
+                  className="btn-clear-filters"
+                  onClick={() => {
+                    const newFilters = { districtId: '', groupId: '' };
+                    setAllFilters(newFilters);
+                    loadAllProgress(newFilters);
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
             <div className="progress-summary-bar">
               <span>
                 {allProgress.patrouilles.filter((p) => p.isWinner).length} winner
@@ -571,6 +652,15 @@ const SchematicProgress = () => {
                               {item.status === 'REJECTED' && 'Rejected'}
                               {item.status === 'PENDING' && 'Not uploaded'}
                             </span>
+                            {item.status === 'SUBMITTED' && ['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role) && item.pictureSet && (
+                              <Link
+                                to={`/schematics/review?pictureSetId=${item.pictureSet.id}`}
+                                className="btn-go-validate"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Validate
+                              </Link>
+                            )}
                           </div>
                         ))}
                       </div>

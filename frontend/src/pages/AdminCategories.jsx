@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import { categorySetService } from '../services/api';
 import Modal from '../components/Modal';
 import './AdminCategories.css';
 
@@ -22,9 +23,20 @@ const AdminCategories = () => {
     parentId: null,
   });
 
+  // Category Sets state
+  const [categorySets, setCategorySets] = useState([]);
+  const [loadingSets, setLoadingSets] = useState(false);
+  const [showAddSetModal, setShowAddSetModal] = useState(false);
+  const [editingSet, setEditingSet] = useState(null);
+  const [setForm, setSetForm] = useState({ name: '', displayOrder: 0 });
+  const [expandedSets, setExpandedSets] = useState({});
+  const [addingItemToSet, setAddingItemToSet] = useState(null); // setId
+  const [deleteSetConfirm, setDeleteSetConfirm] = useState(null);
+
   useEffect(() => {
     if (user?.role === 'ADMIN') {
       loadCategories();
+      loadCategorySets();
     }
   }, [user]);
 
@@ -57,6 +69,119 @@ const AdminCategories = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadCategorySets = async () => {
+    try {
+      setLoadingSets(true);
+      const data = await categorySetService.getAll();
+      setCategorySets(data || []);
+    } catch (err) {
+      console.error('Error loading category sets:', err);
+    } finally {
+      setLoadingSets(false);
+    }
+  };
+
+  const handleCreateSet = async (e) => {
+    e.preventDefault();
+    try {
+      setError('');
+      await categorySetService.create({
+        name: setForm.name,
+        displayOrder: parseInt(setForm.displayOrder) || 0,
+      });
+      setSuccess('Category set created successfully');
+      setShowAddSetModal(false);
+      setEditingSet(null);
+      setSetForm({ name: '', displayOrder: 0 });
+      loadCategorySets();
+    } catch (err) {
+      setError(err.message || 'Failed to create category set');
+    }
+  };
+
+  const handleUpdateSet = async (e) => {
+    e.preventDefault();
+    try {
+      setError('');
+      await categorySetService.update(editingSet.id, {
+        name: setForm.name,
+        displayOrder: parseInt(setForm.displayOrder) || 0,
+      });
+      setSuccess('Category set updated successfully');
+      setEditingSet(null);
+      setShowAddSetModal(false);
+      setSetForm({ name: '', displayOrder: 0 });
+      loadCategorySets();
+    } catch (err) {
+      setError(err.message || 'Failed to update category set');
+    }
+  };
+
+  const handleDeleteSet = async () => {
+    if (!deleteSetConfirm) return;
+    try {
+      setError('');
+      await categorySetService.delete(deleteSetConfirm.id);
+      setSuccess('Category set deleted successfully');
+      setDeleteSetConfirm(null);
+      loadCategorySets();
+    } catch (err) {
+      setError(err.message || 'Failed to delete category set');
+      setDeleteSetConfirm(null);
+    }
+  };
+
+  const handleAddItemToSet = async (setId, categoryId) => {
+    try {
+      setError('');
+      const set = categorySets.find(s => s.id === setId);
+      const maxOrder = set?.items?.length || 0;
+      await categorySetService.addItem(setId, {
+        categoryId: parseInt(categoryId),
+        displayOrder: maxOrder,
+      });
+      setSuccess('Category added to set');
+      setAddingItemToSet(null);
+      loadCategorySets();
+    } catch (err) {
+      setError(err.message || 'Failed to add category to set');
+    }
+  };
+
+  const handleRemoveItemFromSet = async (setId, categoryId) => {
+    try {
+      setError('');
+      await categorySetService.removeItem(setId, categoryId);
+      setSuccess('Category removed from set');
+      loadCategorySets();
+    } catch (err) {
+      setError(err.message || 'Failed to remove category from set');
+    }
+  };
+
+  const toggleSetExpanded = (setId) => {
+    setExpandedSets(prev => ({ ...prev, [setId]: !prev[setId] }));
+  };
+
+  const openEditSet = (set) => {
+    setEditingSet(set);
+    setSetForm({ name: set.name, displayOrder: set.displayOrder });
+    setShowAddSetModal(true);
+  };
+
+  const openAddSet = () => {
+    setEditingSet(null);
+    setSetForm({ name: '', displayOrder: categorySets.length });
+    setShowAddSetModal(true);
+  };
+
+  // Get categories not yet in a specific set
+  const getAvailableCategoriesForSet = (setId) => {
+    const set = categorySets.find(s => s.id === setId);
+    const usedCategoryIds = set?.items?.map(i => i.category?.id || i.categoryId) || [];
+    return categories.filter(c => !usedCategoryIds.includes(c.id));
   };
 
   const handleToggleSchematic = async (categoryId, currentStatus) => {
@@ -288,9 +413,116 @@ const AdminCategories = () => {
             )}
           </section>
 
+          {/* Category Sets Section */}
+          <section className="category-section">
+            <div className="section-header-row">
+              <div>
+                <h3>Category Sets</h3>
+                <p className="section-description">
+                  Group categories into named sets to track patrouille progress per set
+                </p>
+              </div>
+              <button onClick={openAddSet} className="btn-add primary">
+                Add New Set
+              </button>
+            </div>
+
+            {loadingSets ? (
+              <div className="cdm-loading">Loading sets...</div>
+            ) : categorySets.length === 0 ? (
+              <div className="empty-state">
+                <p>No category sets defined yet. Create your first set!</p>
+              </div>
+            ) : (
+              <div className="category-sets-list">
+                {categorySets.map((set) => (
+                  <div key={set.id} className="category-set-card">
+                    <div className="category-set-header" onClick={() => toggleSetExpanded(set.id)}>
+                      <div className="category-set-title">
+                        <span className="expand-icon">{expandedSets[set.id] ? '\u25BC' : '\u25B6'}</span>
+                        <h4>{set.name}</h4>
+                        <span className="item-count">{set.items?.length || 0} categories</span>
+                      </div>
+                      <div className="category-set-actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="btn-edit-small"
+                          onClick={() => openEditSet(set)}
+                          title="Edit set"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn-delete-small"
+                          onClick={() => setDeleteSetConfirm(set)}
+                          title="Delete set"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+
+                    {expandedSets[set.id] && (
+                      <div className="category-set-items">
+                        {set.items?.length > 0 ? (
+                          <div className="set-items-grid">
+                            {set.items.map((item) => (
+                              <div key={item.id} className="set-item-chip">
+                                <span>{item.category?.name || 'Unknown'}</span>
+                                <button
+                                  className="btn-remove-item"
+                                  onClick={() => handleRemoveItemFromSet(set.id, item.category?.id || item.categoryId)}
+                                  title="Remove from set"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="empty-items">No categories in this set yet</p>
+                        )}
+
+                        {addingItemToSet === set.id ? (
+                          <div className="add-item-selector">
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleAddItemToSet(set.id, e.target.value);
+                                }
+                              }}
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Select a category to add...</option>
+                              {getAvailableCategoriesForSet(set.id).map((cat) => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="btn-cancel-small"
+                              onClick={() => setAddingItemToSet(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="btn-add-item"
+                            onClick={() => setAddingItemToSet(set.id)}
+                          >
+                            + Add Category
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* Schematics Section */}
           <section className="category-section">
-            <h3>📐 Schematics Upload</h3>
+            <h3>Schematics Upload</h3>
             <p className="section-description">
               Click to enable/disable categories for schematic uploads
             </p>
@@ -304,7 +536,7 @@ const AdminCategories = () => {
                   title={category.description || category.name}
                 >
                   <span className="chip-name">{category.name}</span>
-                  <span className="chip-toggle">{category.isSchematicEnabled ? '✓' : '○'}</span>
+                  <span className="chip-toggle">{category.isSchematicEnabled ? '\u2713' : '\u25CB'}</span>
                 </button>
               ))}
             </div>
@@ -477,6 +709,69 @@ const AdminCategories = () => {
             Delete
           </button>
           <button className="secondary" onClick={() => setDeleteConfirm(null)}>
+            Cancel
+          </button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* Add/Edit Category Set Modal */}
+      <Modal
+        isOpen={showAddSetModal}
+        onClose={() => { setShowAddSetModal(false); setEditingSet(null); }}
+        title={editingSet ? 'Edit Category Set' : 'Add New Category Set'}
+        size="small"
+      >
+        <form onSubmit={editingSet ? handleUpdateSet : handleCreateSet}>
+          <Modal.Body>
+            <div className="form-group">
+              <label htmlFor="setName">Set Name *</label>
+              <input
+                type="text"
+                id="setName"
+                value={setForm.name}
+                onChange={(e) => setSetForm({ ...setForm, name: e.target.value })}
+                placeholder="e.g., Couchement"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="setDisplayOrder">Display Order</label>
+              <input
+                type="number"
+                id="setDisplayOrder"
+                value={setForm.displayOrder}
+                onChange={(e) => setSetForm({ ...setForm, displayOrder: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button type="submit" className="primary">
+              {editingSet ? 'Update' : 'Create'}
+            </button>
+            <button type="button" onClick={() => { setShowAddSetModal(false); setEditingSet(null); }} className="secondary">
+              Cancel
+            </button>
+          </Modal.Actions>
+        </form>
+      </Modal>
+
+      {/* Delete Category Set Confirmation */}
+      <Modal
+        isOpen={!!deleteSetConfirm}
+        onClose={() => setDeleteSetConfirm(null)}
+        title="Delete Category Set"
+        variant="danger"
+        size="small"
+      >
+        <Modal.Body>
+          <p>Are you sure you want to delete the set <strong>{deleteSetConfirm?.name}</strong>?</p>
+          <p className="warning-text">This will remove the set grouping but will not delete the categories themselves.</p>
+        </Modal.Body>
+        <Modal.Actions>
+          <button className="danger" onClick={handleDeleteSet}>
+            Delete Set
+          </button>
+          <button className="secondary" onClick={() => setDeleteSetConfirm(null)}>
             Cancel
           </button>
         </Modal.Actions>

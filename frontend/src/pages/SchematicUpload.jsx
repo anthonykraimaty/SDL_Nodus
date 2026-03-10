@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { schematicService, patrouilleService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
+import ImageEditor from '../components/ImageEditor';
 import './SchematicUpload.css';
 
 const formatBytes = (bytes) => {
@@ -19,9 +20,12 @@ const SchematicUpload = () => {
   const navigate = useNavigate();
   const abortControllerRef = useRef(null);
 
+  // Step: 'upload' or 'classify'
+  const [step, setStep] = useState('upload');
+
   const [formData, setFormData] = useState({
     patrouilleId: '',
-    schematicCategoryId: '',
+    categoryId: '',
   });
 
   const [files, setFiles] = useState([]);
@@ -32,16 +36,28 @@ const SchematicUpload = () => {
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
   const [expandedSet, setExpandedSet] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+
+  // Upload result - the created PictureSet
+  const [uploadedPictureSet, setUploadedPictureSet] = useState(null);
+
+  // Classify loading
+  const [classifyLoading, setClassifyLoading] = useState(false);
+
+  // Image editor state
+  const [editingPicture, setEditingPicture] = useState(null);
 
   const [uploadProgress, setUploadProgress] = useState({
     percent: 0,
     loaded: 0,
     total: 0,
   });
+
+  // Unclassified schematics for this troupe
+  const [unclassified, setUnclassified] = useState([]);
+  const [loadingUnclassified, setLoadingUnclassified] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -59,11 +75,10 @@ const SchematicUpload = () => {
     try {
       setLoadingData(true);
 
-      // Load patrouilles - first try from user object, then fetch from API
+      // Load patrouilles
       if (user?.troupe?.patrouilles && user.troupe.patrouilles.length > 0) {
         setPatrouilles(user.troupe.patrouilles);
       } else if (user?.troupeId) {
-        // Fetch patrouilles from API if not in user object
         try {
           const patrouillesData = await patrouilleService.getMyTroupe();
           setPatrouilles(patrouillesData);
@@ -75,11 +90,27 @@ const SchematicUpload = () => {
       // Load schematic categories
       const categoriesData = await schematicService.getCategories();
       setCategories(categoriesData);
+
+      // Load unclassified schematics
+      loadUnclassified();
     } catch (err) {
       console.error('Failed to load data:', err);
       setError('Failed to load data');
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const loadUnclassified = async () => {
+    try {
+      setLoadingUnclassified(true);
+      const data = await schematicService.getUnclassified();
+      setUnclassified(data.schematics || []);
+    } catch (err) {
+      console.error('Failed to load unclassified:', err);
+      setUnclassified([]);
+    } finally {
+      setLoadingUnclassified(false);
     }
   };
 
@@ -103,7 +134,7 @@ const SchematicUpload = () => {
   const handleCategorySelect = (categoryId) => {
     setFormData((prev) => ({
       ...prev,
-      schematicCategoryId: categoryId,
+      categoryId: categoryId,
     }));
   };
 
@@ -121,15 +152,24 @@ const SchematicUpload = () => {
       let loadedCount = 0;
 
       selectedFiles.forEach((file) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          newPreviews.push(reader.result);
+        if (file.type === 'application/pdf') {
+          // For PDFs, use a placeholder
+          newPreviews.push({ type: 'pdf', name: file.name });
           loadedCount++;
           if (loadedCount === selectedFiles.length) {
-            setPreviews(newPreviews);
+            setPreviews([...newPreviews]);
           }
-        };
-        reader.readAsDataURL(file);
+        } else {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            newPreviews.push({ type: 'image', src: reader.result });
+            loadedCount++;
+            if (loadedCount === selectedFiles.length) {
+              setPreviews([...newPreviews]);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
       });
     }
   };
@@ -151,10 +191,6 @@ const SchematicUpload = () => {
         throw new Error('Please select a patrouille');
       }
 
-      if (!formData.schematicCategoryId) {
-        throw new Error('Please select a schematic category');
-      }
-
       const uploadData = new FormData();
 
       files.forEach((file) => {
@@ -162,9 +198,13 @@ const SchematicUpload = () => {
       });
 
       uploadData.append('patrouilleId', formData.patrouilleId);
-      uploadData.append('schematicCategoryId', formData.schematicCategoryId);
 
-      await schematicService.uploadWithProgress(
+      // Category is optional - if selected, include it
+      if (formData.categoryId) {
+        uploadData.append('categoryId', formData.categoryId);
+      }
+
+      const result = await schematicService.uploadWithProgress(
         uploadData,
         (progress) => {
           setUploadProgress(progress);
@@ -172,10 +212,15 @@ const SchematicUpload = () => {
         abortControllerRef.current.signal
       );
 
-      setSuccess(true);
-      setTimeout(() => {
-        navigate('/schematics/progress');
-      }, 2000);
+      setUploadedPictureSet(result.pictureSet);
+
+      // If category was already selected, go straight to success
+      if (formData.categoryId) {
+        setStep('success');
+      } else {
+        // Show classify step
+        setStep('classify');
+      }
     } catch (err) {
       if (err.message !== 'Upload cancelled') {
         setError(err.message || 'Failed to upload schematic');
@@ -186,11 +231,67 @@ const SchematicUpload = () => {
     }
   };
 
+  const handleClassify = async () => {
+    if (!formData.categoryId || !uploadedPictureSet) return;
+
+    setClassifyLoading(true);
+    setError('');
+
+    try {
+      const result = await schematicService.classify(uploadedPictureSet.id, parseInt(formData.categoryId));
+      setUploadedPictureSet(result.pictureSet);
+      setStep('success');
+    } catch (err) {
+      setError(err.message || 'Failed to classify schematic');
+    } finally {
+      setClassifyLoading(false);
+    }
+  };
+
+  const handleClassifyExisting = async (pictureSetId) => {
+    if (!formData.categoryId) {
+      setError('Please select a category first');
+      return;
+    }
+
+    setClassifyLoading(true);
+    setError('');
+
+    try {
+      await schematicService.classify(pictureSetId, parseInt(formData.categoryId));
+      // Remove from unclassified list
+      setUnclassified(prev => prev.filter(s => s.id !== pictureSetId));
+      setFormData(prev => ({ ...prev, categoryId: '' }));
+    } catch (err) {
+      setError(err.message || 'Failed to classify schematic');
+    } finally {
+      setClassifyLoading(false);
+    }
+  };
+
   const handleCancelUpload = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setLoading(false);
       setUploadProgress({ percent: 0, loaded: 0, total: 0 });
+    }
+  };
+
+  const handleSkipClassify = () => {
+    setStep('success');
+  };
+
+  const handleNewUpload = () => {
+    setStep('upload');
+    setFiles([]);
+    setPreviews([]);
+    setFormData(prev => ({ ...prev, categoryId: '' }));
+    setUploadedPictureSet(null);
+    setError('');
+    setAgreedToTerms(false);
+    // Reload progress for selected patrouille
+    if (formData.patrouilleId) {
+      loadPatrouilleProgress(formData.patrouilleId);
     }
   };
 
@@ -208,6 +309,11 @@ const SchematicUpload = () => {
     return status === 'APPROVED' || status === 'SUBMITTED';
   };
 
+  const handleImageEditorSave = () => {
+    setEditingPicture(null);
+    // Reload the uploaded picture set if needed
+  };
+
   if (!user?.role === 'CHEF_TROUPE') {
     return (
       <div className="container">
@@ -219,18 +325,29 @@ const SchematicUpload = () => {
     );
   }
 
-  if (success) {
+  // Success step
+  if (step === 'success') {
     return (
       <div className="container">
         <div className="success-page">
-          <div className="success-icon">✅</div>
+          <div className="success-icon">&#x2705;</div>
           <h2>Upload Successful!</h2>
           <p>
-            Your schematic has been uploaded and is pending review by Branche.
+            {uploadedPictureSet?.categoryId
+              ? 'Your schematic has been uploaded and classified. It is pending review by Branche.'
+              : 'Your schematic has been uploaded. You can classify it later from this page.'}
           </p>
-          <p className="text-muted">
-            Redirecting to progress page...
-          </p>
+          <div className="success-actions">
+            <button className="btn-submit primary" onClick={handleNewUpload}>
+              Upload Another
+            </button>
+            <button
+              className="btn-submit secondary"
+              onClick={() => navigate('/schematics/progress')}
+            >
+              View Progress
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -244,6 +361,172 @@ const SchematicUpload = () => {
     );
   }
 
+  // Classify step (after upload without category)
+  if (step === 'classify') {
+    return (
+      <div className="schematic-upload-page">
+        <div className="container">
+          <div className="upload-container">
+            <div className="upload-header">
+              <h2>Classify Schematic</h2>
+              <p>Select the set and category for your uploaded schematic</p>
+            </div>
+
+            <div className="upload-form">
+              {error && <div className="error-message">{error}</div>}
+
+              {/* Show uploaded images */}
+              {uploadedPictureSet?.pictures && (
+                <div className="uploaded-preview">
+                  <label>Uploaded Images</label>
+                  <div className="preview-grid">
+                    {uploadedPictureSet.pictures.map((pic, index) => {
+                      const isPdf = pic.filePath?.toLowerCase().endsWith('.pdf');
+                      return (
+                        <div key={pic.id} className="preview-item">
+                          {isPdf ? (
+                            <div className="pdf-preview-thumb">
+                              <span className="pdf-icon">PDF</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={getImageUrl(pic.filePath)}
+                              alt={`Uploaded ${index + 1}`}
+                              className="preview-image-small"
+                            />
+                          )}
+                          {!isPdf && (
+                            <button
+                              type="button"
+                              className="btn-edit-image"
+                              onClick={() => setEditingPicture(pic)}
+                              title="Edit image"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Category Selection */}
+              <div className="form-group">
+                <label>Select Category *</label>
+                <div className="category-accordion">
+                  {categories.map((set) => {
+                    const setProgress = progress?.sets?.find(
+                      (s) => s.setName === set.setName
+                    );
+                    const isExpanded = expandedSet === set.setName;
+
+                    return (
+                      <div key={set.setName} className="category-set">
+                        <button
+                          type="button"
+                          className={`category-set-header ${isExpanded ? 'expanded' : ''}`}
+                          onClick={() =>
+                            setExpandedSet(isExpanded ? null : set.setName)
+                          }
+                        >
+                          <span className="set-name">{set.setName}</span>
+                          {setProgress && (
+                            <span className="set-progress">
+                              {setProgress.completedItems}/{setProgress.totalItems}
+                              {setProgress.isComplete && ' &#x2705;'}
+                            </span>
+                          )}
+                          <span className="expand-icon">{isExpanded ? '&#x25BC;' : '&#x25B6;'}</span>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="category-items">
+                            {set.items.map((item) => {
+                              const status = getItemStatus(item.id);
+                              const disabled = isItemDisabled(item.id);
+                              const selected =
+                                formData.categoryId === String(item.id);
+
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  className={`category-item ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''} ${status?.toLowerCase() || ''}`}
+                                  onClick={() =>
+                                    !disabled && handleCategorySelect(String(item.id))
+                                  }
+                                  disabled={disabled}
+                                >
+                                  <span className="item-name">{item.itemName}</span>
+                                  <span className={`item-status-badge status-${status?.toLowerCase() || 'pending'}`}>
+                                    <span className="status-icon">
+                                      {status === 'APPROVED' && '\u2713'}
+                                      {status === 'SUBMITTED' && '\u23F3'}
+                                      {status === 'REJECTED' && '\u2717'}
+                                      {(!status || status === 'PENDING') && '\u25CB'}
+                                    </span>
+                                    {status === 'APPROVED' && 'Done'}
+                                    {status === 'SUBMITTED' && 'Pending'}
+                                    {status === 'REJECTED' && 'Rejected'}
+                                    {(!status || status === 'PENDING') && 'Not uploaded'}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {formData.categoryId && (
+                  <p className="field-help selected-category">
+                    Selected:{' '}
+                    {categories
+                      .flatMap((s) => s.items)
+                      .find((i) => String(i.id) === formData.categoryId)
+                      ?.itemName || 'Unknown'}
+                  </p>
+                )}
+              </div>
+
+              <div className="classify-actions">
+                <button
+                  className="btn-submit primary"
+                  onClick={handleClassify}
+                  disabled={!formData.categoryId || classifyLoading}
+                >
+                  {classifyLoading ? 'Classifying...' : 'Classify Schematic'}
+                </button>
+                <button
+                  className="btn-submit secondary"
+                  onClick={handleSkipClassify}
+                >
+                  Classify Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Image Editor Modal */}
+        {editingPicture && (
+          <div className="image-editor-overlay">
+            <ImageEditor
+              pictureId={editingPicture.id}
+              imageUrl={getImageUrl(editingPicture.filePath)}
+              onSave={handleImageEditorSave}
+              onCancel={() => setEditingPicture(null)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Upload step (default)
   return (
     <div className="schematic-upload-page">
       <div className="container">
@@ -293,9 +576,9 @@ const SchematicUpload = () => {
               </div>
             )}
 
-            {/* Category Selection */}
+            {/* Category Selection (Optional) */}
             <div className="form-group">
-              <label>Schematic Category *</label>
+              <label>Schematic Category <span className="optional-tag">(optional - can classify later)</span></label>
               <div className="category-accordion">
                 {categories.map((set) => {
                   const setProgress = progress?.sets?.find(
@@ -328,7 +611,7 @@ const SchematicUpload = () => {
                             const status = getItemStatus(item.id);
                             const disabled = isItemDisabled(item.id);
                             const selected =
-                              formData.schematicCategoryId === String(item.id);
+                              formData.categoryId === String(item.id);
 
                             return (
                               <button
@@ -362,12 +645,12 @@ const SchematicUpload = () => {
                   );
                 })}
               </div>
-              {formData.schematicCategoryId && (
+              {formData.categoryId && (
                 <p className="field-help selected-category">
                   Selected:{' '}
                   {categories
                     .flatMap((s) => s.items)
-                    .find((i) => String(i.id) === formData.schematicCategoryId)
+                    .find((i) => String(i.id) === formData.categoryId)
                     ?.itemName || 'Unknown'}
                 </p>
               )}
@@ -375,18 +658,26 @@ const SchematicUpload = () => {
 
             {/* File Upload */}
             <div className="form-group file-upload-group">
-              <label>Schematic Image(s) * (max 10)</label>
+              <label>Schematic File(s) * (max 10)</label>
               <div className="file-upload-area">
                 {previews.length > 0 ? (
                   <div className="preview-container">
                     <div className="preview-grid">
                       {previews.map((preview, index) => (
-                        <img
-                          key={index}
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
-                          className="preview-image-small"
-                        />
+                        <div key={index} className="preview-item">
+                          {preview.type === 'pdf' ? (
+                            <div className="pdf-preview-thumb">
+                              <span className="pdf-icon">PDF</span>
+                              <span className="pdf-name">{preview.name}</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={preview.src}
+                              alt={`Preview ${index + 1}`}
+                              className="preview-image-small"
+                            />
+                          )}
+                        </div>
                       ))}
                     </div>
                     <p className="text-muted">{files.length} file(s) selected</p>
@@ -405,14 +696,14 @@ const SchematicUpload = () => {
                 ) : (
                   <label htmlFor="file-input" className="file-upload-label">
                     <div className="upload-icon">📐</div>
-                    <p>Click to select schematic images</p>
-                    <p className="text-muted">PNG, JPG up to 10MB each</p>
+                    <p>Click to select schematic files</p>
+                    <p className="text-muted">PNG, JPG, PDF up to 10MB each</p>
                   </label>
                 )}
                 <input
                   type="file"
                   id="file-input"
-                  accept="image/*"
+                  accept="image/*,.pdf"
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                   multiple
@@ -426,12 +717,10 @@ const SchematicUpload = () => {
               <strong>How it works:</strong>
               <ul>
                 <li>Select the patrouille that completed this schematic</li>
-                <li>Choose the correct category (set and item)</li>
-                <li>Upload the hand-drawn schematic image(s)</li>
+                <li>Optionally choose the category now, or classify later</li>
+                <li>Upload the hand-drawn schematic image(s) or PDF</li>
+                <li>You can edit (crop/rotate) images after upload</li>
                 <li>Branche will review and approve the submission</li>
-                <li>
-                  Complete all items in all 7 sets to win!
-                </li>
               </ul>
             </div>
 
@@ -495,15 +784,63 @@ const SchematicUpload = () => {
                 loading ||
                 files.length === 0 ||
                 !formData.patrouilleId ||
-                !formData.schematicCategoryId ||
                 !agreedToTerms
               }
             >
               {loading
                 ? `Uploading... ${uploadProgress.percent}%`
-                : 'Upload Schematic'}
+                : formData.categoryId
+                  ? 'Upload & Classify'
+                  : 'Upload Schematic'}
             </button>
           </form>
+
+          {/* Unclassified Schematics Section */}
+          {unclassified.length > 0 && (
+            <div className="unclassified-section">
+              <h3>Unclassified Schematics</h3>
+              <p className="text-muted">These schematics need to be classified with a category.</p>
+              <div className="unclassified-list">
+                {unclassified.map((schematic) => (
+                  <div key={schematic.id} className="unclassified-card">
+                    <div className="unclassified-images">
+                      {schematic.pictures?.slice(0, 2).map((pic) => {
+                        const isPdf = pic.filePath?.toLowerCase().endsWith('.pdf');
+                        return isPdf ? (
+                          <div key={pic.id} className="pdf-preview-thumb small">
+                            <span className="pdf-icon">PDF</span>
+                          </div>
+                        ) : (
+                          <img
+                            key={pic.id}
+                            src={getImageUrl(pic.filePath)}
+                            alt="Schematic"
+                            className="unclassified-thumb"
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="unclassified-info">
+                      <span className="unclassified-patrouille">
+                        {schematic.patrouille?.name}
+                      </span>
+                      <span className="unclassified-date">
+                        {new Date(schematic.uploadedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <button
+                      className="btn-classify-small"
+                      onClick={() => handleClassifyExisting(schematic.id)}
+                      disabled={!formData.categoryId || classifyLoading}
+                      title={formData.categoryId ? 'Classify with selected category' : 'Select a category first'}
+                    >
+                      Classify
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -540,6 +877,18 @@ const SchematicUpload = () => {
           </button>
         </Modal.Actions>
       </Modal>
+
+      {/* Image Editor */}
+      {editingPicture && (
+        <div className="image-editor-overlay">
+          <ImageEditor
+            pictureId={editingPicture.id}
+            imageUrl={getImageUrl(editingPicture.filePath)}
+            onSave={handleImageEditorSave}
+            onCancel={() => setEditingPicture(null)}
+          />
+        </div>
+      )}
     </div>
   );
 };

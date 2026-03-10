@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { schematicService } from '../services/api';
+import { schematicService, organizationService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
+import ImageEditor from '../components/ImageEditor';
 import Modal from '../components/Modal';
 import { ToastContainer, useToast } from '../components/Toast';
 import './SchematicReview.css';
 
 const SchematicReview = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const pictureSetIdParam = searchParams.get('pictureSetId');
+
   const [schematics, setSchematics] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
@@ -21,6 +27,8 @@ const SchematicReview = () => {
   const [filters, setFilters] = useState({
     setName: '',
     troupeId: '',
+    groupId: '',
+    districtId: '',
   });
 
   // Pagination
@@ -42,8 +50,12 @@ const SchematicReview = () => {
   const [previewImages, setPreviewImages] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
 
+  // Image editor
+  const [editingPicture, setEditingPicture] = useState(null);
+
   useEffect(() => {
     loadCategories();
+    loadOrgData();
   }, []);
 
   useEffect(() => {
@@ -59,6 +71,19 @@ const SchematicReview = () => {
     }
   };
 
+  const loadOrgData = async () => {
+    try {
+      const [districtsData, groupsData] = await Promise.all([
+        organizationService.getDistricts(),
+        organizationService.getGroups(),
+      ]);
+      setDistricts(districtsData);
+      setGroups(groupsData);
+    } catch (err) {
+      console.error('Failed to load organization data:', err);
+    }
+  };
+
   const loadSchematics = async () => {
     try {
       setLoading(true);
@@ -69,9 +94,24 @@ const SchematicReview = () => {
 
       if (filters.setName) params.setName = filters.setName;
       if (filters.troupeId) params.troupeId = filters.troupeId;
+      if (filters.groupId) params.groupId = filters.groupId;
+      if (filters.districtId) params.districtId = filters.districtId;
 
       const data = await schematicService.getPending(params);
-      setSchematics(data.schematics);
+      let results = data.schematics;
+
+      // If deep-linking to a specific pictureSet, prioritize it
+      if (pictureSetIdParam && pagination.page === 1) {
+        const targetId = parseInt(pictureSetIdParam);
+        const targetIndex = results.findIndex(s => s.id === targetId);
+        if (targetIndex > 0) {
+          // Move the target to the top
+          const [target] = results.splice(targetIndex, 1);
+          results.unshift(target);
+        }
+      }
+
+      setSchematics(results);
       setPagination((prev) => ({
         ...prev,
         total: data.pagination.total,
@@ -90,7 +130,6 @@ const SchematicReview = () => {
       setActionLoading(id);
       const result = await schematicService.approve(id);
 
-      // Show success feedback
       if (result.progress?.setComplete) {
         addToast(`Approved! ${result.progress.setName} set is now complete for this patrouille!`);
       }
@@ -98,7 +137,6 @@ const SchematicReview = () => {
         addToast('Congratulations! This patrouille has completed ALL sets and is a winner!');
       }
 
-      // Reload list
       loadSchematics();
     } catch (err) {
       setError(err.message || 'Failed to approve schematic');
@@ -143,6 +181,20 @@ const SchematicReview = () => {
     setPreviewIndex(0);
   };
 
+  const handleEditImage = (picture) => {
+    setEditingPicture(picture);
+  };
+
+  const handleImageEditorSave = () => {
+    setEditingPicture(null);
+    // Reload schematics to show updated images
+    loadSchematics();
+  };
+
+  const filteredGroups = filters.districtId
+    ? groups.filter((g) => String(g.districtId) === filters.districtId)
+    : groups;
+
   if (!['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role)) {
     return (
       <div className="container">
@@ -177,6 +229,43 @@ const SchematicReview = () => {
               </option>
             ))}
           </select>
+
+          <select
+            value={filters.districtId}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, districtId: e.target.value, groupId: '' }))
+            }
+          >
+            <option value="">All Districts</option>
+            {districts.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.groupId}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, groupId: e.target.value }))
+            }
+          >
+            <option value="">All Groups</option>
+            {filteredGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+
+          {(filters.setName || filters.districtId || filters.groupId) && (
+            <button
+              className="btn-clear-filters"
+              onClick={() => setFilters({ setName: '', troupeId: '', groupId: '', districtId: '' })}
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -187,7 +276,7 @@ const SchematicReview = () => {
           </div>
         ) : schematics.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">✅</div>
+            <div className="empty-icon">&#x2705;</div>
             <h3>No Pending Schematics</h3>
             <p>All schematics have been reviewed</p>
           </div>
@@ -199,97 +288,122 @@ const SchematicReview = () => {
             </div>
 
             <div className="schematics-list">
-              {schematics.map((schematic) => (
-                <div key={schematic.id} className="schematic-card">
-                  <div className="schematic-images">
-                    {schematic.pictures.slice(0, 3).map((pic, idx) => (
-                      <img
-                        key={pic.id}
-                        src={getImageUrl(pic.filePath)}
-                        alt={`Schematic ${idx + 1}`}
-                        onClick={() => openPreview(schematic.pictures, idx)}
-                      />
-                    ))}
-                    {schematic.pictures.length > 3 && (
-                      <div
-                        className="more-images"
-                        onClick={() => openPreview(schematic.pictures)}
-                      >
-                        +{schematic.pictures.length - 3}
+              {schematics.map((schematic) => {
+                const isHighlighted = pictureSetIdParam && schematic.id === parseInt(pictureSetIdParam);
+                return (
+                  <div
+                    key={schematic.id}
+                    className={`schematic-card ${isHighlighted ? 'highlighted' : ''}`}
+                  >
+                    <div className="schematic-images">
+                      {schematic.pictures.slice(0, 3).map((pic, idx) => {
+                        const isPdf = pic.filePath?.toLowerCase().endsWith('.pdf');
+                        return (
+                          <div key={pic.id} className="schematic-image-wrapper">
+                            {isPdf ? (
+                              <div className="pdf-preview-review">
+                                <span className="pdf-icon">PDF</span>
+                              </div>
+                            ) : (
+                              <img
+                                src={getImageUrl(pic.filePath)}
+                                alt={`Schematic ${idx + 1}`}
+                                onClick={() => openPreview(schematic.pictures, idx)}
+                              />
+                            )}
+                            {!isPdf && (
+                              <button
+                                className="btn-edit-overlay"
+                                onClick={() => handleEditImage(pic)}
+                                title="Edit image (crop/rotate)"
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {schematic.pictures.length > 3 && (
+                        <div
+                          className="more-images"
+                          onClick={() => openPreview(schematic.pictures)}
+                        >
+                          +{schematic.pictures.length - 3}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="schematic-info">
+                      <div className="schematic-category">
+                        <span className="set-name">
+                          {schematic.schematicCategory?.setName || 'Unclassified'}
+                        </span>
+                        <span className="item-name">
+                          {schematic.schematicCategory?.itemName || 'No category'}
+                        </span>
                       </div>
-                    )}
+
+                      <div className="schematic-meta">
+                        <div className="meta-item">
+                          <span className="meta-label">Patrouille:</span>
+                          <span className="meta-value">
+                            {schematic.patrouille?.name} ({schematic.patrouille?.totem})
+                          </span>
+                        </div>
+                        <div className="meta-item">
+                          <span className="meta-label">Troupe:</span>
+                          <span className="meta-value">
+                            {schematic.troupe?.name}
+                          </span>
+                        </div>
+                        <div className="meta-item">
+                          <span className="meta-label">Group:</span>
+                          <span className="meta-value">
+                            {schematic.troupe?.group?.name}
+                          </span>
+                        </div>
+                        <div className="meta-item">
+                          <span className="meta-label">Uploaded by:</span>
+                          <span className="meta-value">
+                            {schematic.uploadedBy?.name}
+                          </span>
+                        </div>
+                        <div className="meta-item">
+                          <span className="meta-label">Date:</span>
+                          <span className="meta-value">
+                            {new Date(schematic.uploadedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="schematic-actions">
+                        <button
+                          className="btn-approve"
+                          onClick={() => handleApprove(schematic.id)}
+                          disabled={actionLoading === schematic.id}
+                        >
+                          {actionLoading === schematic.id
+                            ? 'Processing...'
+                            : 'Approve'}
+                        </button>
+                        <button
+                          className="btn-reject"
+                          onClick={() => handleRejectClick(schematic.id)}
+                          disabled={actionLoading === schematic.id}
+                        >
+                          Reject
+                        </button>
+                        <Link
+                          to={`/schematics/progress?patrouille=${schematic.patrouilleId}`}
+                          className="btn-view-progress"
+                        >
+                          View Progress
+                        </Link>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="schematic-info">
-                    <div className="schematic-category">
-                      <span className="set-name">
-                        {schematic.schematicCategory?.setName}
-                      </span>
-                      <span className="item-name">
-                        {schematic.schematicCategory?.itemName}
-                      </span>
-                    </div>
-
-                    <div className="schematic-meta">
-                      <div className="meta-item">
-                        <span className="meta-label">Patrouille:</span>
-                        <span className="meta-value">
-                          {schematic.patrouille?.name} ({schematic.patrouille?.totem})
-                        </span>
-                      </div>
-                      <div className="meta-item">
-                        <span className="meta-label">Troupe:</span>
-                        <span className="meta-value">
-                          {schematic.troupe?.name}
-                        </span>
-                      </div>
-                      <div className="meta-item">
-                        <span className="meta-label">Group:</span>
-                        <span className="meta-value">
-                          {schematic.troupe?.group?.name}
-                        </span>
-                      </div>
-                      <div className="meta-item">
-                        <span className="meta-label">Uploaded by:</span>
-                        <span className="meta-value">
-                          {schematic.uploadedBy?.name}
-                        </span>
-                      </div>
-                      <div className="meta-item">
-                        <span className="meta-label">Date:</span>
-                        <span className="meta-value">
-                          {new Date(schematic.uploadedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="schematic-actions">
-                      <button
-                        className="btn-approve"
-                        onClick={() => handleApprove(schematic.id)}
-                        disabled={actionLoading === schematic.id}
-                      >
-                        {actionLoading === schematic.id
-                          ? 'Processing...'
-                          : 'Approve'}
-                      </button>
-                      <button
-                        className="btn-reject"
-                        onClick={() => handleRejectClick(schematic.id)}
-                        disabled={actionLoading === schematic.id}
-                      >
-                        Reject
-                      </button>
-                      <Link
-                        to={`/schematics/progress?patrouille=${schematic.patrouilleId}`}
-                        className="btn-view-progress"
-                      >
-                        View Progress
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Pagination */}
@@ -367,6 +481,18 @@ const SchematicReview = () => {
           />
         )}
       </div>
+
+      {/* Image Editor */}
+      {editingPicture && (
+        <div className="image-editor-overlay">
+          <ImageEditor
+            pictureId={editingPicture.id}
+            imageUrl={getImageUrl(editingPicture.filePath)}
+            onSave={handleImageEditorSave}
+            onCancel={() => setEditingPicture(null)}
+          />
+        </div>
+      )}
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>

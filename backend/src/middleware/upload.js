@@ -35,16 +35,17 @@ const getStorage = () => {
   });
 };
 
-// File filter for images only
+// File filter for images and PDFs
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|webp/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = path.extname(file.originalname).toLowerCase();
+  const isImage = allowedImageTypes.test(extname) && allowedImageTypes.test(file.mimetype);
+  const isPdf = extname === '.pdf' && file.mimetype === 'application/pdf';
 
-  if (mimetype && extname) {
+  if (isImage || isPdf) {
     return cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
+    cb(new Error('Only image files (jpeg, jpg, png, gif, webp) and PDF files are allowed'));
   }
 };
 

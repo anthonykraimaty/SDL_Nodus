@@ -12,32 +12,33 @@ const prisma = new PrismaClient();
 // PUBLIC ENDPOINTS
 // ==========================================
 
-// GET /api/schematics/categories - Get all schematic categories (sets with items)
+// GET /api/schematics/categories - Get all category sets with items
 router.get('/categories', async (req, res) => {
   try {
-    const categories = await prisma.schematicCategory.findMany({
-      orderBy: [{ setOrder: 'asc' }, { itemOrder: 'asc' }],
+    const categorySets = await prisma.categorySet.findMany({
+      orderBy: { displayOrder: 'asc' },
+      include: {
+        items: {
+          orderBy: { displayOrder: 'asc' },
+          include: {
+            category: {
+              select: { id: true, name: true, type: true },
+            },
+          },
+        },
+      },
     });
 
-    // Group by setName
-    const sets = categories.reduce((acc, cat) => {
-      if (!acc[cat.setName]) {
-        acc[cat.setName] = {
-          setName: cat.setName,
-          setOrder: cat.setOrder,
-          items: [],
-        };
-      }
-      acc[cat.setName].items.push({
-        id: cat.id,
-        itemName: cat.itemName,
-        itemOrder: cat.itemOrder,
-      });
-      return acc;
-    }, {});
-
-    // Convert to array and sort
-    const result = Object.values(sets).sort((a, b) => a.setOrder - b.setOrder);
+    // Map to the same shape the frontend expects
+    const result = categorySets.map(set => ({
+      setName: set.name,
+      setOrder: set.displayOrder,
+      items: set.items.map(item => ({
+        id: item.category.id,        // categoryId
+        itemName: item.category.name,
+        itemOrder: item.displayOrder,
+      })),
+    }));
 
     res.json(result);
   } catch (error) {
@@ -55,17 +56,28 @@ router.get('/gallery', async (req, res) => {
     const where = {
       type: 'SCHEMATIC',
       status: 'APPROVED',
-      schematicCategoryId: { not: null },
     };
 
     if (itemId) {
-      where.schematicCategoryId = parseInt(itemId);
+      // itemId is now a categoryId
+      where.categoryId = parseInt(itemId);
     } else if (setName) {
-      const categoryIds = await prisma.schematicCategory.findMany({
-        where: { setName },
-        select: { id: true },
+      // Find all categoryIds in this set
+      const setItems = await prisma.categorySetItem.findMany({
+        where: {
+          categorySet: { name: setName },
+        },
+        select: { categoryId: true },
       });
-      where.schematicCategoryId = { in: categoryIds.map((c) => c.id) };
+      where.categoryId = { in: setItems.map(si => si.categoryId) };
+    }
+
+    // Only show schematics that belong to a category set
+    if (!itemId && !setName) {
+      const allSetCategoryIds = await prisma.categorySetItem.findMany({
+        select: { categoryId: true },
+      });
+      where.categoryId = { in: allSetCategoryIds.map(si => si.categoryId) };
     }
 
     const [schematics, total] = await Promise.all([
@@ -73,7 +85,7 @@ router.get('/gallery', async (req, res) => {
         where,
         include: {
           pictures: { take: 1, orderBy: { displayOrder: 'asc' } },
-          schematicCategory: true,
+          category: true,
           patrouille: {
             include: {
               troupe: {
@@ -93,8 +105,30 @@ router.get('/gallery', async (req, res) => {
       prisma.pictureSet.count({ where }),
     ]);
 
+    // Enrich with set info
+    const categoryIds = [...new Set(schematics.map(s => s.categoryId).filter(Boolean))];
+    const setItemsMap = {};
+    if (categoryIds.length > 0) {
+      const setItems = await prisma.categorySetItem.findMany({
+        where: { categoryId: { in: categoryIds } },
+        include: { categorySet: true },
+      });
+      for (const si of setItems) {
+        setItemsMap[si.categoryId] = si.categorySet.name;
+      }
+    }
+
+    // Add setName to each schematic for frontend compatibility
+    const enrichedSchematics = schematics.map(s => ({
+      ...s,
+      schematicCategory: s.category ? {
+        setName: setItemsMap[s.categoryId] || null,
+        itemName: s.category.name,
+      } : null,
+    }));
+
     res.json({
-      schematics,
+      schematics: enrichedSchematics,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -139,20 +173,20 @@ router.get('/progress/troupe/:troupeId', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Troupe not found' });
     }
 
-    // Get all categories count
-    const totalItems = await prisma.schematicCategory.count();
+    // Total items = total CategorySetItems across all sets
+    const totalItems = await prisma.categorySetItem.count();
 
     // Get progress for all patrouilles
     const progressData = await Promise.all(
       troupe.patrouilles.map(async (patrouille) => {
-        const approvedCount = await prisma.schematicProgress.count({
+        const approvedCount = await prisma.categoryProgress.count({
           where: {
             patrouilleId: patrouille.id,
             status: 'APPROVED',
           },
         });
 
-        const submittedCount = await prisma.schematicProgress.count({
+        const submittedCount = await prisma.categoryProgress.count({
           where: {
             patrouilleId: patrouille.id,
             status: 'SUBMITTED',
@@ -164,8 +198,8 @@ router.get('/progress/troupe/:troupeId', authenticate, async (req, res) => {
           completedItems: approvedCount,
           pendingReview: submittedCount,
           totalItems,
-          completionPercentage: Math.round((approvedCount / totalItems) * 100),
-          isWinner: approvedCount === totalItems,
+          completionPercentage: totalItems > 0 ? Math.round((approvedCount / totalItems) * 100) : 0,
+          isWinner: totalItems > 0 && approvedCount === totalItems,
         };
       })
     );
@@ -214,18 +248,18 @@ router.get(
         },
       });
 
-      const totalItems = await prisma.schematicCategory.count();
+      const totalItems = await prisma.categorySetItem.count();
 
       const progressData = await Promise.all(
         patrouilles.map(async (patrouille) => {
-          const approvedCount = await prisma.schematicProgress.count({
+          const approvedCount = await prisma.categoryProgress.count({
             where: {
               patrouilleId: patrouille.id,
               status: 'APPROVED',
             },
           });
 
-          const submittedCount = await prisma.schematicProgress.count({
+          const submittedCount = await prisma.categoryProgress.count({
             where: {
               patrouilleId: patrouille.id,
               status: 'SUBMITTED',
@@ -237,8 +271,8 @@ router.get(
             completedItems: approvedCount,
             pendingReview: submittedCount,
             totalItems,
-            completionPercentage: Math.round((approvedCount / totalItems) * 100),
-            isWinner: approvedCount === totalItems,
+            completionPercentage: totalItems > 0 ? Math.round((approvedCount / totalItems) * 100) : 0,
+            isWinner: totalItems > 0 && approvedCount === totalItems,
           };
         })
       );
@@ -284,13 +318,23 @@ router.get('/progress/:patrouilleId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Get all schematic categories
-    const allCategories = await prisma.schematicCategory.findMany({
-      orderBy: [{ setOrder: 'asc' }, { itemOrder: 'asc' }],
+    // Get all category sets with items
+    const categorySets = await prisma.categorySet.findMany({
+      orderBy: { displayOrder: 'asc' },
+      include: {
+        items: {
+          orderBy: { displayOrder: 'asc' },
+          include: {
+            category: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
     });
 
     // Get progress records for this patrouille
-    const progressRecords = await prisma.schematicProgress.findMany({
+    const progressRecords = await prisma.categoryProgress.findMany({
       where: { patrouilleId: parseInt(patrouilleId) },
       include: {
         pictureSet: {
@@ -301,61 +345,55 @@ router.get('/progress/:patrouilleId', authenticate, async (req, res) => {
       },
     });
 
-    // Create a map for quick lookup
-    const progressMap = new Map(progressRecords.map((p) => [p.schematicCategoryId, p]));
+    // Create a map for quick lookup: categoryId -> progress
+    const progressMap = new Map(progressRecords.map(p => [p.categoryId, p]));
 
-    // Group by set with progress info
-    const sets = {};
-    for (const cat of allCategories) {
-      if (!sets[cat.setName]) {
-        sets[cat.setName] = {
-          setName: cat.setName,
-          setOrder: cat.setOrder,
-          items: [],
-          completedItems: 0,
-          totalItems: 0,
+    // Build sets with progress info
+    const setsArray = categorySets.map(set => {
+      let completedItems = 0;
+      let totalItems = 0;
+
+      const items = set.items.map(item => {
+        const progress = progressMap.get(item.category.id);
+        totalItems++;
+        if (progress?.status === 'APPROVED') {
+          completedItems++;
+        }
+
+        return {
+          id: item.category.id,        // categoryId
+          itemName: item.category.name,
+          itemOrder: item.displayOrder,
+          status: progress?.status || 'PENDING',
+          pictureSet: progress?.pictureSet || null,
+          completedAt: progress?.completedAt || null,
         };
-      }
+      });
 
-      const progress = progressMap.get(cat.id);
-      const item = {
-        id: cat.id,
-        itemName: cat.itemName,
-        itemOrder: cat.itemOrder,
-        status: progress?.status || 'PENDING',
-        pictureSet: progress?.pictureSet || null,
-        completedAt: progress?.completedAt || null,
+      return {
+        setName: set.name,
+        setOrder: set.displayOrder,
+        items,
+        completedItems,
+        totalItems,
+        isComplete: completedItems === totalItems,
       };
+    });
 
-      sets[cat.setName].items.push(item);
-      sets[cat.setName].totalItems++;
-      if (item.status === 'APPROVED') {
-        sets[cat.setName].completedItems++;
-      }
-    }
-
-    // Calculate set completion
-    const setsArray = Object.values(sets)
-      .sort((a, b) => a.setOrder - b.setOrder)
-      .map((set) => ({
-        ...set,
-        isComplete: set.completedItems === set.totalItems,
-      }));
-
-    const completedSets = setsArray.filter((s) => s.isComplete).length;
+    const completedSets = setsArray.filter(s => s.isComplete).length;
     const totalSets = setsArray.length;
+    const totalCompletedItems = setsArray.reduce((sum, s) => sum + s.completedItems, 0);
+    const totalAllItems = setsArray.reduce((sum, s) => sum + s.totalItems, 0);
 
     res.json({
       patrouille,
       sets: setsArray,
       completedSets,
       totalSets,
-      isWinner: completedSets === totalSets,
-      completionPercentage: Math.round(
-        (setsArray.reduce((sum, s) => sum + s.completedItems, 0) /
-          setsArray.reduce((sum, s) => sum + s.totalItems, 0)) *
-          100
-      ),
+      isWinner: completedSets === totalSets && totalSets > 0,
+      completionPercentage: totalAllItems > 0
+        ? Math.round((totalCompletedItems / totalAllItems) * 100)
+        : 0,
     });
   } catch (error) {
     console.error('Error fetching patrouille progress:', error);
@@ -367,6 +405,36 @@ router.get('/progress/:patrouilleId', authenticate, async (req, res) => {
 // CHEF TROUPE ENDPOINTS
 // ==========================================
 
+// GET /api/schematics/unclassified - Get unclassified schematics for CT's troupe
+router.get(
+  '/unclassified',
+  authenticate,
+  authorize('CHEF_TROUPE'),
+  async (req, res) => {
+    try {
+      const user = req.user;
+
+      const schematics = await prisma.pictureSet.findMany({
+        where: {
+          type: 'SCHEMATIC',
+          troupeId: user.troupeId,
+          categoryId: null,
+        },
+        include: {
+          pictures: { take: 2, orderBy: { displayOrder: 'asc' } },
+          patrouille: true,
+        },
+        orderBy: { uploadedAt: 'desc' },
+      });
+
+      res.json({ schematics });
+    } catch (error) {
+      console.error('Error fetching unclassified schematics:', error);
+      res.status(500).json({ error: 'Failed to fetch unclassified schematics' });
+    }
+  }
+);
+
 // POST /api/schematics/upload - Upload a schematic
 router.post(
   '/upload',
@@ -375,7 +443,9 @@ router.post(
   upload.array('pictures', 10),
   async (req, res) => {
     try {
-      const { patrouilleId, schematicCategoryId } = req.body;
+      const { patrouilleId, categoryId, schematicCategoryId } = req.body;
+      // Support both categoryId (new) and schematicCategoryId (legacy) for backward compat
+      const effectiveCategoryId = categoryId || schematicCategoryId;
       const user = req.user;
       const files = req.files;
 
@@ -383,10 +453,8 @@ router.post(
         return res.status(400).json({ error: 'No files uploaded' });
       }
 
-      if (!patrouilleId || !schematicCategoryId) {
-        return res
-          .status(400)
-          .json({ error: 'Patrouille and schematic category are required' });
+      if (!patrouilleId) {
+        return res.status(400).json({ error: 'Patrouille is required' });
       }
 
       // Validate patrouille belongs to user's troupe
@@ -405,28 +473,44 @@ router.post(
           .json({ error: 'Patrouille does not belong to your troupe' });
       }
 
-      // Validate schematic category exists
-      const schematicCategory = await prisma.schematicCategory.findUnique({
-        where: { id: parseInt(schematicCategoryId) },
-      });
+      // If categoryId provided, validate it
+      let category = null;
+      let setItem = null;
+      let categoryIdInt = null;
 
-      if (!schematicCategory) {
-        return res.status(404).json({ error: 'Schematic category not found' });
-      }
-
-      // Check if this item is already approved for this patrouille
-      const existingApproved = await prisma.schematicProgress.findFirst({
-        where: {
-          patrouilleId: parseInt(patrouilleId),
-          schematicCategoryId: parseInt(schematicCategoryId),
-          status: 'APPROVED',
-        },
-      });
-
-      if (existingApproved) {
-        return res.status(400).json({
-          error: 'This item has already been approved for this patrouille',
+      if (effectiveCategoryId) {
+        categoryIdInt = parseInt(effectiveCategoryId);
+        category = await prisma.category.findUnique({
+          where: { id: categoryIdInt },
         });
+
+        if (!category) {
+          return res.status(404).json({ error: 'Category not found' });
+        }
+
+        setItem = await prisma.categorySetItem.findFirst({
+          where: { categoryId: categoryIdInt },
+          include: { categorySet: true },
+        });
+
+        if (!setItem) {
+          return res.status(400).json({ error: 'Category is not part of any set' });
+        }
+
+        // Check if this item is already approved for this patrouille
+        const existingApproved = await prisma.categoryProgress.findFirst({
+          where: {
+            patrouilleId: parseInt(patrouilleId),
+            categoryId: categoryIdInt,
+            status: 'APPROVED',
+          },
+        });
+
+        if (existingApproved) {
+          return res.status(400).json({
+            error: 'This item has already been approved for this patrouille',
+          });
+        }
       }
 
       // Compute image hash for duplicate detection
@@ -491,7 +575,8 @@ router.post(
       }
 
       // Generate title
-      const title = `${patrouille.troupe.name}_${patrouille.name}_${schematicCategory.itemName}`;
+      const categoryLabel = category ? category.name : 'Unclassified';
+      const title = `${patrouille.troupe.name}_${patrouille.name}_${categoryLabel}`;
 
       // Create picture set
       const pictureSet = await prisma.pictureSet.create({
@@ -502,7 +587,7 @@ router.post(
           uploadedById: user.id,
           troupeId: user.troupeId,
           patrouilleId: parseInt(patrouilleId),
-          schematicCategoryId: parseInt(schematicCategoryId),
+          categoryId: categoryIdInt,
           imageHash,
           pictures: {
             create: uploadedPictures,
@@ -510,17 +595,150 @@ router.post(
         },
         include: {
           pictures: true,
-          schematicCategory: true,
+          category: true,
           patrouille: true,
         },
       });
 
-      // Create or update progress record
-      await prisma.schematicProgress.upsert({
-        where: {
-          patrouilleId_schematicCategoryId: {
+      // Create progress record only if category was provided
+      if (categoryIdInt) {
+        await prisma.categoryProgress.upsert({
+          where: {
+            patrouilleId_categoryId: {
+              patrouilleId: parseInt(patrouilleId),
+              categoryId: categoryIdInt,
+            },
+          },
+          update: {
+            status: 'SUBMITTED',
+            pictureSetId: pictureSet.id,
+          },
+          create: {
             patrouilleId: parseInt(patrouilleId),
-            schematicCategoryId: parseInt(schematicCategoryId),
+            categoryId: categoryIdInt,
+            status: 'SUBMITTED',
+            pictureSetId: pictureSet.id,
+          },
+        });
+      }
+
+      // Add schematicCategory field for frontend compatibility
+      const responseSet = {
+        ...pictureSet,
+        schematicCategory: category && setItem ? {
+          setName: setItem.categorySet.name,
+          itemName: category.name,
+        } : null,
+      };
+
+      res.status(201).json({
+        message: 'Schematic uploaded successfully',
+        pictureSet: responseSet,
+      });
+    } catch (error) {
+      console.error('Error uploading schematic:', error);
+      res.status(500).json({ error: 'Failed to upload schematic' });
+    }
+  }
+);
+
+// PUT /api/schematics/:id/classify - Classify an uploaded schematic (CT only)
+router.put(
+  '/:id/classify',
+  authenticate,
+  authorize('CHEF_TROUPE'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { categoryId } = req.body;
+      const user = req.user;
+
+      if (!categoryId) {
+        return res.status(400).json({ error: 'categoryId is required' });
+      }
+
+      const categoryIdInt = parseInt(categoryId);
+
+      // Find the picture set
+      const pictureSet = await prisma.pictureSet.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          patrouille: { include: { troupe: true } },
+          pictures: true,
+        },
+      });
+
+      if (!pictureSet) {
+        return res.status(404).json({ error: 'Schematic not found' });
+      }
+
+      if (pictureSet.type !== 'SCHEMATIC') {
+        return res.status(400).json({ error: 'This is not a schematic' });
+      }
+
+      // Authorization: must belong to user's troupe
+      if (pictureSet.troupeId !== user.troupeId) {
+        return res.status(403).json({ error: 'Not authorized to classify this schematic' });
+      }
+
+      // Validate category exists
+      const category = await prisma.category.findUnique({
+        where: { id: categoryIdInt },
+      });
+
+      if (!category) {
+        return res.status(404).json({ error: 'Category not found' });
+      }
+
+      // Validate category belongs to a set
+      const setItem = await prisma.categorySetItem.findFirst({
+        where: { categoryId: categoryIdInt },
+        include: { categorySet: true },
+      });
+
+      if (!setItem) {
+        return res.status(400).json({ error: 'Category is not part of any set' });
+      }
+
+      // Check if this category is already approved for this patrouille
+      const existingApproved = await prisma.categoryProgress.findFirst({
+        where: {
+          patrouilleId: pictureSet.patrouilleId,
+          categoryId: categoryIdInt,
+          status: 'APPROVED',
+        },
+      });
+
+      if (existingApproved) {
+        return res.status(400).json({
+          error: 'This category has already been approved for this patrouille',
+        });
+      }
+
+      // Update the picture set with the category
+      const categoryLabel = category.name;
+      const title = `${pictureSet.patrouille.troupe.name}_${pictureSet.patrouille.name}_${categoryLabel}`;
+
+      const updatedPictureSet = await prisma.pictureSet.update({
+        where: { id: parseInt(id) },
+        data: {
+          categoryId: categoryIdInt,
+          title,
+          status: 'PENDING',
+        },
+        include: {
+          pictures: true,
+          category: true,
+          patrouille: true,
+        },
+      });
+
+      // Create/update progress record
+      await prisma.categoryProgress.upsert({
+        where: {
+          patrouilleId_categoryId: {
+            patrouilleId: pictureSet.patrouilleId,
+            categoryId: categoryIdInt,
           },
         },
         update: {
@@ -528,20 +746,28 @@ router.post(
           pictureSetId: pictureSet.id,
         },
         create: {
-          patrouilleId: parseInt(patrouilleId),
-          schematicCategoryId: parseInt(schematicCategoryId),
+          patrouilleId: pictureSet.patrouilleId,
+          categoryId: categoryIdInt,
           status: 'SUBMITTED',
           pictureSetId: pictureSet.id,
         },
       });
 
-      res.status(201).json({
-        message: 'Schematic uploaded successfully',
-        pictureSet,
+      const responseSet = {
+        ...updatedPictureSet,
+        schematicCategory: {
+          setName: setItem.categorySet.name,
+          itemName: category.name,
+        },
+      };
+
+      res.json({
+        message: 'Schematic classified successfully',
+        pictureSet: responseSet,
       });
     } catch (error) {
-      console.error('Error uploading schematic:', error);
-      res.status(500).json({ error: 'Failed to upload schematic' });
+      console.error('Error classifying schematic:', error);
+      res.status(500).json({ error: 'Failed to classify schematic' });
     }
   }
 );
@@ -557,25 +783,45 @@ router.get(
   authorize('BRANCHE_ECLAIREURS', 'ADMIN'),
   async (req, res) => {
     try {
-      const { setName, troupeId, page = 1, limit = 20 } = req.query;
+      const { setName, troupeId, groupId, districtId, page = 1, limit = 20 } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
       const where = {
         type: 'SCHEMATIC',
         status: 'PENDING',
-        schematicCategoryId: { not: null },
       };
 
       if (setName) {
-        const categoryIds = await prisma.schematicCategory.findMany({
-          where: { setName },
-          select: { id: true },
+        const setItems = await prisma.categorySetItem.findMany({
+          where: { categorySet: { name: setName } },
+          select: { categoryId: true },
         });
-        where.schematicCategoryId = { in: categoryIds.map((c) => c.id) };
+        where.categoryId = { in: setItems.map(si => si.categoryId) };
       }
 
       if (troupeId) {
         where.troupeId = parseInt(troupeId);
+      }
+
+      if (groupId) {
+        where.troupe = { ...where.troupe, groupId: parseInt(groupId) };
+      }
+
+      if (districtId) {
+        where.troupe = {
+          ...where.troupe,
+          group: { districtId: parseInt(districtId) },
+        };
+      }
+
+      // Only show schematics that belong to a category set
+      if (!setName) {
+        const allSetCategoryIds = await prisma.categorySetItem.findMany({
+          select: { categoryId: true },
+        });
+        if (!where.categoryId) {
+          where.categoryId = { in: allSetCategoryIds.map(si => si.categoryId) };
+        }
       }
 
       const [schematics, total] = await Promise.all([
@@ -583,7 +829,7 @@ router.get(
           where,
           include: {
             pictures: true,
-            schematicCategory: true,
+            category: true,
             patrouille: true,
             uploadedBy: { select: { id: true, name: true, email: true } },
             troupe: {
@@ -599,8 +845,29 @@ router.get(
         prisma.pictureSet.count({ where }),
       ]);
 
+      // Enrich with set info
+      const categoryIds = [...new Set(schematics.map(s => s.categoryId).filter(Boolean))];
+      const setItemsMap = {};
+      if (categoryIds.length > 0) {
+        const setItems = await prisma.categorySetItem.findMany({
+          where: { categoryId: { in: categoryIds } },
+          include: { categorySet: true },
+        });
+        for (const si of setItems) {
+          setItemsMap[si.categoryId] = si.categorySet.name;
+        }
+      }
+
+      const enrichedSchematics = schematics.map(s => ({
+        ...s,
+        schematicCategory: s.category ? {
+          setName: setItemsMap[s.categoryId] || null,
+          itemName: s.category.name,
+        } : null,
+      }));
+
       res.json({
-        schematics,
+        schematics: enrichedSchematics,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -628,7 +895,7 @@ router.post(
       const pictureSet = await prisma.pictureSet.findUnique({
         where: { id: parseInt(id) },
         include: {
-          schematicCategory: true,
+          category: true,
           patrouille: true,
         },
       });
@@ -654,28 +921,37 @@ router.post(
           approvedAt: new Date(),
         },
         include: {
-          schematicCategory: true,
+          category: true,
           patrouille: true,
         },
       });
 
       // Update progress record
-      await prisma.schematicProgress.update({
-        where: {
-          patrouilleId_schematicCategoryId: {
-            patrouilleId: pictureSet.patrouilleId,
-            schematicCategoryId: pictureSet.schematicCategoryId,
+      if (pictureSet.patrouilleId && pictureSet.categoryId) {
+        await prisma.categoryProgress.upsert({
+          where: {
+            patrouilleId_categoryId: {
+              patrouilleId: pictureSet.patrouilleId,
+              categoryId: pictureSet.categoryId,
+            },
           },
-        },
-        data: {
-          status: 'APPROVED',
-          completedAt: new Date(),
-        },
-      });
+          update: {
+            status: 'APPROVED',
+            completedAt: new Date(),
+          },
+          create: {
+            patrouilleId: pictureSet.patrouilleId,
+            categoryId: pictureSet.categoryId,
+            status: 'APPROVED',
+            pictureSetId: pictureSet.id,
+            completedAt: new Date(),
+          },
+        });
+      }
 
-      // Check if patrouille completed a set or all sets
-      const totalItems = await prisma.schematicCategory.count();
-      const approvedCount = await prisma.schematicProgress.count({
+      // Check completion
+      const totalItems = await prisma.categorySetItem.count();
+      const approvedCount = await prisma.categoryProgress.count({
         where: {
           patrouilleId: pictureSet.patrouilleId,
           status: 'APPROVED',
@@ -683,27 +959,51 @@ router.post(
       });
 
       // Check set completion
-      const setCategories = await prisma.schematicCategory.findMany({
-        where: { setName: pictureSet.schematicCategory.setName },
-      });
+      let setComplete = false;
+      let setName = null;
+      if (pictureSet.categoryId) {
+        const setItem = await prisma.categorySetItem.findFirst({
+          where: { categoryId: pictureSet.categoryId },
+          include: {
+            categorySet: {
+              include: {
+                items: true,
+              },
+            },
+          },
+        });
 
-      const setApprovedCount = await prisma.schematicProgress.count({
-        where: {
-          patrouilleId: pictureSet.patrouilleId,
-          schematicCategoryId: { in: setCategories.map((c) => c.id) },
-          status: 'APPROVED',
-        },
-      });
+        if (setItem) {
+          setName = setItem.categorySet.name;
+          const setCategoryIds = setItem.categorySet.items.map(i => i.categoryId);
+          const setApprovedCount = await prisma.categoryProgress.count({
+            where: {
+              patrouilleId: pictureSet.patrouilleId,
+              categoryId: { in: setCategoryIds },
+              status: 'APPROVED',
+            },
+          });
+          setComplete = setApprovedCount === setCategoryIds.length;
+        }
+      }
 
-      const setComplete = setApprovedCount === setCategories.length;
-      const allComplete = approvedCount === totalItems;
+      const allComplete = approvedCount === totalItems && totalItems > 0;
+
+      // Add schematicCategory for frontend compat
+      const responseSet = {
+        ...updatedPictureSet,
+        schematicCategory: updatedPictureSet.category ? {
+          setName,
+          itemName: updatedPictureSet.category.name,
+        } : null,
+      };
 
       res.json({
         message: 'Schematic approved successfully',
-        pictureSet: updatedPictureSet,
+        pictureSet: responseSet,
         progress: {
           setComplete,
-          setName: pictureSet.schematicCategory.setName,
+          setName,
           allComplete,
           isWinner: allComplete,
           completedItems: approvedCount,
@@ -735,7 +1035,7 @@ router.post(
       const pictureSet = await prisma.pictureSet.findUnique({
         where: { id: parseInt(id) },
         include: {
-          schematicCategory: true,
+          category: true,
           patrouille: true,
         },
       });
@@ -762,28 +1062,49 @@ router.post(
           approvedAt: new Date(),
         },
         include: {
-          schematicCategory: true,
+          category: true,
           patrouille: true,
         },
       });
 
       // Update progress record
-      await prisma.schematicProgress.update({
-        where: {
-          patrouilleId_schematicCategoryId: {
-            patrouilleId: pictureSet.patrouilleId,
-            schematicCategoryId: pictureSet.schematicCategoryId,
+      if (pictureSet.patrouilleId && pictureSet.categoryId) {
+        await prisma.categoryProgress.upsert({
+          where: {
+            patrouilleId_categoryId: {
+              patrouilleId: pictureSet.patrouilleId,
+              categoryId: pictureSet.categoryId,
+            },
           },
-        },
-        data: {
-          status: 'REJECTED',
-          pictureSetId: null, // Clear the link so they can re-upload
-        },
-      });
+          update: {
+            status: 'REJECTED',
+            pictureSetId: null, // Clear the link so they can re-upload
+          },
+          create: {
+            patrouilleId: pictureSet.patrouilleId,
+            categoryId: pictureSet.categoryId,
+            status: 'REJECTED',
+          },
+        });
+      }
+
+      // Add schematicCategory for frontend compat
+      const setItem = pictureSet.categoryId ? await prisma.categorySetItem.findFirst({
+        where: { categoryId: pictureSet.categoryId },
+        include: { categorySet: true },
+      }) : null;
+
+      const responseSet = {
+        ...updatedPictureSet,
+        schematicCategory: updatedPictureSet.category ? {
+          setName: setItem?.categorySet?.name || null,
+          itemName: updatedPictureSet.category.name,
+        } : null,
+      };
 
       res.json({
         message: 'Schematic rejected',
-        pictureSet: updatedPictureSet,
+        pictureSet: responseSet,
       });
     } catch (error) {
       console.error('Error rejecting schematic:', error);
@@ -829,11 +1150,11 @@ router.delete('/:id', authenticate, async (req, res) => {
     }
 
     // Delete progress record if exists
-    if (pictureSet.patrouilleId && pictureSet.schematicCategoryId) {
-      await prisma.schematicProgress.deleteMany({
+    if (pictureSet.patrouilleId && pictureSet.categoryId) {
+      await prisma.categoryProgress.deleteMany({
         where: {
           patrouilleId: pictureSet.patrouilleId,
-          schematicCategoryId: pictureSet.schematicCategoryId,
+          categoryId: pictureSet.categoryId,
           pictureSetId: pictureSet.id,
         },
       });
@@ -856,12 +1177,18 @@ router.get('/stats', authenticate, async (req, res) => {
   try {
     const user = req.user;
 
-    let where = { type: 'SCHEMATIC', schematicCategoryId: { not: null } };
+    let where = { type: 'SCHEMATIC' };
 
     // Filter by user's troupe for Chef Troupe
     if (user.role === 'CHEF_TROUPE') {
       where.troupeId = user.troupeId;
     }
+
+    // Only count schematics whose category is in a set
+    const allSetCategoryIds = await prisma.categorySetItem.findMany({
+      select: { categoryId: true },
+    });
+    where.categoryId = { in: allSetCategoryIds.map(si => si.categoryId) };
 
     const [pending, approved, rejected, total] = await Promise.all([
       prisma.pictureSet.count({ where: { ...where, status: 'PENDING' } }),
@@ -889,62 +1216,60 @@ router.get(
   authorize('BRANCHE_ECLAIREURS', 'ADMIN'),
   async (req, res) => {
     try {
-      // Get all schematic categories grouped by setName
-      const categories = await prisma.schematicCategory.findMany({
-        orderBy: [{ setOrder: 'asc' }, { itemOrder: 'asc' }],
+      // Get all category sets with items
+      const categorySets = await prisma.categorySet.findMany({
+        orderBy: { displayOrder: 'asc' },
+        include: {
+          items: {
+            orderBy: { displayOrder: 'asc' },
+            include: {
+              category: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
       });
 
-      // Get counts for each category
-      const categoryStats = await Promise.all(
-        categories.map(async (cat) => {
+      // Get counts for each category in sets
+      const categoryStats = [];
+      for (const set of categorySets) {
+        for (const item of set.items) {
+          const catId = item.category.id;
           const [total, approved, pending, rejected] = await Promise.all([
             prisma.pictureSet.count({
-              where: {
-                type: 'SCHEMATIC',
-                schematicCategoryId: cat.id,
-              },
+              where: { type: 'SCHEMATIC', categoryId: catId },
             }),
             prisma.pictureSet.count({
-              where: {
-                type: 'SCHEMATIC',
-                schematicCategoryId: cat.id,
-                status: 'APPROVED',
-              },
+              where: { type: 'SCHEMATIC', categoryId: catId, status: 'APPROVED' },
             }),
             prisma.pictureSet.count({
-              where: {
-                type: 'SCHEMATIC',
-                schematicCategoryId: cat.id,
-                status: 'PENDING',
-              },
+              where: { type: 'SCHEMATIC', categoryId: catId, status: 'PENDING' },
             }),
             prisma.pictureSet.count({
-              where: {
-                type: 'SCHEMATIC',
-                schematicCategoryId: cat.id,
-                status: 'REJECTED',
-              },
+              where: { type: 'SCHEMATIC', categoryId: catId, status: 'REJECTED' },
             }),
           ]);
 
-          return {
-            id: cat.id,
-            setName: cat.setName,
-            itemName: cat.itemName,
-            setOrder: cat.setOrder,
-            itemOrder: cat.itemOrder,
+          categoryStats.push({
+            id: catId,
+            setName: set.name,
+            itemName: item.category.name,
+            setOrder: set.displayOrder,
+            itemOrder: item.displayOrder,
             total,
             approved,
             pending,
             rejected,
-          };
-        })
-      );
+          });
+        }
+      }
 
-      // Group by setName for easier display
-      const bySet = categoryStats.reduce((acc, cat) => {
-        if (!acc[cat.setName]) {
-          acc[cat.setName] = {
+      // Group by setName
+      const bySet = {};
+      for (const cat of categoryStats) {
+        if (!bySet[cat.setName]) {
+          bySet[cat.setName] = {
             setName: cat.setName,
             setOrder: cat.setOrder,
             items: [],
@@ -953,12 +1278,11 @@ router.get(
             totalPending: 0,
           };
         }
-        acc[cat.setName].items.push(cat);
-        acc[cat.setName].totalUploads += cat.total;
-        acc[cat.setName].totalApproved += cat.approved;
-        acc[cat.setName].totalPending += cat.pending;
-        return acc;
-      }, {});
+        bySet[cat.setName].items.push(cat);
+        bySet[cat.setName].totalUploads += cat.total;
+        bySet[cat.setName].totalApproved += cat.approved;
+        bySet[cat.setName].totalPending += cat.pending;
+      }
 
       const sets = Object.values(bySet).sort((a, b) => a.setOrder - b.setOrder);
 
