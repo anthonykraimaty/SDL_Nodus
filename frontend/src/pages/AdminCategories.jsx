@@ -339,6 +339,7 @@ const AdminCategories = () => {
         setSelectedCategory({ ...selectedCategory, name: updated.name });
       }
       loadCategories();
+      loadCategorySets();
     } catch (err) {
       setError(err.message);
     }

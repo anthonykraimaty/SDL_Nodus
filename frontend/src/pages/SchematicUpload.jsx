@@ -59,6 +59,11 @@ const SchematicUpload = () => {
   const [unclassified, setUnclassified] = useState([]);
   const [loadingUnclassified, setLoadingUnclassified] = useState(false);
 
+  // Classify modal for unclassified schematics
+  const [classifyModal, setClassifyModal] = useState({ open: false, schematic: null });
+  const [classifyModalCategory, setClassifyModalCategory] = useState('');
+  const [classifyModalExpandedSet, setClassifyModalExpandedSet] = useState(null);
+
   useEffect(() => {
     loadInitialData();
   }, [user]);
@@ -248,25 +253,36 @@ const SchematicUpload = () => {
     }
   };
 
-  const handleClassifyExisting = async (pictureSetId) => {
-    if (!formData.categoryId) {
-      setError('Please select a category first');
-      return;
+  const openClassifyModal = (schematic) => {
+    setClassifyModal({ open: true, schematic });
+    setClassifyModalCategory('');
+    setClassifyModalExpandedSet(null);
+    // Load progress for this schematic's patrouille if not already loaded
+    if (schematic.patrouilleId && schematic.patrouilleId !== parseInt(formData.patrouilleId)) {
+      loadPatrouilleProgress(schematic.patrouilleId);
     }
+  };
+
+  const handleClassifyModalSubmit = async () => {
+    if (!classifyModalCategory || !classifyModal.schematic) return;
 
     setClassifyLoading(true);
     setError('');
 
     try {
-      await schematicService.classify(pictureSetId, parseInt(formData.categoryId));
-      // Remove from unclassified list
-      setUnclassified(prev => prev.filter(s => s.id !== pictureSetId));
-      setFormData(prev => ({ ...prev, categoryId: '' }));
+      await schematicService.classify(classifyModal.schematic.id, parseInt(classifyModalCategory));
+      setUnclassified(prev => prev.filter(s => s.id !== classifyModal.schematic.id));
+      setClassifyModal({ open: false, schematic: null });
+      setClassifyModalCategory('');
     } catch (err) {
       setError(err.message || 'Failed to classify schematic');
     } finally {
       setClassifyLoading(false);
     }
+  };
+
+  const handleClassifyModalCategorySelect = (categoryId) => {
+    setClassifyModalCategory(String(categoryId));
   };
 
   const handleCancelUpload = () => {
@@ -830,9 +846,7 @@ const SchematicUpload = () => {
                     </div>
                     <button
                       className="btn-classify-small"
-                      onClick={() => handleClassifyExisting(schematic.id)}
-                      disabled={!formData.categoryId || classifyLoading}
-                      title={formData.categoryId ? 'Classify with selected category' : 'Select a category first'}
+                      onClick={() => openClassifyModal(schematic)}
                     >
                       Classify
                     </button>
@@ -874,6 +888,108 @@ const SchematicUpload = () => {
         <Modal.Actions>
           <button className="btn-primary" onClick={() => setShowTermsModal(false)}>
             Close
+          </button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* Classify Modal */}
+      <Modal
+        isOpen={classifyModal.open}
+        onClose={() => setClassifyModal({ open: false, schematic: null })}
+        title="Classify Schematic"
+        size="medium"
+      >
+        <Modal.Body>
+          {/* Show the schematic images */}
+          {classifyModal.schematic?.pictures && (
+            <div className="classify-modal-preview">
+              {classifyModal.schematic.pictures.slice(0, 3).map((pic) => {
+                const isPdf = pic.filePath?.toLowerCase().endsWith('.pdf');
+                return isPdf ? (
+                  <div key={pic.id} className="pdf-preview-thumb small">
+                    <span className="pdf-icon">PDF</span>
+                  </div>
+                ) : (
+                  <img
+                    key={pic.id}
+                    src={getImageUrl(pic.filePath)}
+                    alt="Schematic"
+                    className="classify-modal-thumb"
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          <p className="classify-modal-info">
+            <strong>{classifyModal.schematic?.patrouille?.name}</strong>
+            {' - '}
+            {classifyModal.schematic?.uploadedAt && new Date(classifyModal.schematic.uploadedAt).toLocaleDateString()}
+          </p>
+
+          {/* Category Selection */}
+          <div className="category-accordion">
+            {categories.map((set) => {
+              const isExpanded = classifyModalExpandedSet === set.setName;
+
+              return (
+                <div key={set.setName} className="category-set">
+                  <button
+                    type="button"
+                    className={`category-set-header ${isExpanded ? 'expanded' : ''}`}
+                    onClick={() =>
+                      setClassifyModalExpandedSet(isExpanded ? null : set.setName)
+                    }
+                  >
+                    <span className="set-name">{set.setName}</span>
+                    <span className="expand-icon">{isExpanded ? '\u25BC' : '\u25B6'}</span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="category-items">
+                      {set.items.map((item) => {
+                        const selected = classifyModalCategory === String(item.id);
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`category-item ${selected ? 'selected' : ''}`}
+                            onClick={() => handleClassifyModalCategorySelect(item.id)}
+                          >
+                            <span className="item-name">{item.itemName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {classifyModalCategory && (
+            <p className="field-help selected-category">
+              Selected:{' '}
+              {categories
+                .flatMap((s) => s.items)
+                .find((i) => String(i.id) === classifyModalCategory)
+                ?.itemName || 'Unknown'}
+            </p>
+          )}
+        </Modal.Body>
+        <Modal.Actions>
+          <button
+            className="primary"
+            onClick={handleClassifyModalSubmit}
+            disabled={!classifyModalCategory || classifyLoading}
+          >
+            {classifyLoading ? 'Classifying...' : 'Classify'}
+          </button>
+          <button
+            className="secondary"
+            onClick={() => setClassifyModal({ open: false, schematic: null })}
+          >
+            Cancel
           </button>
         </Modal.Actions>
       </Modal>
