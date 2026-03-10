@@ -30,8 +30,9 @@ const AdminCategories = () => {
   const [editingSet, setEditingSet] = useState(null);
   const [setForm, setSetForm] = useState({ name: '', displayOrder: 0 });
   const [expandedSets, setExpandedSets] = useState({});
-  const [addingItemToSet, setAddingItemToSet] = useState(null); // setId
-  const [addItemSearch, setAddItemSearch] = useState('');
+  const [addCategoryModal, setAddCategoryModal] = useState({ open: false, setId: null });
+  const [addCategorySearch, setAddCategorySearch] = useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState(new Set());
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(null);
 
   useEffect(() => {
@@ -134,21 +135,44 @@ const AdminCategories = () => {
     }
   };
 
-  const handleAddItemToSet = async (setId, categoryId) => {
+  const handleAddItemsToSet = async () => {
+    if (selectedCategoryIds.size === 0 || !addCategoryModal.setId) return;
     try {
       setError('');
-      const set = categorySets.find(s => s.id === setId);
-      const maxOrder = set?.items?.length || 0;
-      await categorySetService.addItem(setId, {
-        categoryId: parseInt(categoryId),
-        displayOrder: maxOrder,
-      });
-      setSuccess('Category added to set');
-      setAddingItemToSet(null);
+      const set = categorySets.find(s => s.id === addCategoryModal.setId);
+      let order = set?.items?.length || 0;
+      for (const categoryId of selectedCategoryIds) {
+        await categorySetService.addItem(addCategoryModal.setId, {
+          categoryId: parseInt(categoryId),
+          displayOrder: order++,
+        });
+      }
+      setSuccess(`${selectedCategoryIds.size} categor${selectedCategoryIds.size === 1 ? 'y' : 'ies'} added to set`);
+      setAddCategoryModal({ open: false, setId: null });
+      setSelectedCategoryIds(new Set());
+      setAddCategorySearch('');
       loadCategorySets();
     } catch (err) {
-      setError(err.message || 'Failed to add category to set');
+      setError(err.message || 'Failed to add categories to set');
     }
+  };
+
+  const toggleCategorySelection = (categoryId) => {
+    setSelectedCategoryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
+  const openAddCategoryModal = (setId) => {
+    setAddCategoryModal({ open: true, setId });
+    setSelectedCategoryIds(new Set());
+    setAddCategorySearch('');
   };
 
   const handleRemoveItemFromSet = async (setId, categoryId) => {
@@ -183,32 +207,6 @@ const AdminCategories = () => {
     const set = categorySets.find(s => s.id === setId);
     const usedCategoryIds = set?.items?.map(i => i.category?.id || i.categoryId) || [];
     return categories.filter(c => !usedCategoryIds.includes(c.id));
-  };
-
-  const handleToggleSchematic = async (categoryId, currentStatus) => {
-    try {
-      setError('');
-      setSuccess('');
-      const token = localStorage.getItem('token');
-
-      const response = await fetch(`${API_URL}/api/categories/${categoryId}/schematic`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          isSchematicEnabled: !currentStatus,
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to update category status');
-
-      setSuccess(`Category ${!currentStatus ? 'enabled' : 'disabled'} for schematics`);
-      loadCategories();
-    } catch (err) {
-      setError(err.message);
-    }
   };
 
   const handleAddCategory = async (e) => {
@@ -521,54 +519,12 @@ const AdminCategories = () => {
                           <p className="empty-items">No categories in this set yet</p>
                         )}
 
-                        {addingItemToSet === set.id ? (
-                          <div className="add-item-selector">
-                            <div className="add-item-search-wrapper">
-                              <input
-                                type="text"
-                                className="add-item-search"
-                                placeholder="Search categories..."
-                                value={addItemSearch}
-                                onChange={(e) => setAddItemSearch(e.target.value)}
-                                autoFocus
-                              />
-                              <button
-                                className="btn-cancel-small"
-                                onClick={() => { setAddingItemToSet(null); setAddItemSearch(''); }}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                            <div className="add-item-list">
-                              {getAvailableCategoriesForSet(set.id)
-                                .filter(cat => cat.name.toLowerCase().includes(addItemSearch.toLowerCase()))
-                                .sort((a, b) => a.name.localeCompare(b.name))
-                                .map((cat) => (
-                                  <button
-                                    key={cat.id}
-                                    className="add-item-option"
-                                    onClick={() => {
-                                      handleAddItemToSet(set.id, cat.id);
-                                      setAddItemSearch('');
-                                    }}
-                                  >
-                                    {cat.name}
-                                  </button>
-                                ))}
-                              {getAvailableCategoriesForSet(set.id)
-                                .filter(cat => cat.name.toLowerCase().includes(addItemSearch.toLowerCase())).length === 0 && (
-                                <p className="no-results">No matching categories</p>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            className="btn-add-item"
-                            onClick={() => setAddingItemToSet(set.id)}
-                          >
-                            + Add Category
-                          </button>
-                        )}
+                        <button
+                          className="btn-add-item"
+                          onClick={() => openAddCategoryModal(set.id)}
+                        >
+                          + Add Category
+                        </button>
                       </div>
                     )}
                   </div>
@@ -577,27 +533,6 @@ const AdminCategories = () => {
             )}
           </section>
 
-          {/* Schematics Section */}
-          <section className="category-section">
-            <h3>Schematics Upload</h3>
-            <p className="section-description">
-              Click to enable/disable categories for schematic uploads
-            </p>
-
-            <div className="schematic-categories-grid">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  className={`schematic-category-chip ${category.isSchematicEnabled ? 'enabled' : 'disabled'}`}
-                  onClick={() => handleToggleSchematic(category.id, category.isSchematicEnabled)}
-                  title={category.description || category.name}
-                >
-                  <span className="chip-name">{category.name}</span>
-                  <span className="chip-toggle">{category.isSchematicEnabled ? '\u2713' : '\u25CB'}</span>
-                </button>
-              ))}
-            </div>
-          </section>
         </div>
       </div>
 
@@ -864,6 +799,62 @@ const AdminCategories = () => {
             Delete Set
           </button>
           <button className="secondary" onClick={() => setDeleteSetConfirm(null)}>
+            Cancel
+          </button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* Add Categories to Set Modal */}
+      <Modal
+        isOpen={addCategoryModal.open}
+        onClose={() => { setAddCategoryModal({ open: false, setId: null }); setSelectedCategoryIds(new Set()); setAddCategorySearch(''); }}
+        title="Add Categories to Set"
+        size="medium"
+      >
+        <Modal.Body>
+          <input
+            type="text"
+            className="add-category-modal-search"
+            placeholder="Search categories..."
+            value={addCategorySearch}
+            onChange={(e) => setAddCategorySearch(e.target.value)}
+            autoFocus
+          />
+          <div className="add-category-modal-list">
+            {addCategoryModal.setId && getAvailableCategoriesForSet(addCategoryModal.setId)
+              .filter(cat => cat.name.toLowerCase().includes(addCategorySearch.toLowerCase()))
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((cat) => (
+                <label key={cat.id} className="add-category-checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategoryIds.has(cat.id)}
+                    onChange={() => toggleCategorySelection(cat.id)}
+                  />
+                  <span>{cat.name}</span>
+                </label>
+              ))}
+            {addCategoryModal.setId && getAvailableCategoriesForSet(addCategoryModal.setId)
+              .filter(cat => cat.name.toLowerCase().includes(addCategorySearch.toLowerCase())).length === 0 && (
+              <p className="no-results">No matching categories</p>
+            )}
+          </div>
+          {selectedCategoryIds.size > 0 && (
+            <p className="selected-count">{selectedCategoryIds.size} categor{selectedCategoryIds.size === 1 ? 'y' : 'ies'} selected</p>
+          )}
+        </Modal.Body>
+        <Modal.Actions>
+          <button
+            className="primary"
+            onClick={handleAddItemsToSet}
+            disabled={selectedCategoryIds.size === 0}
+          >
+            Add Selected
+          </button>
+          <button
+            className="secondary"
+            onClick={() => { setAddCategoryModal({ open: false, setId: null }); setSelectedCategoryIds(new Set()); setAddCategorySearch(''); }}
+          >
             Cancel
           </button>
         </Modal.Actions>
