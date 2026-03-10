@@ -619,6 +619,45 @@
 .cdm-stat.rejected .cdm-stat-value { color: #F44336; }
 .cdm-stat.recent .cdm-stat-value { color: var(--accent-dark); }
 
+/* Rename */
+.cdm-rename {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cdm-rename-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.cdm-rename-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn-rename-save {
+  padding: 10px 16px;
+  background: var(--gradient-accent);
+  color: var(--primary-dark);
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-rename-save:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(212, 165, 116, 0.4);
+}
+
 /* Settings - Simple Checkboxes */
 .cdm-settings {
   display: flex;
@@ -946,18 +985,65 @@
 
 .add-item-selector {
   display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.add-item-search-wrapper {
+  display: flex;
   gap: var(--spacing-sm);
   align-items: center;
 }
 
-.add-item-selector select {
+.add-item-search {
   flex: 1;
   padding: var(--spacing-sm) var(--spacing-md);
   background-color: var(--bg-dark);
-  border: 2px solid var(--border);
+  border: 2px solid var(--accent);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 0.9rem;
+  outline: none;
+}
+
+.add-item-search::placeholder {
+  color: var(--text-muted);
+}
+
+.add-item-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.add-item-option {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: background 0.15s ease;
+}
+
+.add-item-option:hover {
+  background: rgba(212, 165, 116, 0.2);
+  color: var(--accent);
+}
+
+.add-item-list .no-results {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .btn-cancel-small {

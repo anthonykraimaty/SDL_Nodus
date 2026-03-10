@@ -31,6 +31,7 @@ const AdminCategories = () => {
   const [setForm, setSetForm] = useState({ name: '', displayOrder: 0 });
   const [expandedSets, setExpandedSets] = useState({});
   const [addingItemToSet, setAddingItemToSet] = useState(null); // setId
+  const [addItemSearch, setAddItemSearch] = useState('');
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(null);
 
   useEffect(() => {
@@ -307,6 +308,44 @@ const AdminCategories = () => {
     }
   };
 
+  const [renamingCategory, setRenamingCategory] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const handleRenameCategory = async () => {
+    if (!renamingCategory || !renameValue.trim()) return;
+
+    try {
+      setError('');
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${API_URL}/api/categories/${renamingCategory.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to rename category');
+      }
+
+      const updated = await response.json();
+      setSuccess(`Category renamed to "${updated.name}"`);
+      setRenamingCategory(null);
+      setRenameValue('');
+      // Update selectedCategory if it's the same one
+      if (selectedCategory?.id === updated.id) {
+        setSelectedCategory({ ...selectedCategory, name: updated.name });
+      }
+      loadCategories();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleUpdateCategorySettings = async (setting, value) => {
     if (!selectedCategory) return;
 
@@ -484,25 +523,43 @@ const AdminCategories = () => {
 
                         {addingItemToSet === set.id ? (
                           <div className="add-item-selector">
-                            <select
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  handleAddItemToSet(set.id, e.target.value);
-                                }
-                              }}
-                              defaultValue=""
-                            >
-                              <option value="" disabled>Select a category to add...</option>
-                              {getAvailableCategoriesForSet(set.id).map((cat) => (
-                                <option key={cat.id} value={cat.id}>{cat.name}</option>
-                              ))}
-                            </select>
-                            <button
-                              className="btn-cancel-small"
-                              onClick={() => setAddingItemToSet(null)}
-                            >
-                              Cancel
-                            </button>
+                            <div className="add-item-search-wrapper">
+                              <input
+                                type="text"
+                                className="add-item-search"
+                                placeholder="Search categories..."
+                                value={addItemSearch}
+                                onChange={(e) => setAddItemSearch(e.target.value)}
+                                autoFocus
+                              />
+                              <button
+                                className="btn-cancel-small"
+                                onClick={() => { setAddingItemToSet(null); setAddItemSearch(''); }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            <div className="add-item-list">
+                              {getAvailableCategoriesForSet(set.id)
+                                .filter(cat => cat.name.toLowerCase().includes(addItemSearch.toLowerCase()))
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map((cat) => (
+                                  <button
+                                    key={cat.id}
+                                    className="add-item-option"
+                                    onClick={() => {
+                                      handleAddItemToSet(set.id, cat.id);
+                                      setAddItemSearch('');
+                                    }}
+                                  >
+                                    {cat.name}
+                                  </button>
+                                ))}
+                              {getAvailableCategoriesForSet(set.id)
+                                .filter(cat => cat.name.toLowerCase().includes(addItemSearch.toLowerCase())).length === 0 && (
+                                <p className="no-results">No matching categories</p>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <button
@@ -654,6 +711,41 @@ const AdminCategories = () => {
                 </div>
               </div>
             ) : null}
+          </div>
+
+          {/* Rename */}
+          <div className="cdm-section">
+            <div className="cdm-label">Rename</div>
+            <div className="cdm-rename">
+              <input
+                type="text"
+                value={renamingCategory?.id === selectedCategory?.id ? renameValue : selectedCategory?.name || ''}
+                onChange={(e) => {
+                  if (renamingCategory?.id !== selectedCategory?.id) {
+                    setRenamingCategory(selectedCategory);
+                    setRenameValue(e.target.value);
+                  } else {
+                    setRenameValue(e.target.value);
+                  }
+                }}
+                onFocus={() => {
+                  if (renamingCategory?.id !== selectedCategory?.id) {
+                    setRenamingCategory(selectedCategory);
+                    setRenameValue(selectedCategory?.name || '');
+                  }
+                }}
+                placeholder="Category name"
+                className="cdm-rename-input"
+              />
+              {renamingCategory?.id === selectedCategory?.id && renameValue.trim() && renameValue.trim() !== selectedCategory?.name && (
+                <button
+                  className="btn-rename-save"
+                  onClick={handleRenameCategory}
+                >
+                  Save
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Settings */}
