@@ -233,7 +233,7 @@ const AdminUsers = () => {
       }
 
       if (editingUser) {
-        await fetch(`${API_URL}/api/admin/users/${editingUser.id}`, {
+        const response = await fetch(`${API_URL}/api/admin/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -241,13 +241,18 @@ const AdminUsers = () => {
           },
           body: JSON.stringify(data),
         });
+        const result = await response.json();
+        if (!response.ok) {
+          setError(result.error || 'Failed to update user');
+          return;
+        }
         setSuccess('User updated successfully!');
       } else {
         if (!userForm.password) {
           setError('Password is required for new users');
           return;
         }
-        await fetch(`${API_URL}/api/admin/users`, {
+        const response = await fetch(`${API_URL}/api/admin/users`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -255,6 +260,11 @@ const AdminUsers = () => {
           },
           body: JSON.stringify(data),
         });
+        const result = await response.json();
+        if (!response.ok) {
+          setError(result.error || 'Failed to create user');
+          return;
+        }
         setSuccess('User created successfully!');
       }
 

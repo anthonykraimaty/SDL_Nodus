@@ -129,9 +129,18 @@ router.post('/users', authenticate, authorize('ADMIN'), sensitiveLimiter, async 
       isActive: isActive !== undefined ? isActive : true,
     };
 
-    // Add troupeId if provided
+    // Require troupeId for CHEF_TROUPE
+    if (role === 'CHEF_TROUPE' && !troupeId) {
+      return res.status(400).json({ error: 'Troupe is required for Chef Troupe role' });
+    }
+
+    // Validate and add troupeId if provided
     if (troupeId) {
-      userData.troupeId = parseInt(troupeId);
+      const troupe = await prisma.troupe.findUnique({ where: { id: parseInt(troupeId) } });
+      if (!troupe) {
+        return res.status(400).json({ error: 'Selected troupe does not exist' });
+      }
+      userData.troupeId = troupe.id;
     }
 
     const newUser = await prisma.user.create({
@@ -198,9 +207,26 @@ router.put('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, asy
       updateData.password = await hashPassword(password);
     }
 
-    // Handle troupeId
+    // Require troupeId for CHEF_TROUPE
+    const effectiveRole = role || existingUser.role;
+    if (effectiveRole === 'CHEF_TROUPE' && troupeId !== undefined && !troupeId) {
+      return res.status(400).json({ error: 'Troupe is required for Chef Troupe role' });
+    }
+    if (effectiveRole === 'CHEF_TROUPE' && troupeId === undefined && !existingUser.troupeId) {
+      return res.status(400).json({ error: 'Troupe is required for Chef Troupe role' });
+    }
+
+    // Validate and handle troupeId
     if (troupeId !== undefined) {
-      updateData.troupeId = troupeId ? parseInt(troupeId) : null;
+      if (troupeId) {
+        const troupe = await prisma.troupe.findUnique({ where: { id: parseInt(troupeId) } });
+        if (!troupe) {
+          return res.status(400).json({ error: 'Selected troupe does not exist' });
+        }
+        updateData.troupeId = troupe.id;
+      } else {
+        updateData.troupeId = null;
+      }
     }
 
     const updatedUser = await prisma.user.update({
