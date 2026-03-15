@@ -41,8 +41,8 @@ const ReviewQueue = () => {
       setLoading(true);
       // Load sets with classified pictures (PENDING or CLASSIFIED status)
       const [classifiedData, rejectedData] = await Promise.all([
-        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'classified' }),
-        pictureService.getAll({ status: 'REJECTED', type: 'INSTALLATION_PHOTO' })
+        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'classified', limit: 1000 }),
+        pictureService.getAll({ status: 'REJECTED', type: 'INSTALLATION_PHOTO', limit: 1000 })
       ]);
 
       // Filter to show only classified pictures within each set, track unclassified count and IDs

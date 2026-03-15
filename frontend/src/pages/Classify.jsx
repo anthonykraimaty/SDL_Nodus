@@ -49,7 +49,7 @@ const Classify = () => {
       setLoading(true);
       // Load sets with unclassified pictures (PENDING or CLASSIFIED status)
       const [pictureSetsData, categoriesData] = await Promise.all([
-        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'unclassified' }),
+        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'unclassified', limit: 1000 }),
         categoryService.getAll({}),
       ]);
 
