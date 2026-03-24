@@ -6,6 +6,16 @@ const prisma = new PrismaClient();
 
 const BASE_URL = process.env.CLIENT_URL || 'https://nodus.scoutsduliban.org';
 
+function escapeXml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 // GET /api/sitemap.xml - Generate XML sitemap for SEO
 router.get('/sitemap.xml', async (req, res) => {
   try {
@@ -105,6 +115,64 @@ router.get('/sitemap.xml', async (req, res) => {
 `;
     }
 
+    // Add individual approved photo pages with image sitemap entries
+    const approvedPictures = await prisma.picture.findMany({
+      where: {
+        isArchived: false,
+        pictureSet: { status: 'APPROVED' },
+      },
+      select: {
+        id: true,
+        filePath: true,
+        caption: true,
+        categoryId: true,
+        updatedAt: true,
+        pictureSet: {
+          select: {
+            location: true,
+            categoryId: true,
+            troupe: {
+              select: {
+                name: true,
+                group: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 5000,
+    });
+
+    for (const pic of approvedPictures) {
+      const catId = pic.categoryId || pic.pictureSet?.categoryId;
+      if (!catId) continue;
+
+      const pageUrl = `${BASE_URL}/category/${catId}/photo/${pic.id}`;
+      const imageUrl = `${BASE_URL}/${pic.filePath}`;
+      const lastMod = new Date(pic.updatedAt).toISOString().split('T')[0];
+      const altParts = [
+        pic.caption,
+        pic.pictureSet?.troupe?.group?.name,
+        pic.pictureSet?.troupe?.name,
+        pic.pictureSet?.location,
+        'Scouts du Liban',
+      ].filter(Boolean);
+      const altText = escapeXml(altParts.join(' - '));
+
+      sitemap += `  <url>
+    <loc>${pageUrl}</loc>
+    <lastmod>${lastMod}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+    <image:image>
+      <image:loc>${imageUrl}</image:loc>
+      <image:caption>${altText}</image:caption>
+    </image:image>
+  </url>
+`;
+    }
+
     sitemap += `</urlset>`;
 
     res.set('Content-Type', 'application/xml');
@@ -122,6 +190,7 @@ User-agent: *
 Allow: /
 Allow: /browse
 Allow: /category/
+Allow: /category/*/photo/
 
 # Disallow admin and authenticated pages
 Disallow: /admin

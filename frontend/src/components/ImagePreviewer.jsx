@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getImageUrl } from '../config/api';
 import { pictureService } from '../services/api';
+import { getImageAlt } from '../utils/imageAlt';
 import ConfirmModal from './ConfirmModal';
 import ImageEditor from './ImageEditor';
 import './ImagePreviewer.css';
@@ -9,6 +10,8 @@ const ImagePreviewer = ({
   pictures,
   initialIndex = 0,
   onClose,
+  onPictureChange = null,
+  category = null,
   user = null,
   categories = [],
   onPictureUpdate = null,
@@ -73,6 +76,13 @@ const ImagePreviewer = ({
     setIsImageEditing(false);
     setEditError('');
     setArchiveError('');
+  }, [currentIndex]);
+
+  // Notify parent of picture change for URL sync
+  useEffect(() => {
+    if (onPictureChange && pictures[currentIndex]) {
+      onPictureChange(pictures[currentIndex].id);
+    }
   }, [currentIndex]);
 
   // Initialize edit values when entering edit mode
@@ -414,7 +424,7 @@ const ImagePreviewer = ({
         >
           <img
             src={getImageUrl(currentPicture.filePath) + (imageVersion ? `?v=${imageVersion}` : '')}
-            alt={currentPicture.caption || `Picture ${currentIndex + 1}`}
+            alt={getImageAlt(currentPicture, category)}
             style={{ transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` }}
             className="previewer-image"
             onLoad={handleImageLoad}

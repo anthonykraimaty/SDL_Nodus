@@ -90,6 +90,7 @@ function App() {
             <Route index element={<Landing />} />
             <Route path="browse" element={<Browse />} />
             <Route path="category/:categoryId" element={<CategoryView />} />
+            <Route path="category/:categoryId/photo/:pictureId" element={<CategoryView />} />
             <Route path="schematics" element={<SchematicProgress />} />
             <Route path="login" element={<Login />} />
             <Route path="share-target" element={<ShareTarget />} />

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { API_URL, getImageUrl } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, categoryService, designGroupService } from '../services/api';
@@ -9,10 +9,12 @@ import DesignGroupStack from '../components/DesignGroupStack';
 import DesignGroupModal from '../components/DesignGroupModal';
 import Modal from '../components/Modal';
 import SEO from '../components/SEO';
+import { getImageAlt, buildPhotoTitle, buildPhotoDescription, buildPhotoKeywords } from '../utils/imageAlt';
 import './CategoryView.css';
 
 const CategoryView = () => {
-  const { categoryId } = useParams();
+  const { categoryId, pictureId } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get('type') || '';
   const { user } = useAuth();
@@ -77,6 +79,16 @@ const CategoryView = () => {
     loadCategoryPictures();
   }, [categoryId, typeFilter, sortBy, sortOrder, viewMode]);
 
+  // Auto-open previewer when pictureId is in the URL (shared link)
+  useEffect(() => {
+    if (pictureId && pictures.length > 0 && !loading) {
+      const index = pictures.findIndex(p => String(p.id) === String(pictureId));
+      if (index !== -1) {
+        setSelectedPictureIndex(index);
+      }
+    }
+  }, [pictureId, pictures, loading]);
+
   const loadCategoryPictures = async (filters = {}) => {
     try {
       setLoading(true);
@@ -136,11 +148,19 @@ const CategoryView = () => {
 
   const handlePictureClick = (index) => {
     setSelectedPictureIndex(index);
+    if (pictures[index]) {
+      navigate(`/category/${categoryId}/photo/${pictures[index].id}`, { replace: true });
+    }
   };
 
   const handleClosePreviewer = () => {
     setSelectedPictureIndex(null);
+    navigate(`/category/${categoryId}`, { replace: true });
   };
+
+  const handlePictureChange = useCallback((newPictureId) => {
+    navigate(`/category/${categoryId}/photo/${newPictureId}`, { replace: true });
+  }, [navigate, categoryId]);
 
   const handleApplyFilters = () => {
     loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
@@ -349,41 +369,80 @@ const CategoryView = () => {
     );
   }
 
-  // Generate descriptive alt text for images
-  const getImageAlt = (picture, index) => {
-    const parts = [];
-
-    if (category?.name) parts.push(category.name);
-    if (picture.troupe?.group?.district?.name) parts.push(picture.troupe.group.district.name);
-    if (picture.troupe?.group?.name) parts.push(picture.troupe.group.name);
-    if (picture.troupe?.name) parts.push(picture.troupe.name);
-    if (picture.pictureSet?.location) parts.push(picture.pictureSet.location);
-
-    if (parts.length === 0) {
-      return `Installation scout - Photo ${index + 1} - Scouts du Liban`;
-    }
-
-    return `${parts.join(' - ')} - Scouts du Liban`;
-  };
-
   // First picture for OG image
   const firstPicture = pictures[0];
   const ogImage = firstPicture ? getImageUrl(firstPicture.filePath) : null;
 
-  // SEO description
+  // SEO description for category page
   const seoDescription = category
     ? `${pictures.length} photos d'installations ${category.name} des Scouts du Liban. Découvrez les constructions et aménagements de camp scout.`
     : 'Photos d\'installations scoutes des Scouts du Liban';
 
+  // Selected photo for SEO
+  const selectedPhoto = selectedPictureIndex !== null ? pictures[selectedPictureIndex] : null;
+
+  // Base URL for absolute URLs in structured data
+  const baseUrl = 'https://nodus.scoutsduliban.org';
+
+  // JSON-LD structured data
+  const jsonLd = selectedPhoto
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'ImageObject',
+        name: buildPhotoTitle(selectedPhoto, category),
+        description: buildPhotoDescription(selectedPhoto, category),
+        contentUrl: getImageUrl(selectedPhoto.filePath),
+        thumbnailUrl: getImageUrl(selectedPhoto.filePath),
+        url: `${baseUrl}/category/${categoryId}/photo/${selectedPhoto.id}`,
+        author: { '@type': 'Organization', name: 'Scouts du Liban' },
+        ...(selectedPhoto.troupe?.group?.name && {
+          creator: { '@type': 'Organization', name: selectedPhoto.troupe.group.name },
+        }),
+        ...(selectedPhoto.pictureSet?.uploadedAt && {
+          datePublished: selectedPhoto.pictureSet.uploadedAt,
+        }),
+        contentLocation: {
+          '@type': 'Place',
+          name: selectedPhoto.pictureSet?.location || 'Liban',
+        },
+        isPartOf: {
+          '@type': 'ImageGallery',
+          name: category?.name,
+          url: `${baseUrl}/category/${categoryId}`,
+        },
+      }
+    : {
+        '@context': 'https://schema.org',
+        '@type': 'ImageGallery',
+        name: category?.name,
+        description: seoDescription,
+        url: `${baseUrl}/category/${categoryId}`,
+        numberOfItems: pictures.length,
+        image: pictures.slice(0, 10).map(p => getImageUrl(p.filePath)),
+      };
+
   return (
     <div className="category-view">
-      <SEO
-        title={category?.name ? `${category.name} - Installations Scoutes` : 'Catégorie'}
-        description={seoDescription}
-        image={ogImage}
-        url={`/category/${categoryId}`}
-        keywords={[category?.name, 'installations scoutes', 'photos camp', 'constructions scoutes'].filter(Boolean)}
-      />
+      {selectedPhoto ? (
+        <SEO
+          title={buildPhotoTitle(selectedPhoto, category)}
+          description={buildPhotoDescription(selectedPhoto, category)}
+          image={getImageUrl(selectedPhoto.filePath)}
+          url={`/category/${categoryId}/photo/${selectedPhoto.id}`}
+          type="article"
+          keywords={buildPhotoKeywords(selectedPhoto, category)}
+          jsonLd={jsonLd}
+        />
+      ) : (
+        <SEO
+          title={category?.name ? `${category.name} - Installations Scoutes` : 'Catégorie'}
+          description={seoDescription}
+          image={ogImage}
+          url={`/category/${categoryId}`}
+          keywords={[category?.name, 'installations scoutes', 'photos camp', 'constructions scoutes'].filter(Boolean)}
+          jsonLd={jsonLd}
+        />
+      )}
       <div className="container">
         {/* Header */}
         <header className="category-header">
@@ -690,13 +749,13 @@ const CategoryView = () => {
                   onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(pictureIndex)}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Voir ${getImageAlt(picture, pictureIndex)}`}
+                  aria-label={`Voir ${getImageAlt(picture, category)}`}
                   onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(pictureIndex))}
                 >
                   <figure className="thumbnail-image">
                     <img
                       src={getImageUrl(picture.filePath)}
-                      alt={getImageAlt(picture, pictureIndex)}
+                      alt={getImageAlt(picture, category)}
                       loading="lazy"
                     />
 
@@ -760,13 +819,13 @@ const CategoryView = () => {
                 onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index)}
                 role="button"
                 tabIndex={0}
-                aria-label={`Voir ${getImageAlt(picture, index)}`}
+                aria-label={`Voir ${getImageAlt(picture, category)}`}
                 onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index))}
               >
                 <figure className="thumbnail-image">
                   <img
                     src={getImageUrl(picture.filePath)}
-                    alt={getImageAlt(picture, index)}
+                    alt={getImageAlt(picture, category)}
                     loading="lazy"
                   />
 
@@ -824,6 +883,8 @@ const CategoryView = () => {
           pictures={pictures}
           initialIndex={selectedPictureIndex}
           onClose={handleClosePreviewer}
+          onPictureChange={handlePictureChange}
+          category={category}
           user={user}
           categories={allCategories}
           onPictureUpdate={handlePictureUpdate}

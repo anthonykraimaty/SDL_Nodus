@@ -8,6 +8,7 @@ const SEO = ({
   type = 'website',
   keywords = [],
   noIndex = false,
+  jsonLd = null,
 }) => {
   const siteName = 'Nodus - Scouts du Liban';
   const defaultDescription = 'Plateforme de partage de photos d\'installations scoutes. Parcourez et partagez des photos de camps, constructions et installations des Scouts du Liban.';
@@ -67,6 +68,13 @@ const SEO = ({
       <meta name="author" content="Scouts du Liban" />
       <meta name="language" content="French" />
       <meta httpEquiv="content-language" content="fr" />
+
+      {/* JSON-LD Structured Data */}
+      {jsonLd && (
+        <script type="application/ld+json">
+          {JSON.stringify(jsonLd)}
+        </script>
+      )}
     </Helmet>
   );
 };
