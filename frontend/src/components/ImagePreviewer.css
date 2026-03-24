@@ -315,6 +315,32 @@
   transform: scale(1.05);
 }
 
+/* Archive Button */
+.previewer-archive-btn {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(220, 53, 69, 0.85);
+  border: none;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.previewer-archive-btn:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 1);
+}
+
+.previewer-archive-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Edit Form */
 .previewer-edit-form {
   color: white;
@@ -502,6 +528,14 @@
     top: 10px;
     right: 10px;
   }
+
+  /* Move archive button for landscape */
+  .layout-landscape .previewer-archive-btn {
+    position: absolute;
+    bottom: auto;
+    top: 10px;
+    left: 10px;
+  }
 }
 
 /* Responsive Design - Mobile always uses bottom layout regardless of orientation */
@@ -546,6 +580,13 @@
     top: auto;
     bottom: 10px;
     right: 10px;
+  }
+
+  .layout-landscape .previewer-archive-btn {
+    position: absolute;
+    top: auto;
+    bottom: 10px;
+    left: 10px;
   }
 
   .previewer-close {

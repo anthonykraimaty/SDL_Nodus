@@ -121,6 +121,43 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
+/* Remove from group button */
+.design-group-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(244, 67, 54, 0.85);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.design-group-picture:hover .design-group-remove-btn {
+  opacity: 1;
+}
+
+.design-group-remove-btn:hover {
+  background: #d32f2f;
+  transform: scale(1.1);
+}
+
+.design-group-remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Picture overlay */
 .picture-overlay {
   position: absolute;

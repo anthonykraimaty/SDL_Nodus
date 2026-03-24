@@ -864,13 +864,19 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     }
   };
 
-  // Get mouse position relative to canvas
+  // Get mouse/touch position relative to canvas
   const getMousePos = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
+    // Support touch events: use first touch point if available
+    const clientX = e.touches ? e.touches[0].clientX : (e.changedTouches ? e.changedTouches[0].clientX : e.clientX);
+    const clientY = e.touches ? e.touches[0].clientY : (e.changedTouches ? e.changedTouches[0].clientY : e.clientY);
+    // Account for canvas CSS scaling vs actual canvas size
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   };
 
@@ -1266,6 +1272,28 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
     setIsDragging(false);
     setActiveHandle(null);
+  };
+
+  // Touch event handlers for mobile support
+  const handleTouchStart = (e) => {
+    if (isCropping || isBlurring || isHealing) {
+      e.preventDefault();
+    }
+    handleMouseDown(e);
+  };
+
+  const handleTouchMove = (e) => {
+    if (isCropping || isBlurring || isHealing) {
+      e.preventDefault();
+    }
+    handleMouseMove(e);
+  };
+
+  const handleTouchEnd = (e) => {
+    if (isCropping || isBlurring || isHealing) {
+      e.preventDefault();
+    }
+    handleMouseUp();
   };
 
   // Double-click handler to remove blur regions
@@ -1860,6 +1888,9 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           onDoubleClick={handleDoubleClick}
         />
       </div>

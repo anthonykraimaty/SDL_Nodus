@@ -179,7 +179,13 @@ const Classify = () => {
         setConfirmAction(null);
         try {
           await pictureService.archivePicture(setId, pictureId);
-          await loadData();
+          setPictureSets(prev => prev
+            .map(s => s.id === setId ? { ...s, pictures: s.pictures.filter(p => p.id !== pictureId) } : s)
+            .filter(s => s.pictures.length > 0)
+          );
+          setClassificationData(prev => { const next = { ...prev }; delete next[pictureId]; return next; });
+          setSelectedPictures(prev => { const next = new Set(prev); next.delete(`${setId}:${pictureId}`); return next; });
+          addToast('Picture archived', 'success');
         } catch (err) {
           console.error('Archive error:', err);
           setError(err.message || 'Failed to archive picture');
@@ -197,12 +203,29 @@ const Classify = () => {
       onConfirm: async () => {
         setConfirmAction(null);
         try {
+          const archivedKeys = new Set();
           for (const key of selectedPictures) {
             const [setId, pictureId] = key.split(':');
             await pictureService.archivePicture(parseInt(setId), parseInt(pictureId));
+            archivedKeys.add(key);
           }
+          const archivedBySet = {};
+          for (const key of archivedKeys) {
+            const [setId, pictureId] = key.split(':');
+            if (!archivedBySet[setId]) archivedBySet[setId] = new Set();
+            archivedBySet[setId].add(parseInt(pictureId));
+          }
+          setPictureSets(prev => prev
+            .map(s => archivedBySet[s.id] ? { ...s, pictures: s.pictures.filter(p => !archivedBySet[s.id].has(p.id)) } : s)
+            .filter(s => s.pictures.length > 0)
+          );
+          setClassificationData(prev => {
+            const next = { ...prev };
+            for (const key of archivedKeys) { delete next[parseInt(key.split(':')[1])]; }
+            return next;
+          });
           setSelectedPictures(new Set());
-          await loadData();
+          addToast(`${archivedKeys.size} picture(s) archived`, 'success');
         } catch (err) {
           console.error('Bulk archive error:', err);
           setError(err.message || 'Failed to archive pictures');

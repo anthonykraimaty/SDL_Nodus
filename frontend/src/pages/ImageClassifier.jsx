@@ -117,7 +117,15 @@ const ImageClassifier = () => {
         setConfirmAction(null);
         try {
           await pictureService.archivePicture(id, pictureId);
-          await loadData();
+          const remaining = pictureSet.pictures.filter(p => p.id !== pictureId);
+          if (remaining.length === 0) {
+            navigate('/classify');
+            return;
+          }
+          setPictureSet(prev => ({ ...prev, pictures: remaining }));
+          setClassificationData(prev => { const next = { ...prev }; delete next[pictureId]; return next; });
+          setSelectedPictures(prev => { const next = new Set(prev); next.delete(pictureId); return next; });
+          addToast('Picture archived', 'success');
         } catch (err) {
           console.error('Archive error:', err);
           setError(err.message || 'Failed to archive picture');

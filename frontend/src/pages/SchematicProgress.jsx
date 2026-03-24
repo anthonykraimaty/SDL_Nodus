@@ -14,7 +14,6 @@ const SchematicProgress = () => {
 
   const [view, setView] = useState('troupe'); // 'troupe', 'all', 'detail', 'gallery'
   const [troupeProgress, setTroupeProgress] = useState(null);
-  const [allProgress, setAllProgress] = useState(null);
   const [detailProgress, setDetailProgress] = useState(null);
   const [categoryStats, setCategoryStats] = useState(null);
   const [expandedCategorySets, setExpandedCategorySets] = useState({});
@@ -23,13 +22,20 @@ const SchematicProgress = () => {
   const [error, setError] = useState('');
   const [expandedSets, setExpandedSets] = useState({});
 
-  // Org filters for Branche/Admin "all" view
+  // Grouped view state for Branche/Admin "all" view
+  const [groupedData, setGroupedData] = useState(null);
+  const [expandedDistricts, setExpandedDistricts] = useState(new Set());
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
   const [districts, setDistricts] = useState([]);
   const [groups, setGroups] = useState([]);
   const [allFilters, setAllFilters] = useState({
     districtId: '',
     groupId: '',
   });
+  const [sortBy, setSortBy] = useState('completion');
+  const [sortDir, setSortDir] = useState('desc');
+  const [searchText, setSearchText] = useState('');
+  const [searchDebounce, setSearchDebounce] = useState(null);
 
   // Gallery state
   const [gallerySchematics, setGallerySchematics] = useState([]);
@@ -75,7 +81,7 @@ const SchematicProgress = () => {
       loadTroupeProgress(user.troupeId);
     } else if (['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role)) {
       setView('all');
-      loadAllProgress();
+      loadGroupedProgress();
       loadCategoryStats();
       loadOrgData();
     } else {
@@ -115,14 +121,24 @@ const SchematicProgress = () => {
     }
   };
 
-  const loadAllProgress = async (filters = {}) => {
+  const loadGroupedProgress = async (filters = {}, sort = {}) => {
     try {
       setLoading(true);
       const params = {};
       if (filters.districtId) params.districtId = filters.districtId;
       if (filters.groupId) params.groupId = filters.groupId;
-      const data = await schematicService.getAllProgress(params);
-      setAllProgress(data);
+      if (filters.search) params.search = filters.search;
+      params.sortBy = sort.sortBy || sortBy;
+      params.sortDir = sort.sortDir || sortDir;
+      const data = await schematicService.getGroupedProgress(params);
+      setGroupedData(data);
+      // Expand all districts and groups by default
+      if (data.districts) {
+        setExpandedDistricts(new Set(data.districts.map(d => d.id)));
+        const allGroupIds = new Set();
+        data.districts.forEach(d => d.groups.forEach(g => allGroupIds.add(g.id)));
+        setExpandedGroups(allGroupIds);
+      }
     } catch (err) {
       setError('Failed to load progress data');
       console.error(err);
@@ -256,7 +272,7 @@ const SchematicProgress = () => {
       loadTroupeProgress(user.troupeId);
     } else {
       setView('all');
-      loadAllProgress();
+      loadGroupedProgress();
     }
   };
 
@@ -265,7 +281,7 @@ const SchematicProgress = () => {
     if (newView === 'troupe' && user?.troupeId) {
       loadTroupeProgress(user.troupeId);
     } else if (newView === 'all') {
-      loadAllProgress(allFilters);
+      loadGroupedProgress(allFilters);
       loadCategoryStats();
       loadOrgData();
     } else if (newView === 'gallery') {
@@ -274,7 +290,7 @@ const SchematicProgress = () => {
     }
   };
 
-  if (loading && !troupeProgress && !allProgress && !detailProgress && gallerySchematics.length === 0) {
+  if (loading && !troupeProgress && !groupedData && !detailProgress && gallerySchematics.length === 0) {
     return (
       <div className="container loading-container">
         <div className="spinner"></div>
@@ -402,73 +418,118 @@ const SchematicProgress = () => {
           </div>
         )}
 
-        {/* All Patrouilles View */}
-        {view === 'all' && allProgress && (
+        {/* All Patrouilles View - Grouped by District/Group */}
+        {view === 'all' && groupedData && (
           <div className="all-progress">
-            {/* District/Group Filters */}
-            <div className="org-filters">
-              <div className="filter-group">
-                <label>District</label>
-                <select
-                  value={allFilters.districtId}
-                  onChange={(e) => {
-                    const newFilters = { districtId: e.target.value, groupId: '' };
-                    setAllFilters(newFilters);
-                    loadAllProgress(newFilters);
-                  }}
-                >
-                  <option value="">All Districts</option>
-                  {districts.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+            {/* Toolbar: Filters + Search + Sort */}
+            <div className="grouped-toolbar">
+              <div className="toolbar-filters">
+                <div className="filter-group">
+                  <label>District</label>
+                  <select
+                    value={allFilters.districtId}
+                    onChange={(e) => {
+                      const newFilters = { districtId: e.target.value, groupId: '', search: searchText };
+                      setAllFilters({ districtId: e.target.value, groupId: '' });
+                      loadGroupedProgress(newFilters);
+                    }}
+                  >
+                    <option value="">All Districts</option>
+                    {districts.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>Group</label>
+                  <select
+                    value={allFilters.groupId}
+                    onChange={(e) => {
+                      const newFilters = { ...allFilters, groupId: e.target.value, search: searchText };
+                      setAllFilters(prev => ({ ...prev, groupId: e.target.value }));
+                      loadGroupedProgress(newFilters);
+                    }}
+                  >
+                    <option value="">All Groups</option>
+                    {(allFilters.districtId
+                      ? groups.filter((g) => String(g.districtId) === allFilters.districtId)
+                      : groups
+                    ).map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="filter-group search-group">
+                  <label>Search</label>
+                  <input
+                    type="text"
+                    placeholder="Search patrouille, group..."
+                    value={searchText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchText(val);
+                      if (searchDebounce) clearTimeout(searchDebounce);
+                      setSearchDebounce(setTimeout(() => {
+                        loadGroupedProgress({ ...allFilters, search: val });
+                      }, 300));
+                    }}
+                  />
+                </div>
               </div>
-              <div className="filter-group">
-                <label>Group</label>
-                <select
-                  value={allFilters.groupId}
-                  onChange={(e) => {
-                    const newFilters = { ...allFilters, groupId: e.target.value };
-                    setAllFilters(newFilters);
-                    loadAllProgress(newFilters);
-                  }}
-                >
-                  <option value="">All Groups</option>
-                  {(allFilters.districtId
-                    ? groups.filter((g) => String(g.districtId) === allFilters.districtId)
-                    : groups
-                  ).map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {(allFilters.districtId || allFilters.groupId) && (
+              <div className="toolbar-sort">
+                <div className="filter-group">
+                  <label>Sort by</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      loadGroupedProgress({ ...allFilters, search: searchText }, { sortBy: e.target.value, sortDir });
+                    }}
+                  >
+                    <option value="completion">Completion %</option>
+                    <option value="name">Name</option>
+                    <option value="pictureCount">Pictures</option>
+                    <option value="patrouilleCount">Patrouilles</option>
+                  </select>
+                </div>
                 <button
-                  className="btn-clear-filters"
+                  className="btn-sort-dir"
                   onClick={() => {
-                    const newFilters = { districtId: '', groupId: '' };
-                    setAllFilters(newFilters);
-                    loadAllProgress(newFilters);
+                    const newDir = sortDir === 'desc' ? 'asc' : 'desc';
+                    setSortDir(newDir);
+                    loadGroupedProgress({ ...allFilters, search: searchText }, { sortBy, sortDir: newDir });
                   }}
+                  title={sortDir === 'desc' ? 'Descending' : 'Ascending'}
                 >
-                  Clear
+                  {sortDir === 'desc' ? '↓' : '↑'}
                 </button>
-              )}
+                {(allFilters.districtId || allFilters.groupId || searchText) && (
+                  <button
+                    className="btn-clear-filters"
+                    onClick={() => {
+                      const newFilters = { districtId: '', groupId: '' };
+                      setAllFilters(newFilters);
+                      setSearchText('');
+                      loadGroupedProgress(newFilters);
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="progress-summary-bar">
-              <span>
-                {allProgress.patrouilles.filter((p) => p.isWinner).length} winner
-                {allProgress.patrouilles.filter((p) => p.isWinner).length !== 1
-                  ? 's'
-                  : ''}
-              </span>
-              <span>{allProgress.patrouilles.length} patrouilles total</span>
-            </div>
+            {/* Summary Bar */}
+            {groupedData.summary && (
+              <div className="progress-summary-bar grouped-summary">
+                <span>{groupedData.summary.totalDistricts} district{groupedData.summary.totalDistricts !== 1 ? 's' : ''}</span>
+                <span>{groupedData.summary.totalGroups} group{groupedData.summary.totalGroups !== 1 ? 's' : ''}</span>
+                <span>{groupedData.summary.totalPatrouilles} patrouille{groupedData.summary.totalPatrouilles !== 1 ? 's' : ''}</span>
+                <span>{groupedData.summary.overallCompletion}% overall</span>
+                <span>{groupedData.summary.totalPictureCount} picture{groupedData.summary.totalPictureCount !== 1 ? 's' : ''}</span>
+                <span>{groupedData.summary.totalWinners} winner{groupedData.summary.totalWinners !== 1 ? 's' : ''}</span>
+              </div>
+            )}
 
             {/* Category Stats Section for Branche/Admin */}
             {categoryStats && categoryStats.sets && (
@@ -494,7 +555,6 @@ const SchematicProgress = () => {
                           </span>
                           <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
                         </button>
-
                         {isExpanded && (
                           <div className="category-stats-items">
                             {set.items.map((item) => (
@@ -520,42 +580,136 @@ const SchematicProgress = () => {
               </div>
             )}
 
-            <h3 className="patrouilles-list-title">Patrouilles Ranking</h3>
-            <div className="patrouilles-list">
-              {allProgress.patrouilles.map((item, index) => (
-                <div
-                  key={item.patrouille.id}
-                  className={`patrouille-row ${item.isWinner ? 'winner' : ''}`}
-                  onClick={() => handlePatrouilleClick(item.patrouille.id)}
-                >
-                  <div className="rank">#{index + 1}</div>
-                  <div className="patrouille-info">
-                    <div className="patrouille-name">
-                      {item.patrouille.name}
-                      {item.isWinner && <span className="winner-tag">Winner</span>}
-                    </div>
-                    <div className="patrouille-details">
-                      {item.patrouille.troupe?.name} •{' '}
-                      {item.patrouille.troupe?.group?.name}
-                    </div>
+            {/* Grouped Hierarchy: District > Group > Patrouille */}
+            {groupedData.districts.length === 0 ? (
+              <div className="empty-state">
+                <h3>No Results</h3>
+                <p>No patrouilles match your current filters.</p>
+              </div>
+            ) : (
+              <div className="grouped-hierarchy">
+                {groupedData.districts.map((district) => (
+                  <div key={district.id} className="district-section">
+                    <button
+                      type="button"
+                      className={`district-header ${expandedDistricts.has(district.id) ? 'expanded' : ''}`}
+                      onClick={() => {
+                        setExpandedDistricts(prev => {
+                          const next = new Set(prev);
+                          if (next.has(district.id)) next.delete(district.id);
+                          else next.add(district.id);
+                          return next;
+                        });
+                      }}
+                    >
+                      <span className="expand-icon">{expandedDistricts.has(district.id) ? '▼' : '▶'}</span>
+                      <span className="district-name">{district.name}</span>
+                      <div className="aggregate-stats">
+                        <span className="agg-completion">{district.aggregates.completionPercentage}%</span>
+                        <span className="agg-pictures">{district.aggregates.pictureCount} pic{district.aggregates.pictureCount !== 1 ? 's' : ''}</span>
+                        <span className="agg-patrouilles">{district.aggregates.totalPatrouilles} pat.</span>
+                        {district.aggregates.winners > 0 && (
+                          <span className="agg-winners">{district.aggregates.winners} winner{district.aggregates.winners !== 1 ? 's' : ''}</span>
+                        )}
+                      </div>
+                    </button>
+
+                    {expandedDistricts.has(district.id) && (
+                      <div className="district-content">
+                        {district.groups.map((group) => (
+                          <div key={group.id} className="group-section">
+                            <button
+                              type="button"
+                              className={`group-header ${expandedGroups.has(group.id) ? 'expanded' : ''}`}
+                              onClick={() => {
+                                setExpandedGroups(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(group.id)) next.delete(group.id);
+                                  else next.add(group.id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <span className="expand-icon">{expandedGroups.has(group.id) ? '▼' : '▶'}</span>
+                              <span className="group-name">{group.name}</span>
+                              <div className="aggregate-stats">
+                                <span className="agg-completion">{group.aggregates.completionPercentage}%</span>
+                                <span className="agg-pictures">{group.aggregates.pictureCount} pic{group.aggregates.pictureCount !== 1 ? 's' : ''}</span>
+                                <span className="agg-patrouilles">{group.aggregates.totalPatrouilles} pat.</span>
+                                {group.aggregates.winners > 0 && (
+                                  <span className="agg-winners">{group.aggregates.winners} winner{group.aggregates.winners !== 1 ? 's' : ''}</span>
+                                )}
+                              </div>
+                            </button>
+
+                            {expandedGroups.has(group.id) && (
+                              <div className="group-content">
+                                {/* Per-set breakdown */}
+                                {group.aggregates.perSet && group.aggregates.perSet.length > 0 && (
+                                  <div className="per-set-breakdown">
+                                    {group.aggregates.perSet.map((setData) => {
+                                      const pct = setData.total > 0 ? Math.round((setData.completed / setData.total) * 100) : 0;
+                                      return (
+                                        <div key={setData.setName} className="set-chip" title={`${setData.setName}: ${setData.completed}/${setData.total}`}>
+                                          <span className="set-chip-name">{setData.setName}</span>
+                                          <div className="set-chip-bar">
+                                            <div className="set-chip-fill" style={{ width: `${pct}%` }} />
+                                          </div>
+                                          <span className="set-chip-fraction">{setData.completed}/{setData.total}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Patrouilles list */}
+                                <div className="patrouilles-list">
+                                  {group.patrouilles.map((pat, index) => (
+                                    <div
+                                      key={pat.id}
+                                      className={`patrouille-row ${pat.isWinner ? 'winner' : ''}`}
+                                      onClick={() => handlePatrouilleClick(pat.id)}
+                                    >
+                                      <div className="rank">#{index + 1}</div>
+                                      <div className="patrouille-info">
+                                        <div className="patrouille-name">
+                                          {pat.name}
+                                          {pat.isWinner && <span className="winner-tag">Winner</span>}
+                                        </div>
+                                        <div className="patrouille-details">
+                                          {pat.troupeName} • {pat.totem}
+                                        </div>
+                                      </div>
+                                      <div className="progress-bar-wrapper">
+                                        <div className="progress-bar">
+                                          <div
+                                            className="progress-fill"
+                                            style={{ width: `${pat.completionPercentage}%` }}
+                                          />
+                                        </div>
+                                        <span className="progress-text">
+                                          {pat.completionPercentage}%
+                                        </span>
+                                      </div>
+                                      <div className="items-count">
+                                        {pat.completedItems}/{pat.totalItems}
+                                      </div>
+                                      <div className="picture-count" title="Approved pictures">
+                                        {pat.pictureCount} pic{pat.pictureCount !== 1 ? 's' : ''}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="progress-bar-wrapper">
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill"
-                        style={{ width: `${item.completionPercentage}%` }}
-                      />
-                    </div>
-                    <span className="progress-text">
-                      {item.completionPercentage}%
-                    </span>
-                  </div>
-                  <div className="items-count">
-                    {item.completedItems}/{item.totalItems}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

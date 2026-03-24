@@ -290,6 +290,258 @@ router.get(
   }
 );
 
+// GET /api/schematics/progress/grouped - Get progress grouped by District > Group (Branche/Admin)
+router.get(
+  '/progress/grouped',
+  authenticate,
+  authorize('BRANCHE_ECLAIREURS', 'ADMIN'),
+  async (req, res) => {
+    try {
+      const { districtId, groupId, search, sortBy = 'completion', sortDir = 'desc' } = req.query;
+
+      // 1. Build patrouille filter
+      const patrouilleWhere = {};
+      if (groupId) {
+        patrouilleWhere.troupe = { groupId: parseInt(groupId) };
+      }
+      if (districtId) {
+        patrouilleWhere.troupe = {
+          ...patrouilleWhere.troupe,
+          group: { districtId: parseInt(districtId) },
+        };
+      }
+      if (search) {
+        patrouilleWhere.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { totem: { contains: search, mode: 'insensitive' } },
+          { troupe: { name: { contains: search, mode: 'insensitive' } } },
+          { troupe: { group: { name: { contains: search, mode: 'insensitive' } } } },
+        ];
+      }
+
+      // 2. Fetch all matching patrouilles with full hierarchy
+      const patrouilles = await prisma.patrouille.findMany({
+        where: patrouilleWhere,
+        include: {
+          troupe: {
+            include: {
+              group: { include: { district: true } },
+            },
+          },
+        },
+      });
+      const patrouilleIds = patrouilles.map(p => p.id);
+
+      // 3. Total items (category set items count)
+      const totalItems = await prisma.categorySetItem.count();
+
+      if (patrouilleIds.length === 0) {
+        return res.json({ districts: [], totalItems, summary: { totalDistricts: 0, totalGroups: 0, totalPatrouilles: 0, overallCompletion: 0, totalPictureCount: 0, totalWinners: 0 } });
+      }
+
+      // 4. Bulk fetch CategoryProgress grouped by patrouilleId + status (no N+1)
+      const progressGrouped = await prisma.categoryProgress.groupBy({
+        by: ['patrouilleId', 'status'],
+        where: { patrouilleId: { in: patrouilleIds } },
+        _count: { id: true },
+      });
+
+      // Build lookup: patrouilleId -> { approved, submitted }
+      const progressMap = {};
+      for (const row of progressGrouped) {
+        if (!progressMap[row.patrouilleId]) {
+          progressMap[row.patrouilleId] = { approved: 0, submitted: 0 };
+        }
+        if (row.status === 'APPROVED') progressMap[row.patrouilleId].approved = row._count.id;
+        if (row.status === 'SUBMITTED') progressMap[row.patrouilleId].submitted = row._count.id;
+      }
+
+      // 5. Bulk fetch picture counts (INSTALLATION_PHOTO, APPROVED) per patrouille
+      const pictureCounts = await prisma.pictureSet.groupBy({
+        by: ['patrouilleId'],
+        where: {
+          patrouilleId: { in: patrouilleIds },
+          type: 'INSTALLATION_PHOTO',
+          status: 'APPROVED',
+        },
+        _count: { id: true },
+      });
+      const pictureMap = {};
+      for (const row of pictureCounts) {
+        pictureMap[row.patrouilleId] = row._count.id;
+      }
+
+      // 6. Per-set completion: fetch approved categoryProgress + map to sets
+      const approvedProgress = await prisma.categoryProgress.findMany({
+        where: { patrouilleId: { in: patrouilleIds }, status: 'APPROVED' },
+        select: { patrouilleId: true, categoryId: true },
+      });
+
+      const categorySetItems = await prisma.categorySetItem.findMany({
+        include: { categorySet: { select: { id: true, name: true, displayOrder: true } } },
+      });
+
+      // Build lookup: categoryId -> { setId, setName, setOrder }
+      const categoryToSet = {};
+      const setInfo = {};
+      const itemsPerSet = {};
+      for (const item of categorySetItems) {
+        categoryToSet[item.categoryId] = {
+          setId: item.categorySet.id,
+          setName: item.categorySet.name,
+          setOrder: item.categorySet.displayOrder,
+        };
+        setInfo[item.categorySet.id] = { name: item.categorySet.name, order: item.categorySet.displayOrder };
+        itemsPerSet[item.categorySet.id] = (itemsPerSet[item.categorySet.id] || 0) + 1;
+      }
+
+      // Build per-patrouille per-set approved counts
+      const patrouilleSetApproved = {}; // patrouilleId -> setId -> count
+      for (const ap of approvedProgress) {
+        const si = categoryToSet[ap.categoryId];
+        if (!si) continue;
+        if (!patrouilleSetApproved[ap.patrouilleId]) patrouilleSetApproved[ap.patrouilleId] = {};
+        patrouilleSetApproved[ap.patrouilleId][si.setId] = (patrouilleSetApproved[ap.patrouilleId][si.setId] || 0) + 1;
+      }
+
+      // 7. Assemble hierarchy: District -> Group -> Patrouille
+      const districtMap = {};
+      for (const p of patrouilles) {
+        const district = p.troupe.group.district;
+        const group = p.troupe.group;
+        const progress = progressMap[p.id] || { approved: 0, submitted: 0 };
+        const pictureCount = pictureMap[p.id] || 0;
+        const completionPct = totalItems > 0 ? Math.round((progress.approved / totalItems) * 100) : 0;
+        const isWinner = totalItems > 0 && progress.approved === totalItems;
+
+        const patrouilleData = {
+          id: p.id,
+          name: p.name,
+          totem: p.totem,
+          troupeName: p.troupe.name,
+          completedItems: progress.approved,
+          pendingReview: progress.submitted,
+          totalItems,
+          completionPercentage: completionPct,
+          pictureCount,
+          isWinner,
+        };
+
+        if (!districtMap[district.id]) {
+          districtMap[district.id] = {
+            id: district.id,
+            name: district.name,
+            code: district.code,
+            groups: {},
+          };
+        }
+        const dEntry = districtMap[district.id];
+
+        if (!dEntry.groups[group.id]) {
+          dEntry.groups[group.id] = {
+            id: group.id,
+            name: group.name,
+            code: group.code,
+            patrouilles: [],
+          };
+        }
+        dEntry.groups[group.id].patrouilles.push(patrouilleData);
+      }
+
+      // 8. Compute aggregates and build sorted response
+      const allSetIds = Object.keys(setInfo).map(Number);
+      const districtArray = Object.values(districtMap).map(d => {
+        const groupArray = Object.values(d.groups).map(g => {
+          const pats = g.patrouilles;
+          const groupAgg = {
+            totalPatrouilles: pats.length,
+            completedItems: pats.reduce((s, p) => s + p.completedItems, 0),
+            totalItems: totalItems * pats.length,
+            completionPercentage: pats.length > 0 && totalItems > 0
+              ? Math.round(pats.reduce((s, p) => s + p.completedItems, 0) / (totalItems * pats.length) * 100)
+              : 0,
+            pictureCount: pats.reduce((s, p) => s + p.pictureCount, 0),
+            pendingReview: pats.reduce((s, p) => s + p.pendingReview, 0),
+            winners: pats.filter(p => p.isWinner).length,
+            perSet: allSetIds.map(setId => {
+              const totalForSet = (itemsPerSet[setId] || 0) * pats.length;
+              let completedForSet = 0;
+              for (const p of pats) {
+                completedForSet += (patrouilleSetApproved[p.id]?.[setId] || 0);
+              }
+              return {
+                setName: setInfo[setId].name,
+                setOrder: setInfo[setId].order,
+                completed: completedForSet,
+                total: totalForSet,
+              };
+            }).sort((a, b) => a.setOrder - b.setOrder),
+          };
+
+          // Sort patrouilles within group
+          pats.sort((a, b) => b.completionPercentage - a.completionPercentage);
+
+          return { ...g, patrouilles: pats, aggregates: groupAgg };
+        });
+
+        // Sort groups within district
+        const sortMultiplier = sortDir === 'asc' ? 1 : -1;
+        groupArray.sort((a, b) => {
+          switch (sortBy) {
+            case 'name': return sortMultiplier * a.name.localeCompare(b.name);
+            case 'pictureCount': return sortMultiplier * (a.aggregates.pictureCount - b.aggregates.pictureCount);
+            case 'patrouilleCount': return sortMultiplier * (a.aggregates.totalPatrouilles - b.aggregates.totalPatrouilles);
+            case 'completion':
+            default: return sortMultiplier * (a.aggregates.completionPercentage - b.aggregates.completionPercentage);
+          }
+        });
+
+        const districtAgg = {
+          totalPatrouilles: groupArray.reduce((s, g) => s + g.aggregates.totalPatrouilles, 0),
+          completedItems: groupArray.reduce((s, g) => s + g.aggregates.completedItems, 0),
+          totalItems: groupArray.reduce((s, g) => s + g.aggregates.totalItems, 0),
+          completionPercentage: groupArray.length > 0
+            ? Math.round(groupArray.reduce((s, g) => s + g.aggregates.completedItems, 0) / Math.max(1, groupArray.reduce((s, g) => s + g.aggregates.totalItems, 0)) * 100)
+            : 0,
+          pictureCount: groupArray.reduce((s, g) => s + g.aggregates.pictureCount, 0),
+          pendingReview: groupArray.reduce((s, g) => s + g.aggregates.pendingReview, 0),
+          winners: groupArray.reduce((s, g) => s + g.aggregates.winners, 0),
+        };
+
+        return { id: d.id, name: d.name, code: d.code, groups: groupArray, aggregates: districtAgg };
+      });
+
+      // Sort districts
+      const sortMultiplier = sortDir === 'asc' ? 1 : -1;
+      districtArray.sort((a, b) => {
+        switch (sortBy) {
+          case 'name': return sortMultiplier * a.name.localeCompare(b.name);
+          case 'pictureCount': return sortMultiplier * (a.aggregates.pictureCount - b.aggregates.pictureCount);
+          case 'patrouilleCount': return sortMultiplier * (a.aggregates.totalPatrouilles - b.aggregates.totalPatrouilles);
+          case 'completion':
+          default: return sortMultiplier * (a.aggregates.completionPercentage - b.aggregates.completionPercentage);
+        }
+      });
+
+      const summary = {
+        totalDistricts: districtArray.length,
+        totalGroups: districtArray.reduce((s, d) => s + d.groups.length, 0),
+        totalPatrouilles: districtArray.reduce((s, d) => s + d.aggregates.totalPatrouilles, 0),
+        overallCompletion: districtArray.length > 0
+          ? Math.round(districtArray.reduce((s, d) => s + d.aggregates.completedItems, 0) / Math.max(1, districtArray.reduce((s, d) => s + d.aggregates.totalItems, 0)) * 100)
+          : 0,
+        totalPictureCount: districtArray.reduce((s, d) => s + d.aggregates.pictureCount, 0),
+        totalWinners: districtArray.reduce((s, d) => s + d.aggregates.winners, 0),
+      };
+
+      res.json({ districts: districtArray, totalItems, summary });
+    } catch (error) {
+      console.error('Error fetching grouped progress:', error);
+      res.status(500).json({ error: 'Failed to fetch grouped progress' });
+    }
+  }
+);
+
 // GET /api/schematics/progress/:patrouilleId - Get progress for one patrouille
 // NOTE: This generic route MUST be after the more specific routes above
 router.get('/progress/:patrouilleId', authenticate, async (req, res) => {

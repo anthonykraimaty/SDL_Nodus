@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getImageUrl } from '../config/api';
 import { pictureService } from '../services/api';
+import ConfirmModal from './ConfirmModal';
 import './ImagePreviewer.css';
 
 const ImagePreviewer = ({
@@ -9,7 +10,8 @@ const ImagePreviewer = ({
   onClose,
   user = null,
   categories = [],
-  onPictureUpdate = null
+  onPictureUpdate = null,
+  onPictureArchived = null
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
@@ -36,6 +38,11 @@ const ImagePreviewer = ({
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
+  // Archive state
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+
   const currentPicture = pictures[currentIndex];
 
   // Detect image orientation when it loads
@@ -46,11 +53,20 @@ const ImagePreviewer = ({
 
   // Check if user can edit (admin or branche)
   const canEdit = user && (user.role === 'ADMIN' || user.role === 'BRANCHE_ECLAIREURS');
+  const canArchive = user && (user.role === 'ADMIN' || user.role === 'BRANCHE_ECLAIREURS');
+
+  // Clamp currentIndex when pictures array shrinks (e.g. after archive)
+  useEffect(() => {
+    if (currentIndex >= pictures.length && pictures.length > 0) {
+      setCurrentIndex(pictures.length - 1);
+    }
+  }, [pictures.length]);
 
   // Reset edit state when picture changes
   useEffect(() => {
     setIsEditing(false);
     setEditError('');
+    setArchiveError('');
   }, [currentIndex]);
 
   // Initialize edit values when entering edit mode
@@ -63,7 +79,7 @@ const ImagePreviewer = ({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (isEditing) return; // Disable navigation while editing
+      if (isEditing || showArchiveConfirm) return; // Disable navigation while editing or confirming archive
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') handlePrevious();
       if (e.key === 'ArrowRight') handleNext();
@@ -71,7 +87,7 @@ const ImagePreviewer = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, isEditing]);
+  }, [currentIndex, isEditing, showArchiveConfirm]);
 
   const handlePrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : pictures.length - 1));
@@ -293,6 +309,27 @@ const ImagePreviewer = ({
     }
   };
 
+  const handleArchive = async () => {
+    setShowArchiveConfirm(false);
+    setIsArchiving(true);
+    setArchiveError('');
+    try {
+      const pic = pictures[currentIndex];
+      await pictureService.archivePicture(pic.pictureSetId, pic.id);
+      if (onPictureArchived) onPictureArchived(pic.id);
+      // If this was the last picture, close the previewer
+      if (pictures.length <= 1) {
+        onClose();
+      } else if (currentIndex >= pictures.length - 1) {
+        setCurrentIndex(prev => prev - 1);
+      }
+    } catch (err) {
+      setArchiveError(err.message || "Echec de l'archivage");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
   if (!currentPicture) return null;
 
   // Determine layout class based on orientation (only on desktop)
@@ -396,6 +433,20 @@ const ImagePreviewer = ({
                 Modifier
               </button>
             )}
+
+            {/* Archive button for branche/admin */}
+            {canArchive && !isEditing && (
+              <button
+                className="previewer-archive-btn"
+                onClick={() => setShowArchiveConfirm(true)}
+                disabled={isArchiving}
+                title="Archiver cette image"
+              >
+                {isArchiving ? 'Archivage...' : 'Archiver'}
+              </button>
+            )}
+
+            {archiveError && <div className="edit-error">{archiveError}</div>}
 
             {/* Edit Mode */}
             {isEditing ? (
@@ -540,6 +591,17 @@ const ImagePreviewer = ({
             )}
           </div>
         )}
+        {/* Archive Confirmation Modal */}
+        <ConfirmModal
+          isOpen={showArchiveConfirm}
+          title="Archiver cette image ?"
+          message="L'image sera archivée et ne sera plus visible publiquement. Elle pourra être restaurée depuis la page d'archives."
+          confirmText="Archiver"
+          cancelText="Annuler"
+          variant="danger"
+          onConfirm={handleArchive}
+          onCancel={() => setShowArchiveConfirm(false)}
+        />
       </div>
     </div>
   );

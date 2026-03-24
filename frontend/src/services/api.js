@@ -333,6 +333,10 @@ export const schematicService = {
     const query = new URLSearchParams(params).toString();
     return api.get(`/api/schematics/progress/all${query ? '?' + query : ''}`, true);
   },
+  getGroupedProgress: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/schematics/progress/grouped${query ? '?' + query : ''}`, true);
+  },
   getStats: () => api.get('/api/schematics/stats', true),
   getCategoryStats: () => api.get('/api/schematics/stats/by-category', true),
 

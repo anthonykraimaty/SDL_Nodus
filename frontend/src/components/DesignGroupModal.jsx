@@ -5,11 +5,12 @@ import Modal from './Modal';
 import ImagePreviewer from './ImagePreviewer';
 import './DesignGroupModal.css';
 
-const DesignGroupModal = ({ isOpen, onClose, designGroupId, initialData = null }) => {
+const DesignGroupModal = ({ isOpen, onClose, designGroupId, initialData = null, canEdit = false, onRemovePicture = null }) => {
   const [designGroup, setDesignGroup] = useState(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState('');
   const [selectedPictureIndex, setSelectedPictureIndex] = useState(null);
+  const [removingPictureId, setRemovingPictureId] = useState(null);
 
   useEffect(() => {
     if (isOpen && designGroupId && !initialData) {
@@ -40,6 +41,30 @@ const DesignGroupModal = ({ isOpen, onClose, designGroupId, initialData = null }
 
   const handleClosePreviewer = () => {
     setSelectedPictureIndex(null);
+  };
+
+  const handleRemovePicture = async (pictureId, e) => {
+    e.stopPropagation();
+    if (!onRemovePicture || !designGroupId) return;
+    try {
+      setRemovingPictureId(pictureId);
+      await onRemovePicture(designGroupId, pictureId);
+      // Update local state
+      setDesignGroup(prev => {
+        if (!prev) return prev;
+        const updatedPictures = prev.pictures.filter(p => p.id !== pictureId);
+        if (updatedPictures.length < 2) {
+          onClose();
+          return prev;
+        }
+        return { ...prev, pictures: updatedPictures };
+      });
+    } catch (err) {
+      console.error('Failed to remove picture from group:', err);
+      setError('Échec du retrait de la photo');
+    } finally {
+      setRemovingPictureId(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -111,6 +136,16 @@ const DesignGroupModal = ({ isOpen, onClose, designGroupId, initialData = null }
                           <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
                         </svg>
                       </div>
+                    )}
+                    {canEdit && onRemovePicture && (
+                      <button
+                        className="design-group-remove-btn"
+                        onClick={(e) => handleRemovePicture(picture.id, e)}
+                        disabled={removingPictureId === picture.id}
+                        title="Retirer du groupe"
+                      >
+                        {removingPictureId === picture.id ? '...' : '✕'}
+                      </button>
                     )}
                     <div className="picture-overlay">
                       {picture.pictureSet?.troupe && (

@@ -212,14 +212,17 @@
 
 .image-editor__canvas.cropping {
   cursor: crosshair;
+  touch-action: none;
 }
 
 .image-editor__canvas.blurring {
   cursor: crosshair;
+  touch-action: none;
 }
 
 .image-editor__canvas.healing {
   cursor: crosshair;
+  touch-action: none;
 }
 
 .image-editor__processing-overlay {

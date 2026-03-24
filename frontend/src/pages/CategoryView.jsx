@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { API_URL, getImageUrl } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService } from '../services/api';
+import { pictureService, categoryService, designGroupService } from '../services/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import ImageEditor from '../components/ImageEditor';
 import DesignGroupStack from '../components/DesignGroupStack';
@@ -52,6 +52,16 @@ const CategoryView = () => {
 
   // Image editing
   const [editingPicture, setEditingPicture] = useState(null);
+
+  // Grouping state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPictures, setSelectedPictures] = useState(new Set());
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showAddToGroup, setShowAddToGroup] = useState(false);
+  const [existingGroups, setExistingGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [groupActionLoading, setGroupActionLoading] = useState(false);
 
   // Check if user can approve/reject
   const canReview = user && (user.role === 'BRANCHE_ECLAIREURS' || user.role === 'ADMIN');
@@ -191,6 +201,131 @@ const CategoryView = () => {
     loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
   };
 
+  // Reset selection when context changes
+  useEffect(() => {
+    setSelectedPictures(new Set());
+    setSelectionMode(false);
+  }, [categoryId, viewMode, typeFilter]);
+
+  // Grouping handlers
+  const reloadPictures = () => {
+    loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
+  };
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectedPictures(new Set());
+    }
+    setSelectionMode(prev => !prev);
+  };
+
+  const togglePictureSelection = (pictureId, e) => {
+    e.stopPropagation();
+    setSelectedPictures(prev => {
+      const next = new Set(prev);
+      if (next.has(pictureId)) {
+        next.delete(pictureId);
+      } else {
+        next.add(pictureId);
+      }
+      return next;
+    });
+  };
+
+  const handleCreateGroupClick = () => {
+    if (selectedPictures.size < 2) {
+      setError('Sélectionnez au moins 2 photos pour créer un groupe');
+      return;
+    }
+    setNewGroupName('');
+    setShowCreateGroup(true);
+  };
+
+  const handleCreateGroupConfirm = async () => {
+    try {
+      setGroupActionLoading(true);
+      const pictureIds = Array.from(selectedPictures);
+      await designGroupService.create({ name: newGroupName || null, pictureIds });
+      setSuccess(`Groupe créé avec ${pictureIds.length} photos`);
+      setShowCreateGroup(false);
+      setSelectedPictures(new Set());
+      setSelectionMode(false);
+      reloadPictures();
+    } catch (err) {
+      console.error('Failed to create design group:', err);
+      setError(err.message || 'Échec de la création du groupe');
+    } finally {
+      setGroupActionLoading(false);
+    }
+  };
+
+  const handleAddToGroupClick = async () => {
+    if (selectedPictures.size === 0) {
+      setError('Sélectionnez au moins 1 photo');
+      return;
+    }
+    try {
+      const data = await designGroupService.getAll({ limit: 100 });
+      setExistingGroups(data.designGroups || []);
+      setSelectedGroupId(null);
+      setShowAddToGroup(true);
+    } catch (err) {
+      console.error('Failed to load design groups:', err);
+      setError('Échec du chargement des groupes');
+    }
+  };
+
+  const handleAddToGroupConfirm = async () => {
+    if (!selectedGroupId) {
+      setError('Veuillez sélectionner un groupe');
+      return;
+    }
+    try {
+      setGroupActionLoading(true);
+      const pictureIds = Array.from(selectedPictures);
+      await designGroupService.addPictures(selectedGroupId, pictureIds);
+      setSuccess(`${pictureIds.length} photo(s) ajoutée(s) au groupe`);
+      setShowAddToGroup(false);
+      setSelectedPictures(new Set());
+      setSelectionMode(false);
+      reloadPictures();
+    } catch (err) {
+      console.error('Failed to add pictures to group:', err);
+      setError(err.message || "Échec de l'ajout au groupe");
+    } finally {
+      setGroupActionLoading(false);
+    }
+  };
+
+  const handleRemoveFromGroups = async () => {
+    const picturesInGroups = pictures.filter(p => selectedPictures.has(p.id) && p.designGroupId);
+    if (picturesInGroups.length === 0) {
+      setError("Aucune des photos sélectionnées n'appartient à un groupe");
+      return;
+    }
+    try {
+      setGroupActionLoading(true);
+      let removed = 0;
+      for (const pic of picturesInGroups) {
+        try {
+          await designGroupService.removePicture(pic.designGroupId, pic.id);
+          removed++;
+        } catch (err) {
+          console.error(`Failed to remove picture ${pic.id} from group:`, err);
+        }
+      }
+      setSuccess(`${removed} photo(s) retirée(s) de leur groupe`);
+      setSelectedPictures(new Set());
+      setSelectionMode(false);
+      reloadPictures();
+    } catch (err) {
+      console.error('Failed to remove pictures from groups:', err);
+      setError(err.message || 'Échec du retrait des photos');
+    } finally {
+      setGroupActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="category-view">
@@ -290,6 +425,16 @@ const CategoryView = () => {
               📐 Schémas
             </button>
           </div>
+
+          {/* Selection Mode Toggle */}
+          {canReview && (
+            <button
+              className={`btn-selection-mode ${selectionMode ? 'active' : ''}`}
+              onClick={toggleSelectionMode}
+            >
+              {selectionMode ? 'Quitter Sélection' : 'Sélectionner'}
+            </button>
+          )}
 
           {/* View Mode Toggle */}
           <div className="view-mode-toggle">
@@ -473,6 +618,42 @@ const CategoryView = () => {
           </div>
         )}
 
+        {/* Bulk Actions Bar */}
+        {selectionMode && selectedPictures.size > 0 && (
+          <div className="bulk-actions-bar">
+            <span className="bulk-count">{selectedPictures.size} photo(s) sélectionnée(s)</span>
+            <div className="bulk-buttons">
+              <button
+                className="btn-bulk-group"
+                onClick={handleCreateGroupClick}
+                disabled={selectedPictures.size < 2 || groupActionLoading}
+              >
+                Créer Groupe
+              </button>
+              <button
+                className="btn-bulk-group"
+                onClick={handleAddToGroupClick}
+                disabled={groupActionLoading}
+              >
+                Ajouter au Groupe
+              </button>
+              <button
+                className="btn-bulk-ungroup"
+                onClick={handleRemoveFromGroups}
+                disabled={groupActionLoading}
+              >
+                Retirer des Groupes
+              </button>
+              <button
+                className="btn-bulk-clear"
+                onClick={() => { setSelectedPictures(new Set()); setSelectionMode(false); }}
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Pictures Grid */}
         {pictures.length === 0 ? (
           <div className="empty-state">
@@ -505,12 +686,12 @@ const CategoryView = () => {
               return (
                 <article
                   key={picture.id}
-                  className="picture-thumbnail"
-                  onClick={() => handlePictureClick(pictureIndex)}
+                  className={`picture-thumbnail ${selectionMode && selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                  onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(pictureIndex)}
                   role="button"
                   tabIndex={0}
                   aria-label={`Voir ${getImageAlt(picture, pictureIndex)}`}
-                  onKeyDown={(e) => e.key === 'Enter' && handlePictureClick(pictureIndex)}
+                  onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(pictureIndex))}
                 >
                   <figure className="thumbnail-image">
                     <img
@@ -519,8 +700,18 @@ const CategoryView = () => {
                       loading="lazy"
                     />
 
+                    {/* Selection checkbox */}
+                    {selectionMode && (
+                      <div
+                        className={`picture-selection-badge ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                        onClick={(e) => togglePictureSelection(picture.id, e)}
+                      >
+                        {selectedPictures.has(picture.id) ? '✓' : ''}
+                      </div>
+                    )}
+
                     {/* Edit button for authorized users */}
-                    {canReview && (
+                    {canReview && !selectionMode && (
                       <button
                         className="picture-edit-btn"
                         onClick={(e) => handleEditPicture(picture, e)}
@@ -565,12 +756,12 @@ const CategoryView = () => {
             {pictures.map((picture, index) => (
               <article
                 key={picture.id}
-                className="picture-thumbnail"
-                onClick={() => handlePictureClick(index)}
+                className={`picture-thumbnail ${selectionMode && selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index)}
                 role="button"
                 tabIndex={0}
                 aria-label={`Voir ${getImageAlt(picture, index)}`}
-                onKeyDown={(e) => e.key === 'Enter' && handlePictureClick(index)}
+                onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index))}
               >
                 <figure className="thumbnail-image">
                   <img
@@ -579,8 +770,18 @@ const CategoryView = () => {
                     loading="lazy"
                   />
 
+                  {/* Selection checkbox */}
+                  {selectionMode && (
+                    <div
+                      className={`picture-selection-badge ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                      onClick={(e) => togglePictureSelection(picture.id, e)}
+                    >
+                      {selectedPictures.has(picture.id) ? '✓' : ''}
+                    </div>
+                  )}
+
                   {/* Edit button for authorized users */}
-                  {canReview && (
+                  {canReview && !selectionMode && (
                     <button
                       className="picture-edit-btn"
                       onClick={(e) => handleEditPicture(picture, e)}
@@ -626,6 +827,14 @@ const CategoryView = () => {
           user={user}
           categories={allCategories}
           onPictureUpdate={handlePictureUpdate}
+          onPictureArchived={(pictureId) => {
+            setPictures(prev => prev.filter(p => p.id !== pictureId));
+            setUngroupedPictures(prev => prev.filter(p => p.id !== pictureId));
+            setDesignGroups(prev => prev.map(group => ({
+              ...group,
+              pictures: group.pictures.filter(p => p.id !== pictureId),
+            })).filter(group => group.pictures.length > 0));
+          }}
         />
       )}
 
@@ -653,7 +862,101 @@ const CategoryView = () => {
         onClose={() => setSelectedDesignGroup(null)}
         designGroupId={selectedDesignGroup?.id}
         initialData={selectedDesignGroup}
+        canEdit={canReview}
+        onRemovePicture={async (groupId, pictureId) => {
+          await designGroupService.removePicture(groupId, pictureId);
+          reloadPictures();
+        }}
       />
+
+      {/* Create Design Group Modal */}
+      <Modal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        title="Créer un Groupe"
+        size="small"
+      >
+        <Modal.Body>
+          <div className="create-group-modal">
+            <p>Créer un groupe avec <strong>{selectedPictures.size}</strong> photo(s).</p>
+            <div className="form-group">
+              <label>Nom du groupe (optionnel)</label>
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="ex: Mat Double, Tour Standard"
+                className="form-input"
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateGroupConfirm()}
+              />
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Actions>
+          <button onClick={handleCreateGroupConfirm} className="primary" disabled={groupActionLoading}>
+            {groupActionLoading ? 'Création...' : 'Créer Groupe'}
+          </button>
+          <button onClick={() => setShowCreateGroup(false)} className="secondary" disabled={groupActionLoading}>
+            Annuler
+          </button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* Add to Existing Group Modal */}
+      <Modal
+        isOpen={showAddToGroup}
+        onClose={() => setShowAddToGroup(false)}
+        title="Ajouter au Groupe"
+        size="medium"
+      >
+        <Modal.Body>
+          <div className="add-to-group-modal">
+            <p>Ajouter <strong>{selectedPictures.size}</strong> photo(s) à un groupe existant.</p>
+            {existingGroups.length === 0 ? (
+              <div className="no-groups-message">
+                <p>Aucun groupe existant. Créez un nouveau groupe.</p>
+              </div>
+            ) : (
+              <div className="existing-groups-list">
+                {existingGroups.map(group => (
+                  <div
+                    key={group.id}
+                    className={`group-option ${selectedGroupId === group.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedGroupId(group.id)}
+                  >
+                    <div className="group-option-preview">
+                      {group.primaryPicture ? (
+                        <img src={getImageUrl(group.primaryPicture.filePath)} alt={group.name || 'Group'} />
+                      ) : group.pictures?.[0] ? (
+                        <img src={getImageUrl(group.pictures[0].filePath)} alt={group.name || 'Group'} />
+                      ) : (
+                        <span className="no-preview">-</span>
+                      )}
+                    </div>
+                    <div className="group-option-info">
+                      <span className="group-option-name">{group.name || `Groupe #${group.id}`}</span>
+                      <span className="group-option-count">{group._count?.pictures || 0} photo(s)</span>
+                      {group.category && <span className="group-option-category">{group.category.name}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Modal.Body>
+        <Modal.Actions>
+          <button
+            onClick={handleAddToGroupConfirm}
+            className="primary"
+            disabled={groupActionLoading || !selectedGroupId || existingGroups.length === 0}
+          >
+            {groupActionLoading ? 'Ajout...' : 'Ajouter au Groupe'}
+          </button>
+          <button onClick={() => setShowAddToGroup(false)} className="secondary" disabled={groupActionLoading}>
+            Annuler
+          </button>
+        </Modal.Actions>
+      </Modal>
     </div>
   );
 };
