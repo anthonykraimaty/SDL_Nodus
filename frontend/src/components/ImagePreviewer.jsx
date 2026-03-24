@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getImageUrl } from '../config/api';
 import { pictureService } from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import ImageEditor from './ImageEditor';
 import './ImagePreviewer.css';
 
 const ImagePreviewer = ({
@@ -38,6 +39,10 @@ const ImagePreviewer = ({
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
+  // Image editor state
+  const [isImageEditing, setIsImageEditing] = useState(false);
+  const [imageVersion, setImageVersion] = useState(0);
+
   // Archive state
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -65,6 +70,7 @@ const ImagePreviewer = ({
   // Reset edit state when picture changes
   useEffect(() => {
     setIsEditing(false);
+    setIsImageEditing(false);
     setEditError('');
     setArchiveError('');
   }, [currentIndex]);
@@ -79,7 +85,7 @@ const ImagePreviewer = ({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (isEditing || showArchiveConfirm) return; // Disable navigation while editing or confirming archive
+      if (isEditing || showArchiveConfirm || isImageEditing) return; // Disable navigation while editing or confirming archive
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') handlePrevious();
       if (e.key === 'ArrowRight') handleNext();
@@ -87,7 +93,7 @@ const ImagePreviewer = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, isEditing, showArchiveConfirm]);
+  }, [currentIndex, isEditing, showArchiveConfirm, isImageEditing]);
 
   const handlePrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : pictures.length - 1));
@@ -238,7 +244,7 @@ const ImagePreviewer = ({
         const dy = e.changedTouches[0].clientY - swipeStartY.current;
         const absDx = Math.abs(dx);
         const absDy = Math.abs(dy);
-        if (absDx > SWIPE_THRESHOLD && absDx > absDy * 1.5 && !isEditing) {
+        if (absDx > SWIPE_THRESHOLD && absDx > absDy * 1.5 && !isEditing && !isImageEditing) {
           if (dx > 0) handlePrevious();
           else handleNext();
         }
@@ -248,7 +254,7 @@ const ImagePreviewer = ({
       swipeStartY.current = null;
       isSwiping.current = false;
     }
-  }, [isEditing, handlePrevious, handleNext]);
+  }, [isEditing, isImageEditing, handlePrevious, handleNext]);
 
   // Double tap to toggle zoom
   const handleImageClick = useCallback(() => {
@@ -306,6 +312,17 @@ const ImagePreviewer = ({
       setEditError(err.message || 'Failed to update picture');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleImageEditorSave = async (blob, pictureId) => {
+    try {
+      await pictureService.editImage(pictureId, blob);
+      setIsImageEditing(false);
+      setImageVersion(v => v + 1);
+      if (onPictureUpdate) onPictureUpdate();
+    } catch (err) {
+      console.error('Failed to save edited image:', err);
     }
   };
 
@@ -396,7 +413,7 @@ const ImagePreviewer = ({
           onTouchEnd={handleTouchEnd}
         >
           <img
-            src={getImageUrl(currentPicture.filePath)}
+            src={getImageUrl(currentPicture.filePath) + (imageVersion ? `?v=${imageVersion}` : '')}
             alt={currentPicture.caption || `Picture ${currentIndex + 1}`}
             style={{ transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)` }}
             className="previewer-image"
@@ -431,6 +448,17 @@ const ImagePreviewer = ({
                 title="Modifier le type et la catégorie"
               >
                 Modifier
+              </button>
+            )}
+
+            {/* Retouch button for authorized users */}
+            {canEdit && !isEditing && (
+              <button
+                className="previewer-retouch-btn"
+                onClick={() => setIsImageEditing(true)}
+                title="Retoucher l'image (recadrer, pivoter, flouter)"
+              >
+                Retoucher
               </button>
             )}
 
@@ -602,6 +630,17 @@ const ImagePreviewer = ({
           onConfirm={handleArchive}
           onCancel={() => setShowArchiveConfirm(false)}
         />
+        {/* Image Editor Overlay */}
+        {isImageEditing && (
+          <div className="previewer-image-editor-overlay">
+            <ImageEditor
+              imageUrl={getImageUrl(currentPicture.filePath)}
+              pictureId={currentPicture.id}
+              onSave={handleImageEditorSave}
+              onCancel={() => setIsImageEditing(false)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -315,6 +315,38 @@
   transform: scale(1.05);
 }
 
+/* Retouch Button (Image Editor) */
+.previewer-retouch-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 110px;
+  background: #5b8c5a;
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.previewer-retouch-btn:hover {
+  background: #4a7a49;
+  transform: scale(1.05);
+}
+
+/* Image Editor Overlay inside Previewer */
+.previewer-image-editor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10001;
+  background: #1a1a1a;
+}
+
 /* Archive Button */
 .previewer-archive-btn {
   position: absolute;
@@ -529,6 +561,14 @@
     right: 10px;
   }
 
+  /* Move retouch button for landscape */
+  .layout-landscape .previewer-retouch-btn {
+    position: absolute;
+    bottom: auto;
+    top: 10px;
+    right: 110px;
+  }
+
   /* Move archive button for landscape */
   .layout-landscape .previewer-archive-btn {
     position: absolute;
@@ -580,6 +620,13 @@
     top: auto;
     bottom: 10px;
     right: 10px;
+  }
+
+  .layout-landscape .previewer-retouch-btn {
+    position: absolute;
+    top: auto;
+    bottom: 10px;
+    right: 110px;
   }
 
   .layout-landscape .previewer-archive-btn {
