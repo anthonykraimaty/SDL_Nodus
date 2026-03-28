@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { schematicService, organizationService } from '../services/api';
+import { schematicService, organizationService, pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import ImageEditor from '../components/ImageEditor';
@@ -185,10 +185,15 @@ const SchematicReview = () => {
     setEditingPicture(picture);
   };
 
-  const handleImageEditorSave = () => {
-    setEditingPicture(null);
-    // Reload schematics to show updated images
-    loadSchematics();
+  const handleImageEditorSave = async (blob, pictureId) => {
+    try {
+      await pictureService.editImage(pictureId, blob);
+      setEditingPicture(null);
+      loadSchematics();
+    } catch (err) {
+      console.error('Failed to save edited image:', err);
+      addToast('Failed to save edited image', 'error');
+    }
   };
 
   const filteredGroups = filters.districtId

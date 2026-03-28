@@ -74,6 +74,14 @@ const PictureStatus = () => {
   // Check if user can approve/reject
   const canReview = user && (user.role === 'BRANCHE_ECLAIREURS' || user.role === 'ADMIN');
 
+  // Check if user can edit pictures (crop/rotate)
+  const canEditPictures = () => {
+    if (!user || !pictureSet) return false;
+    if (user.role === 'ADMIN' || user.role === 'BRANCHE_ECLAIREURS') return true;
+    const isOwner = pictureSet.uploadedById === user.id;
+    return isOwner && pictureSet.status !== 'APPROVED';
+  };
+
   // Exclusion handlers for approve/reject
   const toggleExclusion = (pictureId, e) => {
     e.stopPropagation();
@@ -454,8 +462,8 @@ const PictureStatus = () => {
                   </div>
                 )}
 
-                {/* Edit button for reviewers */}
-                {canReview && (
+                {/* Edit button for reviewers and CT owners of non-approved sets */}
+                {canEditPictures() && (
                   <button
                     className="btn-edit-picture"
                     onClick={(e) => handleEditPicture(picture, e)}

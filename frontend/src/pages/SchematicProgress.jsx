@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { schematicService, organizationService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
+import Modal from '../components/Modal';
 import './SchematicProgress.css';
 
 const SchematicProgress = () => {
@@ -54,6 +55,10 @@ const SchematicProgress = () => {
   // Image preview
   const [previewImages, setPreviewImages] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+
+  // Delete state for CT users
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const toggleSet = (setName) => {
     setExpandedSets((prev) => ({
@@ -257,6 +262,22 @@ const SchematicProgress = () => {
   const closePreview = () => {
     setPreviewImages([]);
     setPreviewIndex(0);
+  };
+
+  const handleDeleteSchematic = async (pictureSetId) => {
+    try {
+      setDeleteLoading(true);
+      await schematicService.delete(pictureSetId);
+      setDeleteConfirm(null);
+      if (selectedPatrouille) {
+        loadDetailProgress(selectedPatrouille);
+      }
+    } catch (err) {
+      console.error('Failed to delete schematic:', err);
+      setError(err.error || 'Failed to delete schematic');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const handlePatrouilleClick = (patrouilleId) => {
@@ -815,6 +836,20 @@ const SchematicProgress = () => {
                                 Validate
                               </Link>
                             )}
+                            {user?.role === 'CHEF_TROUPE' &&
+                              item.pictureSet &&
+                              ['SUBMITTED', 'REJECTED'].includes(item.status) && (
+                              <button
+                                className="btn-delete-small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirm(item);
+                                }}
+                                title="Delete this schematic"
+                              >
+                                ×
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -989,6 +1024,41 @@ const SchematicProgress = () => {
             onClose={closePreview}
           />
         )}
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          title="Delete Schematic?"
+          variant="danger"
+        >
+          <Modal.Body>
+            {deleteConfirm && (
+              <>
+                <p>
+                  Are you sure you want to delete the schematic for <strong>{deleteConfirm.itemName}</strong>?
+                </p>
+                <p className="warning-text">This action cannot be undone.</p>
+              </>
+            )}
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              className="danger"
+              onClick={() => handleDeleteSchematic(deleteConfirm?.pictureSet?.id)}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? 'Deleting...' : 'Delete'}
+            </button>
+            <button
+              className="secondary"
+              onClick={() => setDeleteConfirm(null)}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
       </div>
     </div>
   );

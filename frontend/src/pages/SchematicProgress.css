@@ -672,6 +672,26 @@
   box-shadow: 0 2px 8px rgba(212, 165, 116, 0.4);
 }
 
+.btn-delete-small {
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  margin-left: var(--spacing-sm);
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-delete-small:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
 .gallery-section {
   margin-top: var(--spacing-lg);
 }

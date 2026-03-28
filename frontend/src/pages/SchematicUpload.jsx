@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { schematicService, patrouilleService } from '../services/api';
+import { schematicService, patrouilleService, pictureService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -58,6 +58,10 @@ const SchematicUpload = () => {
   // Unclassified schematics for this troupe
   const [unclassified, setUnclassified] = useState([]);
   const [loadingUnclassified, setLoadingUnclassified] = useState(false);
+
+  // Delete state for unclassified schematics
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Classify modal for unclassified schematics
   const [classifyModal, setClassifyModal] = useState({ open: false, schematic: null });
@@ -325,9 +329,29 @@ const SchematicUpload = () => {
     return status === 'APPROVED' || status === 'SUBMITTED';
   };
 
-  const handleImageEditorSave = () => {
-    setEditingPicture(null);
-    // Reload the uploaded picture set if needed
+  const handleImageEditorSave = async (blob, pictureId) => {
+    try {
+      await pictureService.editImage(pictureId, blob);
+      setEditingPicture(null);
+      loadUnclassified();
+    } catch (err) {
+      console.error('Failed to save edited image:', err);
+      setError('Failed to save edited image');
+    }
+  };
+
+  const handleDeleteSchematic = async (schematicId) => {
+    try {
+      setDeleteLoading(true);
+      await schematicService.delete(schematicId);
+      setDeleteConfirm(null);
+      loadUnclassified();
+    } catch (err) {
+      console.error('Failed to delete schematic:', err);
+      setError(err.error || 'Failed to delete schematic');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   if (!user?.role === 'CHEF_TROUPE') {
@@ -844,12 +868,21 @@ const SchematicUpload = () => {
                         {new Date(schematic.uploadedAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <button
-                      className="btn-classify-small"
-                      onClick={() => openClassifyModal(schematic)}
-                    >
-                      Classify
-                    </button>
+                    <div className="unclassified-actions">
+                      <button
+                        className="btn-classify-small"
+                        onClick={() => openClassifyModal(schematic)}
+                      >
+                        Classify
+                      </button>
+                      <button
+                        className="btn-delete-small"
+                        onClick={() => setDeleteConfirm(schematic)}
+                        title="Delete this schematic"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -988,6 +1021,42 @@ const SchematicUpload = () => {
           <button
             className="secondary"
             onClick={() => setClassifyModal({ open: false, schematic: null })}
+          >
+            Cancel
+          </button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete Schematic?"
+        variant="danger"
+      >
+        <Modal.Body>
+          {deleteConfirm && (
+            <>
+              <p>
+                Are you sure you want to delete this schematic
+                {deleteConfirm.patrouille?.name ? ` for ${deleteConfirm.patrouille.name}` : ''}?
+              </p>
+              <p className="warning-text">This action cannot be undone.</p>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Actions>
+          <button
+            className="danger"
+            onClick={() => handleDeleteSchematic(deleteConfirm?.id)}
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete'}
+          </button>
+          <button
+            className="secondary"
+            onClick={() => setDeleteConfirm(null)}
+            disabled={deleteLoading}
           >
             Cancel
           </button>
