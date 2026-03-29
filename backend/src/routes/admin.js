@@ -285,6 +285,144 @@ router.delete('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, 
   }
 });
 
+// GET /api/admin/dashboard-stats - Aggregated dashboard statistics (ADMIN only)
+router.get('/dashboard-stats', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    // Run all queries in parallel
+    const [
+      users,
+      neverLoggedIn,
+      troupes,
+      pictureSetsByTroupe,
+      schematicsByTroupe,
+    ] = await Promise.all([
+      // User stats
+      prisma.user.findMany({
+        select: {
+          id: true,
+          role: true,
+          isActive: true,
+          lastLogin: true,
+        },
+      }),
+
+      // Never logged in users (with org details)
+      prisma.user.findMany({
+        where: { lastLogin: null },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          troupe: {
+            select: {
+              name: true,
+              group: {
+                select: {
+                  name: true,
+                  district: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+
+      // All troupes with org info
+      prisma.troupe.findMany({
+        select: {
+          id: true,
+          name: true,
+          group: {
+            select: {
+              name: true,
+              district: { select: { name: true } },
+            },
+          },
+          _count: {
+            select: {
+              users: true,
+              patrouilles: true,
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
+      }),
+
+      // Picture sets (photos) grouped by troupe and status
+      prisma.pictureSet.groupBy({
+        by: ['troupeId', 'status'],
+        where: { type: 'INSTALLATION_PHOTO' },
+        _count: { id: true },
+      }),
+
+      // Schematics grouped by troupe and status
+      prisma.pictureSet.groupBy({
+        by: ['troupeId', 'status'],
+        where: { type: 'SCHEMATIC' },
+        _count: { id: true },
+      }),
+    ]);
+
+    // Build user stats
+    const userStats = {
+      total: users.length,
+      active: users.filter(u => u.isActive).length,
+      byRole: {
+        ADMIN: users.filter(u => u.role === 'ADMIN').length,
+        CHEF_TROUPE: users.filter(u => u.role === 'CHEF_TROUPE').length,
+        BRANCHE_ECLAIREURS: users.filter(u => u.role === 'BRANCHE_ECLAIREURS').length,
+      },
+      neverLoggedIn: neverLoggedIn.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        district: u.troupe?.group?.district?.name || '',
+        group: u.troupe?.group?.name || '',
+        troupe: u.troupe?.name || '',
+        createdAt: u.createdAt,
+      })),
+    };
+
+    // Build helper to aggregate status counts per troupe
+    const aggregateCounts = (groupedData) => {
+      const map = {};
+      for (const row of groupedData) {
+        if (!row.troupeId) continue;
+        if (!map[row.troupeId]) {
+          map[row.troupeId] = { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 };
+        }
+        map[row.troupeId][row.status.toLowerCase()] = row._count.id;
+        map[row.troupeId].total += row._count.id;
+      }
+      return map;
+    };
+
+    const photosByTroupe = aggregateCounts(pictureSetsByTroupe);
+    const schemByTroupe = aggregateCounts(schematicsByTroupe);
+
+    // Build troupe stats
+    const troupeStats = troupes.map(t => ({
+      id: t.id,
+      name: t.name,
+      group: t.group.name,
+      district: t.group.district.name,
+      users: t._count.users,
+      patrouilles: t._count.patrouilles,
+      photos: photosByTroupe[t.id] || { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
+      schematics: schemByTroupe[t.id] || { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
+    }));
+
+    res.json({ userStats, troupeStats });
+  } catch (error) {
+    console.error('Failed to fetch dashboard stats:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
+});
+
 // Get users who have never logged in (ADMIN only)
 router.get('/users/never-logged-in', authenticate, authorize('ADMIN'), async (req, res) => {
   try {

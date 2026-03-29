@@ -451,6 +451,183 @@
   border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
+/* Warning card for never-logged-in */
+.stat-card.warning-card {
+  border-color: rgba(255, 152, 0, 0.4);
+}
+
+.stat-icon.never-logged {
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+/* Data Table Sections */
+.data-table-section {
+  background-color: var(--bg-medium);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xxl);
+}
+
+.data-table-section .section-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.table-toolbar {
+  margin-bottom: var(--spacing-lg);
+}
+
+.filter-tabs {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.filter-tab {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.filter-tab:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.filter-tab.active {
+  background: var(--accent);
+  color: var(--primary-dark);
+  border-color: var(--accent);
+}
+
+.filter-tab.warning.active {
+  background: #ff9800;
+  border-color: #ff9800;
+  color: #1a1a1a;
+}
+
+/* Data Table */
+.data-table-wrapper {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  background: var(--bg-dark);
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 2px solid var(--border);
+  transition: color 0.2s;
+}
+
+.data-table th:hover {
+  color: var(--accent);
+}
+
+.data-table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(212, 165, 116, 0.05);
+}
+
+.data-table .num-col {
+  text-align: center;
+}
+
+/* Sort Icons */
+.sort-icon {
+  font-size: 0.75rem;
+  margin-left: 4px;
+  opacity: 0.3;
+}
+
+.sort-icon.active {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Role badges */
+.role-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-badge.role-chef_troupe {
+  background: rgba(0, 150, 136, 0.15);
+  color: #26a69a;
+}
+
+.role-badge.role-branche_eclaireurs {
+  background: rgba(212, 165, 116, 0.15);
+  color: var(--accent);
+}
+
+.role-badge.role-admin {
+  background: rgba(156, 39, 176, 0.15);
+  color: #ba68c8;
+}
+
+.email-cell {
+  color: var(--text-muted) !important;
+  font-size: 0.85rem;
+}
+
+/* Troupe table highlights */
+.row-zero {
+  background: rgba(255, 152, 0, 0.04);
+}
+
+.row-zero td {
+  color: var(--text-muted);
+}
+
+.row-zero .troupe-name {
+  color: var(--text-secondary);
+}
+
+.zero-count {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.approved-count {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.pending-count {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.warning-text {
+  color: #ff9800;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .admin-dashboard {
@@ -485,5 +662,22 @@
   .maintenance-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .data-table-section {
+    padding: var(--spacing-md);
+  }
+
+  .data-table {
+    font-size: 0.8rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .filter-tabs {
+    flex-wrap: wrap;
   }
 }

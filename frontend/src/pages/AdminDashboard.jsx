@@ -6,20 +6,27 @@ import './AdminDashboard.css';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    activeUsers: 0,
-    brancheMembers: 0,
-  });
+  const [loading, setLoading] = useState(true);
+
+  // Dashboard stats from new endpoint
+  const [userStats, setUserStats] = useState(null);
+  const [troupeStats, setTroupeStats] = useState([]);
+
+  // Picture stats (kept separate — uses existing endpoints)
   const [pictureStats, setPictureStats] = useState({
-    total: 0,
-    pending: 0,
-    classified: 0,
-    approved: 0,
-    rejected: 0,
+    total: 0, pending: 0, classified: 0, approved: 0, rejected: 0,
   });
   const [categoryStats, setCategoryStats] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // Troupe table state
+  const [troupeSort, setTroupeSort] = useState({ key: 'photos.total', dir: 'desc' });
+  const [troupeFilter, setTroupeFilter] = useState('all'); // 'all', 'zero', 'active'
+
+  // Never-logged-in table state
+  const [showNeverLoggedIn, setShowNeverLoggedIn] = useState(false);
+  const [neverLoggedInSort, setNeverLoggedInSort] = useState({ key: 'createdAt', dir: 'desc' });
+
+  // Maintenance state (preserved from original)
   const [pictureSyncData, setPictureSyncData] = useState(null);
   const [syncingPictures, setSyncingPictures] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
@@ -29,27 +36,18 @@ const AdminDashboard = () => {
   const [debugData, setDebugData] = useState(null);
 
   useEffect(() => {
-    loadStats();
+    loadAllStats();
   }, []);
 
-  const loadStats = async () => {
+  const loadAllStats = async () => {
     try {
       const token = localStorage.getItem('token');
 
-      // Load users stats
-      const usersResponse = await fetch(`${API_URL}/api/users`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const users = await usersResponse.json();
-
-      setStats({
-        totalUsers: users.length,
-        activeUsers: users.filter(u => u.isActive).length,
-        brancheMembers: users.filter(u => u.role === 'BRANCHE_ECLAIREURS').length,
-      });
-
-      // Load all pictures to get counts by status
-      const [pendingRes, classifiedRes, approvedRes, rejectedRes] = await Promise.all([
+      // Load all data in parallel
+      const [dashboardRes, pendingRes, classifiedRes, approvedRes, rejectedRes, categoriesRes] = await Promise.all([
+        fetch(`${API_URL}/api/admin/dashboard-stats`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
         fetch(`${API_URL}/api/pictures?status=PENDING&limit=1`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
@@ -62,14 +60,20 @@ const AdminDashboard = () => {
         fetch(`${API_URL}/api/pictures?status=REJECTED&limit=1`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
+        fetch(`${API_URL}/api/categories`),
       ]);
 
-      const [pendingData, classifiedData, approvedData, rejectedData] = await Promise.all([
+      const [dashboardData, pendingData, classifiedData, approvedData, rejectedData, categories] = await Promise.all([
+        dashboardRes.json(),
         pendingRes.json(),
         classifiedRes.json(),
         approvedRes.json(),
         rejectedRes.json(),
+        categoriesRes.json(),
       ]);
+
+      setUserStats(dashboardData.userStats);
+      setTroupeStats(dashboardData.troupeStats);
 
       const pending = pendingData.pagination?.total || 0;
       const classified = classifiedData.pagination?.total || 0;
@@ -78,31 +82,20 @@ const AdminDashboard = () => {
 
       setPictureStats({
         total: pending + classified + approved + rejected,
-        pending,
-        classified,
-        approved,
-        rejected,
+        pending, classified, approved, rejected,
       });
 
       // Load categories with picture counts
-      const categoriesResponse = await fetch(`${API_URL}/api/categories`);
-      const categories = await categoriesResponse.json();
-
-      // Load pictures per category
       const categoryPictureCounts = await Promise.all(
         categories.slice(0, 10).map(async (cat) => {
           const res = await fetch(`${API_URL}/api/pictures?categoryId=${cat.id}&status=APPROVED&limit=1`, {
             headers: { 'Authorization': `Bearer ${token}` },
           });
           const data = await res.json();
-          return {
-            name: cat.name,
-            count: data.pagination?.total || 0,
-          };
+          return { name: cat.name, count: data.pagination?.total || 0 };
         })
       );
 
-      // Sort by count and take top categories
       setCategoryStats(categoryPictureCounts.sort((a, b) => b.count - a.count));
     } catch (error) {
       console.error('Failed to load stats:', error);
@@ -111,10 +104,53 @@ const AdminDashboard = () => {
     }
   };
 
+  // Sorting helpers
+  const getNestedValue = (obj, path) => {
+    return path.split('.').reduce((o, key) => o?.[key], obj);
+  };
+
+  const sortData = (data, sort) => {
+    return [...data].sort((a, b) => {
+      let aVal = getNestedValue(a, sort.key);
+      let bVal = getNestedValue(b, sort.key);
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const toggleSort = (setter, current, key) => {
+    setter({
+      key,
+      dir: current.key === key && current.dir === 'desc' ? 'asc' : 'desc',
+    });
+  };
+
+  const SortIcon = ({ sortState, column }) => {
+    if (sortState.key !== column) return <span className="sort-icon">⇅</span>;
+    return <span className="sort-icon active">{sortState.dir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  // Filtered and sorted troupe data
+  const filteredTroupes = troupeStats.filter(t => {
+    if (troupeFilter === 'zero') return t.photos.total === 0 && t.schematics.total === 0;
+    if (troupeFilter === 'active') return t.photos.total > 0 || t.schematics.total > 0;
+    return true;
+  });
+  const sortedTroupes = sortData(filteredTroupes, troupeSort);
+
+  // Sorted never-logged-in users
+  const sortedNeverLoggedIn = userStats ? sortData(userStats.neverLoggedIn, neverLoggedInSort) : [];
+
   // Calculate max for bar chart scaling
   const maxCategoryCount = Math.max(...categoryStats.map(c => c.count), 1);
 
-  // Check for pictures needing category sync from their set
+  // Troupe summary
+  const zeroUploadTroupes = troupeStats.filter(t => t.photos.total === 0 && t.schematics.total === 0).length;
+
+  // --- Maintenance functions (preserved) ---
   const checkPictureSync = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -129,7 +165,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Sync picture categories from their sets
   const syncPictureCategories = async () => {
     try {
       setSyncingPictures(true);
@@ -141,7 +176,7 @@ const AdminDashboard = () => {
       const data = await response.json();
       setSyncResult(data);
       setPictureSyncData({ totalPictures: 0, sets: [] });
-      loadStats();
+      loadAllStats();
     } catch (error) {
       console.error('Failed to sync picture categories:', error);
       setSyncResult({ error: 'Failed to sync picture categories' });
@@ -150,7 +185,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Check for pictures needing type sync from their set
   const checkTypeSync = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -165,7 +199,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Sync picture types from their sets
   const syncPictureTypes = async () => {
     try {
       setSyncingTypes(true);
@@ -177,7 +210,7 @@ const AdminDashboard = () => {
       const data = await response.json();
       setTypeSyncResult(data);
       setTypeSyncData({ totalPictures: 0, sets: [] });
-      loadStats();
+      loadAllStats();
     } catch (error) {
       console.error('Failed to sync picture types:', error);
       setTypeSyncResult({ error: 'Failed to sync picture types' });
@@ -186,7 +219,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Debug picture types
   const debugPictureTypes = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -292,33 +324,199 @@ const AdminDashboard = () => {
         <div className="section-header">
           <h2>Users Overview</h2>
         </div>
-        <div className="stats-grid stats-grid-3">
+        <div className="stats-grid">
           <Link to="/admin/users" className="stat-card clickable">
             <div className="stat-icon users">👥</div>
             <div className="stat-content">
-              <h3>{stats.totalUsers}</h3>
+              <h3>{userStats?.total || 0}</h3>
               <p>Total Users</p>
-              <span className="stat-detail">{stats.activeUsers} active</span>
-            </div>
-          </Link>
-
-          <Link to="/admin/users?role=BRANCHE_ECLAIREURS" className="stat-card clickable">
-            <div className="stat-icon branche">🔐</div>
-            <div className="stat-content">
-              <h3>{stats.brancheMembers}</h3>
-              <p>Branche Members</p>
-              <span className="stat-detail">District access control</span>
+              <span className="stat-detail">{userStats?.active || 0} active</span>
             </div>
           </Link>
 
           <Link to="/admin/users?role=CHEF_TROUPE" className="stat-card clickable">
             <div className="stat-icon ct">🏕️</div>
             <div className="stat-content">
-              <h3>{stats.totalUsers - stats.brancheMembers - 1}</h3>
+              <h3>{userStats?.byRole?.CHEF_TROUPE || 0}</h3>
               <p>Chef Troupes</p>
               <span className="stat-detail">Troupe leaders</span>
             </div>
           </Link>
+
+          <Link to="/admin/users?role=BRANCHE_ECLAIREURS" className="stat-card clickable">
+            <div className="stat-icon branche">🔐</div>
+            <div className="stat-content">
+              <h3>{userStats?.byRole?.BRANCHE_ECLAIREURS || 0}</h3>
+              <p>Branche Members</p>
+              <span className="stat-detail">District access control</span>
+            </div>
+          </Link>
+
+          <div
+            className={`stat-card clickable ${userStats?.neverLoggedIn?.length > 0 ? 'warning-card' : ''}`}
+            onClick={() => setShowNeverLoggedIn(!showNeverLoggedIn)}
+          >
+            <div className="stat-icon never-logged">⚠️</div>
+            <div className="stat-content">
+              <h3>{userStats?.neverLoggedIn?.length || 0}</h3>
+              <p>Never Logged In</p>
+              <span className="stat-detail">Click to {showNeverLoggedIn ? 'hide' : 'show'} details</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Never Logged In Table */}
+        {showNeverLoggedIn && userStats?.neverLoggedIn?.length > 0 && (
+          <div className="data-table-section">
+            <div className="section-header">
+              <h2>Users Who Never Logged In</h2>
+              <span className="section-subtitle">{userStats.neverLoggedIn.length} users have never signed in</span>
+            </div>
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'name')}>
+                      Name <SortIcon sortState={neverLoggedInSort} column="name" />
+                    </th>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'email')}>
+                      Email <SortIcon sortState={neverLoggedInSort} column="email" />
+                    </th>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'role')}>
+                      Role <SortIcon sortState={neverLoggedInSort} column="role" />
+                    </th>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'district')}>
+                      District <SortIcon sortState={neverLoggedInSort} column="district" />
+                    </th>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'group')}>
+                      Group <SortIcon sortState={neverLoggedInSort} column="group" />
+                    </th>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'troupe')}>
+                      Troupe <SortIcon sortState={neverLoggedInSort} column="troupe" />
+                    </th>
+                    <th onClick={() => toggleSort(setNeverLoggedInSort, neverLoggedInSort, 'createdAt')}>
+                      Created <SortIcon sortState={neverLoggedInSort} column="createdAt" />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedNeverLoggedIn.map(u => (
+                    <tr key={u.id}>
+                      <td>{u.name}</td>
+                      <td className="email-cell">{u.email}</td>
+                      <td><span className={`role-badge role-${u.role.toLowerCase()}`}>{u.role.replace('_', ' ')}</span></td>
+                      <td>{u.district || '-'}</td>
+                      <td>{u.group || '-'}</td>
+                      <td>{u.troupe || '-'}</td>
+                      <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Troupe Stats Section */}
+        <div className="data-table-section">
+          <div className="section-header">
+            <h2>Troupe Statistics</h2>
+            <span className="section-subtitle">
+              {troupeStats.length} troupes total
+              {zeroUploadTroupes > 0 && (
+                <> &mdash; <strong className="warning-text">{zeroUploadTroupes} with zero uploads</strong></>
+              )}
+            </span>
+          </div>
+
+          <div className="table-toolbar">
+            <div className="filter-tabs">
+              <button
+                className={`filter-tab ${troupeFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setTroupeFilter('all')}
+              >
+                All ({troupeStats.length})
+              </button>
+              <button
+                className={`filter-tab warning ${troupeFilter === 'zero' ? 'active' : ''}`}
+                onClick={() => setTroupeFilter('zero')}
+              >
+                Zero Uploads ({zeroUploadTroupes})
+              </button>
+              <button
+                className={`filter-tab ${troupeFilter === 'active' ? 'active' : ''}`}
+                onClick={() => setTroupeFilter('active')}
+              >
+                Active ({troupeStats.length - zeroUploadTroupes})
+              </button>
+            </div>
+          </div>
+
+          <div className="data-table-wrapper">
+            <table className="data-table troupe-table">
+              <thead>
+                <tr>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'name')}>
+                    Troupe <SortIcon sortState={troupeSort} column="name" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'group')}>
+                    Group <SortIcon sortState={troupeSort} column="group" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'district')}>
+                    District <SortIcon sortState={troupeSort} column="district" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'users')} className="num-col">
+                    Users <SortIcon sortState={troupeSort} column="users" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'photos.total')} className="num-col">
+                    Photos <SortIcon sortState={troupeSort} column="photos.total" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'photos.approved')} className="num-col">
+                    Approved <SortIcon sortState={troupeSort} column="photos.approved" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'photos.pending')} className="num-col">
+                    Pending <SortIcon sortState={troupeSort} column="photos.pending" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'schematics.total')} className="num-col">
+                    Schematics <SortIcon sortState={troupeSort} column="schematics.total" />
+                  </th>
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'schematics.approved')} className="num-col">
+                    S. Approved <SortIcon sortState={troupeSort} column="schematics.approved" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedTroupes.map(t => {
+                  const isZero = t.photos.total === 0 && t.schematics.total === 0;
+                  return (
+                    <tr key={t.id} className={isZero ? 'row-zero' : ''}>
+                      <td className="troupe-name">{t.name}</td>
+                      <td>{t.group}</td>
+                      <td>{t.district}</td>
+                      <td className="num-col">{t.users}</td>
+                      <td className="num-col">
+                        <span className={t.photos.total === 0 ? 'zero-count' : ''}>{t.photos.total}</span>
+                      </td>
+                      <td className="num-col">
+                        <span className={t.photos.approved > 0 ? 'approved-count' : ''}>{t.photos.approved}</span>
+                      </td>
+                      <td className="num-col">
+                        {t.photos.pending + t.photos.classified > 0 && (
+                          <span className="pending-count">{t.photos.pending + t.photos.classified}</span>
+                        )}
+                      </td>
+                      <td className="num-col">
+                        <span className={t.schematics.total === 0 ? 'zero-count' : ''}>{t.schematics.total}</span>
+                      </td>
+                      <td className="num-col">
+                        <span className={t.schematics.approved > 0 ? 'approved-count' : ''}>{t.schematics.approved}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Quick Actions */}
