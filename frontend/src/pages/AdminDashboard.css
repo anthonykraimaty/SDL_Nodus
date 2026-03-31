@@ -650,6 +650,137 @@
   color: #ff9800;
 }
 
+/* Comparison Section */
+.comparison-controls {
+  margin-bottom: var(--spacing-lg);
+}
+
+.date-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.date-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.date-inputs label span {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.date-inputs input[type="date"] {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.date-inputs input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn-compare {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--accent);
+  color: var(--primary-dark);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.btn-compare:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-compare:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comparison-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.comp-stat {
+  background: var(--bg-dark);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.comp-stat.still-zero {
+  border-color: rgba(255, 152, 0, 0.3);
+}
+
+.comp-stat.uploaded {
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.comp-stat-value {
+  display: block;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.comp-stat.still-zero .comp-stat-value {
+  color: #ff9800;
+}
+
+.comp-stat.uploaded .comp-stat-value {
+  color: #4caf50;
+}
+
+.comp-stat-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+.comp-arrow {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+}
+
+.row-uploaded {
+  background: rgba(76, 175, 80, 0.04);
+}
+
+.comp-badge {
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.comp-badge.still-zero {
+  background: rgba(255, 152, 0, 0.12);
+  color: #ff9800;
+}
+
+.comp-badge.uploaded {
+  background: rgba(76, 175, 80, 0.12);
+  color: #4caf50;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .admin-dashboard {

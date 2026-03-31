@@ -22,6 +22,13 @@ const AdminDashboard = () => {
   const [troupeSort, setTroupeSort] = useState({ key: 'district', dir: 'asc' });
   const [troupeFilter, setTroupeFilter] = useState('all'); // 'all', 'zero', 'active'
 
+  // Troupe comparison state
+  const [compDate1, setCompDate1] = useState('');
+  const [compDate2, setCompDate2] = useState('');
+  const [compData, setCompData] = useState(null);
+  const [compLoading, setCompLoading] = useState(false);
+  const [compFilter, setCompFilter] = useState('all'); // 'all', 'still_zero', 'uploaded_between'
+
   // Never-logged-in table state
   const [showNeverLoggedIn, setShowNeverLoggedIn] = useState(false);
   const [neverLoggedInSort, setNeverLoggedInSort] = useState({ key: 'createdAt', dir: 'desc' });
@@ -149,6 +156,52 @@ const AdminDashboard = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `troupe_stats_${troupeFilter}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Troupe comparison handler
+  const loadComparison = async () => {
+    if (!compDate1 || !compDate2) return;
+    try {
+      setCompLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `${API_URL}/api/admin/troupe-comparison?date1=${compDate1}&date2=${compDate2}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      setCompData(data);
+      setCompFilter('all');
+    } catch (err) {
+      console.error('Failed to load comparison:', err);
+    } finally {
+      setCompLoading(false);
+    }
+  };
+
+  const filteredCompTroupes = compData?.troupes?.filter(t => {
+    if (compFilter === 'still_zero') return t.status === 'still_zero';
+    if (compFilter === 'uploaded_between') return t.status === 'uploaded_between';
+    return true;
+  }) || [];
+
+  const exportComparisonCSV = () => {
+    if (!compData) return;
+    const headers = ['District', 'Group', 'Troupe', 'Status', `Uploads as of ${compDate1}`, `Uploads as of ${compDate2}`];
+    const rows = filteredCompTroupes.map(t => [
+      t.district, t.group, t.name,
+      t.status === 'still_zero' ? 'Still Zero' : 'Uploaded Between',
+      t.uploadsAtDate1, t.uploadsAtDate2,
+    ]);
+    const csvContent = [headers, ...rows].map(row =>
+      row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `troupe_comparison_${compDate1}_to_${compDate2}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -540,6 +593,125 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Troupe Date Comparison */}
+        <div className="data-table-section">
+          <div className="section-header">
+            <h2>Upload Comparison</h2>
+            <span className="section-subtitle">Compare which troupes had zero uploads at two points in time</span>
+          </div>
+
+          <div className="comparison-controls">
+            <div className="date-inputs">
+              <label>
+                <span>Date 1 (baseline)</span>
+                <input
+                  type="date"
+                  value={compDate1}
+                  onChange={(e) => setCompDate1(e.target.value)}
+                />
+              </label>
+              <label>
+                <span>Date 2 (check)</span>
+                <input
+                  type="date"
+                  value={compDate2}
+                  onChange={(e) => setCompDate2(e.target.value)}
+                />
+              </label>
+              <button
+                className="btn-compare"
+                onClick={loadComparison}
+                disabled={!compDate1 || !compDate2 || compLoading}
+              >
+                {compLoading ? 'Loading...' : 'Compare'}
+              </button>
+            </div>
+          </div>
+
+          {compData && (
+            <>
+              <div className="comparison-summary">
+                <div className="comp-stat">
+                  <span className="comp-stat-value">{compData.summary.zeroAtDate1}</span>
+                  <span className="comp-stat-label">Zero at {compDate1}</span>
+                </div>
+                <div className="comp-arrow">→</div>
+                <div className="comp-stat still-zero">
+                  <span className="comp-stat-value">{compData.summary.stillZero}</span>
+                  <span className="comp-stat-label">Still zero at {compDate2}</span>
+                </div>
+                <div className="comp-stat uploaded">
+                  <span className="comp-stat-value">{compData.summary.uploadedBetween}</span>
+                  <span className="comp-stat-label">Uploaded between dates</span>
+                </div>
+              </div>
+
+              <div className="table-toolbar">
+                <div className="filter-tabs">
+                  <button
+                    className={`filter-tab ${compFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setCompFilter('all')}
+                  >
+                    All ({compData.troupes.length})
+                  </button>
+                  <button
+                    className={`filter-tab warning ${compFilter === 'still_zero' ? 'active' : ''}`}
+                    onClick={() => setCompFilter('still_zero')}
+                  >
+                    Still Zero ({compData.summary.stillZero})
+                  </button>
+                  <button
+                    className={`filter-tab ${compFilter === 'uploaded_between' ? 'active' : ''}`}
+                    onClick={() => setCompFilter('uploaded_between')}
+                  >
+                    Uploaded ({compData.summary.uploadedBetween})
+                  </button>
+                </div>
+                <button className="btn-export-csv" onClick={exportComparisonCSV}>
+                  Export CSV
+                </button>
+              </div>
+
+              <div className="data-table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>District</th>
+                      <th>Group</th>
+                      <th>Troupe</th>
+                      <th className="num-col">Uploads at {compDate1}</th>
+                      <th className="num-col">Uploads at {compDate2}</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCompTroupes.map(t => (
+                      <tr key={t.id} className={t.status === 'still_zero' ? 'row-zero' : 'row-uploaded'}>
+                        <td>{t.district}</td>
+                        <td>{t.group}</td>
+                        <td className="troupe-name">{t.name}</td>
+                        <td className="num-col"><span className="zero-count">{t.uploadsAtDate1}</span></td>
+                        <td className="num-col">
+                          <span className={t.uploadsAtDate2 > 0 ? 'approved-count' : 'zero-count'}>
+                            {t.uploadsAtDate2}
+                          </span>
+                        </td>
+                        <td>
+                          {t.status === 'still_zero' ? (
+                            <span className="comp-badge still-zero">Still Zero</span>
+                          ) : (
+                            <span className="comp-badge uploaded">Uploaded</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Quick Actions */}

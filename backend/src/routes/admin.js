@@ -423,6 +423,101 @@ router.get('/dashboard-stats', authenticate, authorize('ADMIN'), async (req, res
   }
 });
 
+// GET /api/admin/troupe-comparison - Compare troupe upload status between two dates
+router.get('/troupe-comparison', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { date1, date2 } = req.query;
+    if (!date1 || !date2) {
+      return res.status(400).json({ error: 'Both date1 and date2 are required' });
+    }
+
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    // Set to end of day for inclusive filtering
+    d1.setHours(23, 59, 59, 999);
+    d2.setHours(23, 59, 59, 999);
+
+    // Get all troupes
+    const troupes = await prisma.troupe.findMany({
+      select: {
+        id: true,
+        name: true,
+        group: {
+          select: {
+            name: true,
+            district: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Get troupe IDs that had uploads as of date1 and date2
+    const [uploadsAsOfDate1, uploadsAsOfDate2] = await Promise.all([
+      prisma.pictureSet.groupBy({
+        by: ['troupeId'],
+        where: { uploadedAt: { lte: d1 } },
+        _count: { id: true },
+      }),
+      prisma.pictureSet.groupBy({
+        by: ['troupeId'],
+        where: { uploadedAt: { lte: d2 } },
+        _count: { id: true },
+      }),
+    ]);
+
+    const troupeCountsDate1 = {};
+    for (const row of uploadsAsOfDate1) {
+      if (row.troupeId) troupeCountsDate1[row.troupeId] = row._count.id;
+    }
+
+    const troupeCountsDate2 = {};
+    for (const row of uploadsAsOfDate2) {
+      if (row.troupeId) troupeCountsDate2[row.troupeId] = row._count.id;
+    }
+
+    const results = troupes.map(t => {
+      const countDate1 = troupeCountsDate1[t.id] || 0;
+      const countDate2 = troupeCountsDate2[t.id] || 0;
+      const zeroAtDate1 = countDate1 === 0;
+      const zeroAtDate2 = countDate2 === 0;
+
+      // Determine status relative to the comparison
+      let status = null;
+      if (zeroAtDate1 && zeroAtDate2) status = 'still_zero';
+      else if (zeroAtDate1 && !zeroAtDate2) status = 'uploaded_between';
+      // Not zero at date1 — not relevant to the comparison
+
+      return {
+        id: t.id,
+        name: t.name,
+        group: t.group.name,
+        district: t.group.district.name,
+        uploadsAtDate1: countDate1,
+        uploadsAtDate2: countDate2,
+        status,
+      };
+    });
+
+    // Only include troupes that had zero at date1
+    const comparison = results.filter(r => r.status !== null);
+
+    res.json({
+      date1: d1.toISOString(),
+      date2: d2.toISOString(),
+      summary: {
+        zeroAtDate1: comparison.length,
+        stillZero: comparison.filter(r => r.status === 'still_zero').length,
+        uploadedBetween: comparison.filter(r => r.status === 'uploaded_between').length,
+      },
+      troupes: comparison,
+    });
+  } catch (error) {
+    console.error('Failed to fetch troupe comparison:', error);
+    res.status(500).json({ error: 'Failed to fetch troupe comparison' });
+  }
+});
+
 // Get users who have never logged in (ADMIN only)
 router.get('/users/never-logged-in', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
