@@ -199,6 +199,7 @@ router.get('/', optionalAuth, async (req, res) => {
       status,
       type,
       categoryId,
+      districtId,
       groupId,
       troupeId,
       patrouilleId,
@@ -266,7 +267,15 @@ router.get('/', optionalAuth, async (req, res) => {
     if (type) where.type = type;
     // Note: categoryId filter is no longer at PictureSet level - categories are assigned per Picture
     // If you need to filter by category, query pictures instead and group by pictureSetId
-    if (groupId) where.troupe = { groupId: parseInt(groupId) };
+    if (districtId) {
+      where.troupe = {
+        ...where.troupe,
+        group: { ...where.troupe?.group, districtId: parseInt(districtId) },
+      };
+    }
+    if (groupId) {
+      where.troupe = { ...where.troupe, groupId: parseInt(groupId) };
+    }
     if (troupeId) where.troupeId = parseInt(troupeId);
     if (patrouilleId) where.patrouilleId = parseInt(patrouilleId);
     if (highlights === 'true') where.isHighlight = true;

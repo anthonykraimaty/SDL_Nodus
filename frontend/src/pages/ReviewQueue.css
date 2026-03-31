@@ -34,6 +34,46 @@
   font-style: italic;
 }
 
+/* Filters */
+.review-filters {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.review-filters select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  min-width: 200px;
+  font-size: 0.9rem;
+}
+
+.review-filters select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn-clear-filters {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.btn-clear-filters:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Review Tabs */
 .review-tabs {
   display: flex;

@@ -19,7 +19,7 @@ const AdminDashboard = () => {
   const [categoryStats, setCategoryStats] = useState([]);
 
   // Troupe table state
-  const [troupeSort, setTroupeSort] = useState({ key: 'photos.total', dir: 'desc' });
+  const [troupeSort, setTroupeSort] = useState({ key: 'district', dir: 'asc' });
   const [troupeFilter, setTroupeFilter] = useState('all'); // 'all', 'zero', 'active'
 
   // Never-logged-in table state
@@ -131,6 +131,26 @@ const AdminDashboard = () => {
   const SortIcon = ({ sortState, column }) => {
     if (sortState.key !== column) return <span className="sort-icon">⇅</span>;
     return <span className="sort-icon active">{sortState.dir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  // Export troupe stats to CSV (uses currently filtered & sorted data)
+  const exportTroupeCSV = () => {
+    const headers = ['District', 'Group', 'Troupe', 'Users', 'Photos', 'Photos Approved', 'Photos Pending', 'Schematics', 'Schematics Approved'];
+    const rows = sortedTroupes.map(t => [
+      t.district, t.group, t.name, t.users,
+      t.photos.total, t.photos.approved, t.photos.pending + t.photos.classified,
+      t.schematics.total, t.schematics.approved,
+    ]);
+    const csvContent = [headers, ...rows].map(row =>
+      row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `troupe_stats_${troupeFilter}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Filtered and sorted troupe data
@@ -450,20 +470,23 @@ const AdminDashboard = () => {
                 Active ({troupeStats.length - zeroUploadTroupes})
               </button>
             </div>
+            <button className="btn-export-csv" onClick={exportTroupeCSV}>
+              Export CSV
+            </button>
           </div>
 
           <div className="data-table-wrapper">
             <table className="data-table troupe-table">
               <thead>
                 <tr>
-                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'name')}>
-                    Troupe <SortIcon sortState={troupeSort} column="name" />
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'district')}>
+                    District <SortIcon sortState={troupeSort} column="district" />
                   </th>
                   <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'group')}>
                     Group <SortIcon sortState={troupeSort} column="group" />
                   </th>
-                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'district')}>
-                    District <SortIcon sortState={troupeSort} column="district" />
+                  <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'name')}>
+                    Troupe <SortIcon sortState={troupeSort} column="name" />
                   </th>
                   <th onClick={() => toggleSort(setTroupeSort, troupeSort, 'users')} className="num-col">
                     Users <SortIcon sortState={troupeSort} column="users" />
@@ -490,9 +513,9 @@ const AdminDashboard = () => {
                   const isZero = t.photos.total === 0 && t.schematics.total === 0;
                   return (
                     <tr key={t.id} className={isZero ? 'row-zero' : ''}>
-                      <td className="troupe-name">{t.name}</td>
-                      <td>{t.group}</td>
                       <td>{t.district}</td>
+                      <td>{t.group}</td>
+                      <td className="troupe-name">{t.name}</td>
                       <td className="num-col">{t.users}</td>
                       <td className="num-col">
                         <span className={t.photos.total === 0 ? 'zero-count' : ''}>{t.photos.total}</span>

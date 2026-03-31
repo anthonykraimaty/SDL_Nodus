@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService } from '../services/api';
+import { pictureService, categoryService, organizationService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -31,18 +31,50 @@ const ReviewQueue = () => {
   const [editSaving, setEditSaving] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
 
+  // District/Group filter state
+  const [filters, setFilters] = useState({ districtId: '', groupId: '' });
+  const [districts, setDistricts] = useState([]);
+  const [groups, setGroups] = useState([]);
+
   useEffect(() => {
     loadData();
+    loadOrgData();
     categoryService.getAll().then(data => setCategories(data || [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [filters]);
+
+  const loadOrgData = async () => {
+    try {
+      const [districtsData, groupsData] = await Promise.all([
+        organizationService.getDistricts(),
+        organizationService.getGroups(),
+      ]);
+      setDistricts(districtsData);
+      setGroups(groupsData);
+    } catch (err) {
+      console.error('Failed to load organization data:', err);
+    }
+  };
+
+  const filteredGroups = filters.districtId
+    ? groups.filter((g) => String(g.districtId) === filters.districtId)
+    : groups;
 
   const loadData = async () => {
     try {
       setLoading(true);
+      // Build filter params
+      const baseParams = { type: 'INSTALLATION_PHOTO', limit: 1000 };
+      if (filters.districtId) baseParams.districtId = filters.districtId;
+      if (filters.groupId) baseParams.groupId = filters.groupId;
+
       // Load sets with classified pictures (PENDING or CLASSIFIED status)
       const [classifiedData, rejectedData] = await Promise.all([
-        pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'classified', limit: 1000 }),
-        pictureService.getAll({ status: 'REJECTED', type: 'INSTALLATION_PHOTO', limit: 1000 })
+        pictureService.getAll({ ...baseParams, status: 'PENDING,CLASSIFIED', classificationFilter: 'classified' }),
+        pictureService.getAll({ ...baseParams, status: 'REJECTED' })
       ]);
 
       // Filter to show only classified pictures within each set, track unclassified count and IDs
@@ -248,6 +280,38 @@ const ReviewQueue = () => {
           <h1>Review Queue</h1>
           <p>Review and approve classified pictures before they become publicly visible</p>
           <p className="review-hint">Click on pictures to exclude them from approval</p>
+        </div>
+
+        {/* Filters */}
+        <div className="review-filters">
+          <select
+            value={filters.districtId}
+            onChange={(e) => setFilters(prev => ({ ...prev, districtId: e.target.value, groupId: '' }))}
+          >
+            <option value="">All Districts</option>
+            {districts.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.groupId}
+            onChange={(e) => setFilters(prev => ({ ...prev, groupId: e.target.value }))}
+          >
+            <option value="">All Groups</option>
+            {filteredGroups.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+
+          {(filters.districtId || filters.groupId) && (
+            <button
+              className="btn-clear-filters"
+              onClick={() => setFilters({ districtId: '', groupId: '' })}
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         {/* Tabs */}
