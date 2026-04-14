@@ -67,7 +67,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const isAdmin = () => user?.role === 'ADMIN';
+  const isAdmin = () =>
+    user?.role === 'ADMIN' ||
+    (user?.role === 'BRANCHE_ECLAIREURS' && user?.isAdmin === true);
   const isChefTroupe = () => user?.role === 'CHEF_TROUPE';
   const isBrancheEclaireurs = () => user?.role === 'BRANCHE_ECLAIREURS';
   const isAuthenticated = () => !!user;

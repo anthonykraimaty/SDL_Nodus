@@ -40,6 +40,12 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+// A BRANCHE member flagged with isAdmin passes ADMIN-gated checks without
+// losing BRANCHE-specific behavior (district filtering, review queue, etc.).
+export const isEffectiveAdmin = (user) =>
+  user?.role === 'ADMIN' ||
+  (user?.role === 'BRANCHE_ECLAIREURS' && user?.isAdmin === true);
+
 // Middleware to check user role
 export const authorize = (...roles) => {
   return (req, res, next) => {
@@ -47,12 +53,15 @@ export const authorize = (...roles) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!roles.includes(req.user.role)) {
-      // Don't expose role requirements in production
-      return res.status(403).json({ error: 'Insufficient permissions' });
+    if (roles.includes(req.user.role)) {
+      return next();
     }
 
-    next();
+    if (roles.includes('ADMIN') && isEffectiveAdmin(req.user)) {
+      return next();
+    }
+
+    return res.status(403).json({ error: 'Insufficient permissions' });
   };
 };
 

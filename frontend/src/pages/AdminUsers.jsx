@@ -35,6 +35,7 @@ const AdminUsers = () => {
     troupeId: '',
     isActive: true,
     forcePasswordChange: false,
+    isAdmin: false,
   });
 
   const [selectedDistrict, setSelectedDistrict] = useState('');
@@ -226,6 +227,7 @@ const AdminUsers = () => {
         troupeId: userForm.troupeId ? parseInt(userForm.troupeId) : null,
         isActive: userForm.isActive,
         forcePasswordChange: userForm.forcePasswordChange,
+        isAdmin: userForm.role === 'BRANCHE_ECLAIREURS' ? !!userForm.isAdmin : false,
       };
 
       if (userForm.password) {
@@ -285,6 +287,7 @@ const AdminUsers = () => {
       troupeId: userToEdit.troupeId || '',
       isActive: userToEdit.isActive,
       forcePasswordChange: userToEdit.forcePasswordChange || false,
+      isAdmin: userToEdit.isAdmin || false,
     });
 
     // Pre-select district and group if editing a CHEF_TROUPE user
@@ -336,6 +339,7 @@ const AdminUsers = () => {
       troupeId: '',
       isActive: true,
       forcePasswordChange: false,
+      isAdmin: false,
     });
     setSelectedDistrict('');
     setSelectedGroup('');
@@ -843,6 +847,19 @@ const AdminUsers = () => {
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+
+            {userForm.role === 'BRANCHE_ECLAIREURS' && (
+              <div className="form-group checkbox-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={userForm.isAdmin}
+                    onChange={(e) => setUserForm({ ...userForm, isAdmin: e.target.checked })}
+                  />
+                  <span>Grant admin dashboard access</span>
+                </label>
+              </div>
+            )}
 
             {userForm.role === 'CHEF_TROUPE' && (
               <>

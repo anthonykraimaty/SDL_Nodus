@@ -7,7 +7,7 @@ import ImageEditor from '../components/ImageEditor';
 import './AdminPictures.css';
 
 const AdminPictures = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const [pictures, setPictures] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -417,7 +417,7 @@ const AdminPictures = () => {
     }
   }, [success, error]);
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!user || !isAdmin()) {
     return (
       <div className="admin-pictures">
         <div className="container">

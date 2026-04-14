@@ -6,7 +6,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import './Admin.css';
 
 const Admin = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('categories');
   const [categories, setCategories] = useState([]);
   const [users, setUsers] = useState([]);
@@ -332,7 +332,7 @@ const Admin = () => {
     });
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (!isAdmin()) {
     return (
       <div className="container">
         <div className="error-page">

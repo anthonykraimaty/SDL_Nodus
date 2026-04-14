@@ -5,7 +5,7 @@ import ProfileDropdown from '../ProfileDropdown';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const closeMobileMenu = () => {
@@ -40,7 +40,7 @@ const Navbar = () => {
 
           {isAuthenticated() ? (
             <>
-              {user?.role === 'ADMIN' && (
+              {isAdmin() && (
                 <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Administration</Link>
               )}
               {(user?.role === 'CHEF_TROUPE' || user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (

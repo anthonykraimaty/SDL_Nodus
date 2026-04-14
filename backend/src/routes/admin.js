@@ -82,7 +82,7 @@ router.get('/troupes', authenticate, authorize('ADMIN'), async (req, res) => {
 // Create new user (ADMIN only)
 router.post('/users', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {
-    const { email, password, role, troupeId, isActive } = req.body;
+    const { email, password, role, troupeId, isActive, isAdmin } = req.body;
     const name = sanitizeInput(req.body.name);
 
     // Validate required fields
@@ -127,6 +127,9 @@ router.post('/users', authenticate, authorize('ADMIN'), sensitiveLimiter, async 
       password: hashedPassword,
       role,
       isActive: isActive !== undefined ? isActive : true,
+      // isAdmin flag is only meaningful for BRANCHE_ECLAIREURS (ADMIN role is
+      // implicitly admin). Ignore it for other roles to prevent misuse.
+      isAdmin: role === 'BRANCHE_ECLAIREURS' ? !!isAdmin : false,
     };
 
     // Require troupeId for CHEF_TROUPE
@@ -170,7 +173,7 @@ router.post('/users', authenticate, authorize('ADMIN'), sensitiveLimiter, async 
 router.put('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, password, role, troupeId, isActive, forcePasswordChange } = req.body;
+    const { email, password, role, troupeId, isActive, forcePasswordChange, isAdmin } = req.body;
     const name = req.body.name ? sanitizeInput(req.body.name) : undefined;
 
     // Check if user exists
@@ -201,6 +204,15 @@ router.put('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, asy
     if (role) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (forcePasswordChange !== undefined) updateData.forcePasswordChange = forcePasswordChange;
+
+    // isAdmin is only allowed on BRANCHE_ECLAIREURS. Force it off for any
+    // other role (including when the caller demotes a user to CHEF_TROUPE).
+    const effectiveRoleForAdmin = role || existingUser.role;
+    if (isAdmin !== undefined) {
+      updateData.isAdmin = effectiveRoleForAdmin === 'BRANCHE_ECLAIREURS' ? !!isAdmin : false;
+    } else if (role && effectiveRoleForAdmin !== 'BRANCHE_ECLAIREURS' && existingUser.isAdmin) {
+      updateData.isAdmin = false;
+    }
 
     // Update password if provided
     if (password && password.trim() !== '') {

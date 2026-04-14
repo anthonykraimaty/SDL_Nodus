@@ -6,7 +6,7 @@ import Modal from '../components/Modal';
 import './AdminCategories.css';
 
 const AdminCategories = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,7 +36,7 @@ const AdminCategories = () => {
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(null);
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    if (isAdmin()) {
       loadCategories();
       loadCategorySets();
     }
@@ -372,7 +372,7 @@ const AdminCategories = () => {
     }
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (!isAdmin()) {
     return (
       <div className="container">
         <div className="error-page">

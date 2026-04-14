@@ -114,6 +114,7 @@ model User {
   createdDesignGroups    DesignGroup[]          // Design groups created by this user
   districtAccess         UserDistrictAccess[]
   isActive               Boolean                @default(true)
+  isAdmin                Boolean                @default(false)
   forcePasswordChange    Boolean                @default(false)
   lastLogin              DateTime?              // Null if user has never logged in
   createdAt              DateTime               @default(now())

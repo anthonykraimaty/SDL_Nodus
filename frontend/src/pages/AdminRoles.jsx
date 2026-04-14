@@ -5,7 +5,7 @@ import Modal from '../components/Modal';
 import './AdminRoles.css';
 
 const AdminRoles = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +15,7 @@ const AdminRoles = () => {
   const [selectedDistricts, setSelectedDistricts] = useState([]);
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    if (isAdmin()) {
       loadData();
     }
   }, [user]);
@@ -118,7 +118,7 @@ const AdminRoles = () => {
     setSuccess('');
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (!isAdmin()) {
     return (
       <div className="container">
         <div className="error-page">

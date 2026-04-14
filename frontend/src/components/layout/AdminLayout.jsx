@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import './AdminLayout.css';
 
 const AdminLayout = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -16,7 +16,7 @@ const AdminLayout = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (!isAdmin()) {
     return (
       <div className="container">
         <div className="error-page">
