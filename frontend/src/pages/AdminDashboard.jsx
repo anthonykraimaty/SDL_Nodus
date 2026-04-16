@@ -51,46 +51,23 @@ const AdminDashboard = () => {
       const token = localStorage.getItem('token');
 
       // Load all data in parallel
-      const [dashboardRes, pendingRes, classifiedRes, approvedRes, rejectedRes, categoriesRes] = await Promise.all([
+      const [dashboardRes, categoriesRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/dashboard-stats`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/pictures?status=PENDING&limit=1`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/pictures?status=CLASSIFIED&limit=1`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/pictures?status=APPROVED&limit=1`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/pictures?status=REJECTED&limit=1`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch(`${API_URL}/api/categories`),
       ]);
 
-      const [dashboardData, pendingData, classifiedData, approvedData, rejectedData, categories] = await Promise.all([
+      const [dashboardData, categories] = await Promise.all([
         dashboardRes.json(),
-        pendingRes.json(),
-        classifiedRes.json(),
-        approvedRes.json(),
-        rejectedRes.json(),
         categoriesRes.json(),
       ]);
 
       setUserStats(dashboardData.userStats);
       setTroupeStats(dashboardData.troupeStats);
 
-      const pending = pendingData.pagination?.total || 0;
-      const classified = classifiedData.pagination?.total || 0;
-      const approved = approvedData.pagination?.total || 0;
-      const rejected = rejectedData.pagination?.total || 0;
-
-      setPictureStats({
-        total: pending + classified + approved + rejected,
-        pending, classified, approved, rejected,
-      });
+      const emptyStats = { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 };
+      setPictureStats(dashboardData.pictureStats || emptyStats);
 
       // Load categories with picture counts
       const categoryPictureCounts = await Promise.all(

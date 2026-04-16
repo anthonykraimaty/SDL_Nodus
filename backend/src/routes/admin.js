@@ -305,7 +305,7 @@ router.get('/dashboard-stats', authenticate, authorize('ADMIN'), async (req, res
       users,
       neverLoggedIn,
       troupes,
-      pictureSetsByTroupe,
+      photoSetsWithCounts,
       schematicsByTroupe,
     ] = await Promise.all([
       // User stats
@@ -363,14 +363,18 @@ router.get('/dashboard-stats', authenticate, authorize('ADMIN'), async (req, res
         orderBy: { name: 'asc' },
       }),
 
-      // Picture sets (photos) grouped by troupe and status
-      prisma.pictureSet.groupBy({
-        by: ['troupeId', 'status'],
+      // INSTALLATION_PHOTO sets with per-set non-archived picture counts.
+      // We aggregate pictures (not sets) per troupe + status in JS below.
+      prisma.pictureSet.findMany({
         where: { type: 'INSTALLATION_PHOTO' },
-        _count: { id: true },
+        select: {
+          troupeId: true,
+          status: true,
+          _count: { select: { pictures: { where: { isArchived: false } } } },
+        },
       }),
 
-      // Schematics grouped by troupe and status
+      // Schematics stay counted as sets (one schematic submission = one item).
       prisma.pictureSet.groupBy({
         by: ['troupeId', 'status'],
         where: { type: 'SCHEMATIC' },
@@ -399,22 +403,36 @@ router.get('/dashboard-stats', authenticate, authorize('ADMIN'), async (req, res
       })),
     };
 
-    // Build helper to aggregate status counts per troupe
-    const aggregateCounts = (groupedData) => {
-      const map = {};
-      for (const row of groupedData) {
-        if (!row.troupeId) continue;
-        if (!map[row.troupeId]) {
-          map[row.troupeId] = { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 };
-        }
-        map[row.troupeId][row.status.toLowerCase()] = row._count.id;
-        map[row.troupeId].total += row._count.id;
-      }
-      return map;
-    };
+    const emptyCounts = () => ({ total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 });
 
-    const photosByTroupe = aggregateCounts(pictureSetsByTroupe);
-    const schemByTroupe = aggregateCounts(schematicsByTroupe);
+    // Aggregate photos per troupe by summing Picture counts across sets
+    const photosByTroupe = {};
+    const pictureTotals = emptyCounts();
+    for (const s of photoSetsWithCounts) {
+      const n = s._count.pictures;
+      if (n === 0) continue;
+      const bucket = s.status.toLowerCase();
+      pictureTotals[bucket] += n;
+      pictureTotals.total += n;
+      if (!s.troupeId) continue;
+      if (!photosByTroupe[s.troupeId]) photosByTroupe[s.troupeId] = emptyCounts();
+      photosByTroupe[s.troupeId][bucket] += n;
+      photosByTroupe[s.troupeId].total += n;
+    }
+
+    // Aggregate schematics (sets) per troupe + overall
+    const schemByTroupe = {};
+    const schematicTotals = emptyCounts();
+    for (const row of schematicsByTroupe) {
+      const n = row._count.id;
+      const bucket = row.status.toLowerCase();
+      schematicTotals[bucket] += n;
+      schematicTotals.total += n;
+      if (!row.troupeId) continue;
+      if (!schemByTroupe[row.troupeId]) schemByTroupe[row.troupeId] = emptyCounts();
+      schemByTroupe[row.troupeId][bucket] += n;
+      schemByTroupe[row.troupeId].total += n;
+    }
 
     // Build troupe stats
     const troupeStats = troupes.map(t => ({
@@ -424,11 +442,16 @@ router.get('/dashboard-stats', authenticate, authorize('ADMIN'), async (req, res
       district: t.group.district.name,
       users: t._count.users,
       patrouilles: t._count.patrouilles,
-      photos: photosByTroupe[t.id] || { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
-      schematics: schemByTroupe[t.id] || { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
+      photos: photosByTroupe[t.id] || emptyCounts(),
+      schematics: schemByTroupe[t.id] || emptyCounts(),
     }));
 
-    res.json({ userStats, troupeStats });
+    res.json({
+      userStats,
+      troupeStats,
+      pictureStats: pictureTotals,
+      schematicStats: schematicTotals,
+    });
   } catch (error) {
     console.error('Failed to fetch dashboard stats:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
@@ -464,29 +487,29 @@ router.get('/troupe-comparison', authenticate, authorize('ADMIN'), async (req, r
       orderBy: { name: 'asc' },
     });
 
-    // Get troupe IDs that had uploads as of date1 and date2
-    const [uploadsAsOfDate1, uploadsAsOfDate2] = await Promise.all([
-      prisma.pictureSet.groupBy({
-        by: ['troupeId'],
-        where: { uploadedAt: { lte: d1 } },
-        _count: { id: true },
-      }),
-      prisma.pictureSet.groupBy({
-        by: ['troupeId'],
-        where: { uploadedAt: { lte: d2 } },
-        _count: { id: true },
-      }),
+    // Count non-archived Picture rows per troupe as of a given date.
+    // Prisma groupBy can't group by a related field, so use raw SQL.
+    const picsByTroupeAsOf = async (upTo) => {
+      const rows = await prisma.$queryRaw`
+        SELECT ps."troupeId" AS troupe_id, COUNT(p.id)::int AS count
+        FROM "Picture" p
+        JOIN "PictureSet" ps ON ps.id = p."pictureSetId"
+        WHERE p."isArchived" = false
+          AND p."uploadedAt" <= ${upTo}
+          AND ps.type = 'INSTALLATION_PHOTO'
+        GROUP BY ps."troupeId"
+      `;
+      const map = {};
+      for (const r of rows) {
+        if (r.troupe_id != null) map[r.troupe_id] = r.count;
+      }
+      return map;
+    };
+
+    const [troupeCountsDate1, troupeCountsDate2] = await Promise.all([
+      picsByTroupeAsOf(d1),
+      picsByTroupeAsOf(d2),
     ]);
-
-    const troupeCountsDate1 = {};
-    for (const row of uploadsAsOfDate1) {
-      if (row.troupeId) troupeCountsDate1[row.troupeId] = row._count.id;
-    }
-
-    const troupeCountsDate2 = {};
-    for (const row of uploadsAsOfDate2) {
-      if (row.troupeId) troupeCountsDate2[row.troupeId] = row._count.id;
-    }
 
     const results = troupes.map(t => {
       const countDate1 = troupeCountsDate1[t.id] || 0;
