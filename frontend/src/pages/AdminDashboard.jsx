@@ -21,6 +21,8 @@ const AdminDashboard = () => {
   // Troupe table state
   const [troupeSort, setTroupeSort] = useState({ key: 'district', dir: 'asc' });
   const [troupeFilter, setTroupeFilter] = useState('all'); // 'all', 'zero', 'active'
+  const [troupeSearch, setTroupeSearch] = useState('');
+  const [troupeSectionOpen, setTroupeSectionOpen] = useState(true);
 
   // Troupe comparison state
   const [compDate1, setCompDate1] = useState('');
@@ -51,16 +53,18 @@ const AdminDashboard = () => {
       const token = localStorage.getItem('token');
 
       // Load all data in parallel
-      const [dashboardRes, categoriesRes] = await Promise.all([
+      const [dashboardRes, byCategoryRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/dashboard-stats`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
-        fetch(`${API_URL}/api/categories`),
+        fetch(`${API_URL}/api/analytics/pictures/by-category?status=APPROVED`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
       ]);
 
-      const [dashboardData, categories] = await Promise.all([
+      const [dashboardData, byCategoryData] = await Promise.all([
         dashboardRes.json(),
-        categoriesRes.json(),
+        byCategoryRes.json(),
       ]);
 
       setUserStats(dashboardData.userStats);
@@ -69,18 +73,9 @@ const AdminDashboard = () => {
       const emptyStats = { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 };
       setPictureStats(dashboardData.pictureStats || emptyStats);
 
-      // Load categories with picture counts
-      const categoryPictureCounts = await Promise.all(
-        categories.slice(0, 10).map(async (cat) => {
-          const res = await fetch(`${API_URL}/api/pictures?categoryId=${cat.id}&status=APPROVED&limit=1`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          const data = await res.json();
-          return { name: cat.name, count: data.pagination?.total || 0 };
-        })
-      );
-
-      setCategoryStats(categoryPictureCounts.sort((a, b) => b.count - a.count));
+      // Category chart: real per-category Picture counts (already sorted desc)
+      const topCategories = (byCategoryData.categories || []).slice(0, 10);
+      setCategoryStats(topCategories);
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {
@@ -184,10 +179,16 @@ const AdminDashboard = () => {
   };
 
   // Filtered and sorted troupe data
+  const searchLower = troupeSearch.trim().toLowerCase();
   const filteredTroupes = troupeStats.filter(t => {
-    if (troupeFilter === 'zero') return t.photos.total === 0 && t.schematics.total === 0;
-    if (troupeFilter === 'active') return t.photos.total > 0 || t.schematics.total > 0;
-    return true;
+    if (troupeFilter === 'zero' && !(t.photos.total === 0 && t.schematics.total === 0)) return false;
+    if (troupeFilter === 'active' && !(t.photos.total > 0 || t.schematics.total > 0)) return false;
+    if (!searchLower) return true;
+    return (
+      t.name.toLowerCase().includes(searchLower) ||
+      t.group.toLowerCase().includes(searchLower) ||
+      t.district.toLowerCase().includes(searchLower)
+    );
   });
   const sortedTroupes = sortData(filteredTroupes, troupeSort);
 
@@ -469,8 +470,17 @@ const AdminDashboard = () => {
 
         {/* Troupe Stats Section */}
         <div className="data-table-section">
-          <div className="section-header">
-            <h2>Troupe Statistics</h2>
+          <div
+            className="section-header collapsible"
+            onClick={() => setTroupeSectionOpen(o => !o)}
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
+            <h2>
+              <span style={{ display: 'inline-block', width: '1em' }}>
+                {troupeSectionOpen ? '▾' : '▸'}
+              </span>{' '}
+              Troupe Statistics
+            </h2>
             <span className="section-subtitle">
               {troupeStats.length} troupes total
               {zeroUploadTroupes > 0 && (
@@ -479,6 +489,7 @@ const AdminDashboard = () => {
             </span>
           </div>
 
+          {troupeSectionOpen && (<>
           <div className="table-toolbar">
             <div className="filter-tabs">
               <button
@@ -500,6 +511,13 @@ const AdminDashboard = () => {
                 Active ({troupeStats.length - zeroUploadTroupes})
               </button>
             </div>
+            <input
+              type="search"
+              className="troupe-search"
+              placeholder="Search troupe, group, or district…"
+              value={troupeSearch}
+              onChange={(e) => setTroupeSearch(e.target.value)}
+            />
             <button className="btn-export-csv" onClick={exportTroupeCSV}>
               Export CSV
             </button>
@@ -570,6 +588,7 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+          </>)}
         </div>
 
         {/* Troupe Date Comparison */}
