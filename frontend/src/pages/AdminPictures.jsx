@@ -23,6 +23,10 @@ const AdminPictures = () => {
   const [sortBy, setSortBy] = useState('uploadedAt');
   const [sortOrder, setSortOrder] = useState('desc');
 
+  // Search state (debounced before hitting the API)
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Edit modal state
   const [editingPicture, setEditingPicture] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -67,7 +71,16 @@ const AdminPictures = () => {
 
   useEffect(() => {
     loadPictures();
-  }, [statusFilter, pagination.page, sortBy, sortOrder]);
+  }, [statusFilter, pagination.page, sortBy, sortOrder, searchQuery]);
+
+  // Debounce the search input → searchQuery and reset pagination on every change
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPagination(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const loadCategories = async () => {
     try {
@@ -135,6 +148,7 @@ const AdminPictures = () => {
         limit: pagination.limit,
         sortBy,
         sortOrder,
+        search: searchQuery,
       });
       setPictures(data.pictures || []);
       setPagination(data.pagination || { total: 0, page: 1, limit: 50, totalPages: 0 });
@@ -497,6 +511,25 @@ const AdminPictures = () => {
             >
               Rejected
             </button>
+          </div>
+          <div className="search-wrapper">
+            <input
+              type="search"
+              className="picture-search"
+              placeholder="Search troupe, group, district, uploader, category…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                className="search-clear"
+                onClick={() => setSearchInput('')}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
           </div>
           <div className="results-count">
             {pagination.total} picture(s) found

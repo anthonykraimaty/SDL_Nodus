@@ -188,7 +188,10 @@ export const pictureService = {
   deletePicture: (setId, pictureId) => api.delete(`/api/pictures/${setId}/picture/${pictureId}`, true),
   // Individual picture management (admin)
   getIndividualPictures: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const query = new URLSearchParams(cleaned).toString();
     return api.get(`/api/pictures/individual/list${query ? '?' + query : ''}`, true);
   },
   updateIndividualPicture: (pictureId, data) => api.put(`/api/pictures/individual/${pictureId}`, data, true),

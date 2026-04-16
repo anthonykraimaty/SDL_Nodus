@@ -1283,6 +1283,7 @@ router.get('/individual/list', authenticate, authorize('ADMIN'), async (req, res
       status,
       categoryId,
       type,
+      search,
       sortBy = 'uploadedAt',
       sortOrder = 'desc',
       page = 1,
@@ -1301,6 +1302,22 @@ router.get('/individual/list', authenticate, authorize('ADMIN'), async (req, res
     if (categoryId) pictureWhere.categoryId = parseInt(categoryId);
     // Type is now per-picture, not per-set
     if (type) pictureWhere.type = type;
+
+    // Free-text search across troupe, group, district, uploader, and category names
+    const searchTerm = typeof search === 'string' ? search.trim() : '';
+    if (searchTerm) {
+      const mode = 'insensitive';
+      pictureWhere.OR = [
+        { pictureSet: { ...pictureSetWhere, troupe: { name: { contains: searchTerm, mode } } } },
+        { pictureSet: { ...pictureSetWhere, troupe: { group: { name: { contains: searchTerm, mode } } } } },
+        { pictureSet: { ...pictureSetWhere, troupe: { group: { district: { name: { contains: searchTerm, mode } } } } } },
+        { pictureSet: { ...pictureSetWhere, uploadedBy: { name: { contains: searchTerm, mode } } } },
+        { category: { name: { contains: searchTerm, mode } } },
+      ];
+      // The top-level pictureSet filter is now redundant (each OR branch re-applies
+      // the status constraint), so drop it to avoid double-filtering conflicts.
+      delete pictureWhere.pictureSet;
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
