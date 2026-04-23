@@ -301,6 +301,15 @@ model Picture {
   @@index([isArchived])
 }
 
+// Global platform settings / feature flags. Admin-editable via /admin/organizations.
+model SystemSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String   // stored as string (JSON/boolean/number); parsed at read time
+  updatedAt DateTime @updatedAt
+  updatedById Int?
+}
+
 // Audit log for picture edits (crop, magic background, rotate, blur, etc.)
 model PictureEdit {
   id                     Int         @id @default(autoincrement())

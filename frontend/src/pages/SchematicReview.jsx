@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { schematicService, organizationService, pictureService } from '../services/api';
+import { schematicService, organizationService, pictureService, settingsService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import ImagePreviewer from '../components/ImagePreviewer';
 import ImageEditor from '../components/ImageEditor';
@@ -58,6 +58,15 @@ const SchematicReview = () => {
 
   // Image editor
   const [editingPicture, setEditingPicture] = useState(null);
+
+  // Feature flag: schematic approval
+  const [approvalEnabled, setApprovalEnabled] = useState(true);
+
+  useEffect(() => {
+    settingsService.get().then((s) => {
+      setApprovalEnabled(s.schematicApprovalEnabled !== false);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadCategories();
@@ -399,7 +408,8 @@ const SchematicReview = () => {
                         <button
                           className="btn-approve"
                           onClick={() => handleApprove(schematic)}
-                          disabled={actionLoading === schematic.id}
+                          disabled={actionLoading === schematic.id || !approvalEnabled}
+                          title={!approvalEnabled ? 'Approbation désactivée par un administrateur' : undefined}
                         >
                           {actionLoading === schematic.id
                             ? 'Processing...'
@@ -536,6 +546,8 @@ const SchematicReview = () => {
             <button
               className="primary"
               onClick={() => doApprove(approveModal.schematic.id)}
+              disabled={!approvalEnabled}
+              title={!approvalEnabled ? 'Approbation désactivée par un administrateur' : undefined}
             >
               Approuver quand même
             </button>

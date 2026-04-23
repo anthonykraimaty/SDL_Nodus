@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService, organizationService } from '../services/api';
+import { pictureService, categoryService, organizationService, settingsService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -28,6 +28,13 @@ const ReviewQueue = () => {
   const [categories, setCategories] = useState([]);
   const [modalEditing, setModalEditing] = useState(false);
   const [editCategoryId, setEditCategoryId] = useState('');
+  const [approvalEnabled, setApprovalEnabled] = useState(true);
+
+  useEffect(() => {
+    settingsService.get().then((s) => {
+      setApprovalEnabled(s.photoApprovalEnabled !== false);
+    }).catch(() => {});
+  }, []);
   const [editSaving, setEditSaving] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
 
@@ -479,7 +486,8 @@ const ReviewQueue = () => {
                   <button
                     onClick={() => handleApprove(set.id, false)}
                     className="btn-approve"
-                    disabled={getIncludedCount(set) === 0}
+                    disabled={getIncludedCount(set) === 0 || !approvalEnabled}
+                    title={!approvalEnabled ? 'Approbation désactivée par un administrateur' : undefined}
                   >
                     {activeTab === 'rejected' ? 'Re-Approve' : 'Approve'} {getIncludedCount(set) < set.pictures?.length ? `(${getIncludedCount(set)})` : ''}
                   </button>
@@ -673,6 +681,8 @@ const ReviewQueue = () => {
                 <button
                   className="btn-approve"
                   onClick={() => handleApproveSinglePicture(selectedImage)}
+                  disabled={!approvalEnabled}
+                  title={!approvalEnabled ? 'Approbation désactivée par un administrateur' : undefined}
                 >
                   Approve This Picture
                 </button>

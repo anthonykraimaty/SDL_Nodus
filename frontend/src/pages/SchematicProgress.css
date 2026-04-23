@@ -1447,3 +1447,13 @@
     text-align: center;
   }
 }
+
+.public-view-disabled-banner {
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  background: rgba(255, 152, 0, 0.12);
+  border: 1px solid rgba(255, 152, 0, 0.35);
+  color: #ff9800;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+}

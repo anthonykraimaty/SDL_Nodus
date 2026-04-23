@@ -6,6 +6,7 @@ import { authenticate, authorize, canModifyPicture, optionalAuth } from '../midd
 import { upload, handleUploadError, processUpload } from '../middleware/upload.js';
 import { deleteFromR2, isR2Configured, uploadMultipleToR2 } from '../services/r2Storage.js';
 import fs from 'fs/promises';
+import { getSetting } from '../utils/settings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -215,6 +216,16 @@ router.get('/', optionalAuth, async (req, res) => {
 
     // Public users can only see approved picture sets
     if (!req.user) {
+      // Honor the public-view feature flag for photos
+      const publicViewEnabled = await getSetting('photosPublicViewEnabled');
+      if (!publicViewEnabled) {
+        return res.json({
+          pictures: [],
+          pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+          disabled: true,
+          message: 'Public viewing is temporarily disabled',
+        });
+      }
       where.status = 'APPROVED';
     } else {
       // Authenticated users filter based on role
@@ -748,6 +759,9 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 // POST /api/pictures/:id/approve - Approve picture set (branche only)
 router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
+    if (!(await getSetting('photoApprovalEnabled'))) {
+      return res.status(403).json({ error: 'Photo approval is currently disabled by an administrator' });
+    }
     const { isHighlight, excludedPictureIds, archivePictureIds } = req.body;
 
     // Archive unclassified pictures (e.g., when approving a partially-classified set)

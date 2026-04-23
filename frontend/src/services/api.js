@@ -422,3 +422,9 @@ export const designGroupService = {
     return response.json();
   },
 };
+
+// System settings / feature flags
+export const settingsService = {
+  get: () => api.get('/api/settings'),
+  update: (updates) => api.put('/api/settings', updates, true),
+};

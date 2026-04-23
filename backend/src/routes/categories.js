@@ -1,6 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { getSetting } from '../utils/settings.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -635,6 +636,22 @@ router.get('/:id/pictures', async (req, res) => {
 
     if (!category) {
       return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // Honor public-view feature flags based on category type
+    const flagKey = category.type === 'SCHEMATIC'
+      ? 'schematicsPublicViewEnabled'
+      : 'photosPublicViewEnabled';
+    if (!(await getSetting(flagKey))) {
+      return res.json({
+        category,
+        pictures: [],
+        designGroups: [],
+        ungroupedPictures: [],
+        grouped: false,
+        disabled: true,
+        message: 'Public viewing is temporarily disabled',
+      });
     }
 
     // Build where clause for picture filtering

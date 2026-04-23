@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
 import { uploadToR2, isR2Configured, deleteFromR2 } from '../services/r2Storage.js';
+import { getSetting } from '../utils/settings.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -50,6 +51,14 @@ router.get('/categories', async (req, res) => {
 // GET /api/schematics/gallery - Get approved schematics for public view
 router.get('/gallery', async (req, res) => {
   try {
+    if (!(await getSetting('schematicsPublicViewEnabled'))) {
+      return res.json({
+        schematics: [],
+        pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+        disabled: true,
+        message: 'Public viewing is temporarily disabled',
+      });
+    }
     const { setName, itemId, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -1141,6 +1150,9 @@ router.post(
   authorize('BRANCHE_ECLAIREURS', 'ADMIN'),
   async (req, res) => {
     try {
+      if (!(await getSetting('schematicApprovalEnabled'))) {
+        return res.status(403).json({ error: 'Schematic approval is currently disabled by an administrator' });
+      }
       const { id } = req.params;
       const user = req.user;
 

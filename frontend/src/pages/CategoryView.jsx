@@ -26,6 +26,7 @@ const CategoryView = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedPictureIndex, setSelectedPictureIndex] = useState(null);
+  const [publicViewDisabled, setPublicViewDisabled] = useState(false);
 
   // Grouped view state
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
@@ -122,6 +123,7 @@ const CategoryView = () => {
 
       const data = await response.json();
       setCategory(data.category);
+      setPublicViewDisabled(!!data.disabled);
 
       // Handle grouped vs flat response
       if (data.grouped) {
@@ -444,6 +446,19 @@ const CategoryView = () => {
         />
       )}
       <div className="container">
+        {publicViewDisabled && (
+          <div className="public-view-disabled-banner" style={{
+            padding: '12px 16px',
+            margin: '12px 0',
+            background: 'rgba(255, 152, 0, 0.12)',
+            border: '1px solid rgba(255, 152, 0, 0.35)',
+            color: '#ff9800',
+            borderRadius: '8px',
+            fontWeight: 500,
+          }}>
+            La vue publique est temporairement désactivée par un administrateur.
+          </div>
+        )}
         {/* Header */}
         <header className="category-header">
           <nav aria-label="Breadcrumb">

@@ -40,6 +40,7 @@ const SchematicProgress = () => {
 
   // Gallery state
   const [gallerySchematics, setGallerySchematics] = useState([]);
+  const [galleryDisabled, setGalleryDisabled] = useState(false);
   const [galleryCategories, setGalleryCategories] = useState([]);
   const [galleryFilters, setGalleryFilters] = useState({
     setName: '',
@@ -225,6 +226,7 @@ const SchematicProgress = () => {
 
       const data = await schematicService.getGallery(params);
       setGallerySchematics(data.schematics);
+      setGalleryDisabled(!!data.disabled);
       setGalleryPagination((prev) => ({
         ...prev,
         total: data.pagination.total,
@@ -900,6 +902,11 @@ const SchematicProgress = () => {
         {/* Gallery View */}
         {view === 'gallery' && (
           <div className="gallery-section">
+            {galleryDisabled && (
+              <div className="public-view-disabled-banner">
+                La galerie publique des schémas est temporairement désactivée par un administrateur.
+              </div>
+            )}
             {/* Filters */}
             <div className="gallery-filters">
               <div className="filter-group">
