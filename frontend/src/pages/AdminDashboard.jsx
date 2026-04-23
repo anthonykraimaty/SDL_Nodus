@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { API_URL } from '../config/api';
+import { API_URL, getImageUrl } from '../config/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -21,6 +21,13 @@ const AdminDashboard = () => {
   // Schematic progress summary
   const [schematicSummary, setSchematicSummary] = useState(null);
   const [schematicPending, setSchematicPending] = useState(0);
+
+  // Audit section state
+  const [auditApprovals, setAuditApprovals] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditOthersOnly, setAuditOthersOnly] = useState(false);
+  const [auditType, setAuditType] = useState('SCHEMATIC'); // 'SCHEMATIC' | 'INSTALLATION_PHOTO' | 'all'
+  const [auditExpanded, setAuditExpanded] = useState(new Set());
 
   // Troupe table state
   const [troupeSort, setTroupeSort] = useState({ key: 'district', dir: 'asc' });
@@ -51,6 +58,43 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadAllStats();
   }, []);
+
+  useEffect(() => {
+    loadAudit();
+  }, [auditOthersOnly, auditType]);
+
+  const loadAudit = async () => {
+    try {
+      setAuditLoading(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({ type: auditType, limit: '100' });
+      if (auditOthersOnly) params.set('others', '1');
+      const res = await fetch(`${API_URL}/api/admin/audit/approvals?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setAuditApprovals(data.approvals || []);
+    } catch (err) {
+      console.error('Failed to load audit:', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const toggleAuditRow = (id) => {
+    setAuditExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   const loadAllStats = async () => {
     try {
@@ -433,6 +477,187 @@ const AdminDashboard = () => {
               </span>
             </div>
           </Link>
+        </div>
+
+        {/* Audit Section */}
+        <div className="section-header">
+          <h2>Audit</h2>
+          <span className="section-subtitle">
+            Approbations récentes — qui a approuvé et qui a édité
+          </span>
+        </div>
+        <div className="audit-toolbar">
+          <div className="filter-tabs">
+            <button
+              className={`filter-tab ${auditType === 'SCHEMATIC' ? 'active' : ''}`}
+              onClick={() => setAuditType('SCHEMATIC')}
+            >
+              Schémas
+            </button>
+            <button
+              className={`filter-tab ${auditType === 'INSTALLATION_PHOTO' ? 'active' : ''}`}
+              onClick={() => setAuditType('INSTALLATION_PHOTO')}
+            >
+              Photos
+            </button>
+            <button
+              className={`filter-tab ${auditType === 'all' ? 'active' : ''}`}
+              onClick={() => setAuditType('all')}
+            >
+              Tous
+            </button>
+          </div>
+          <label className="audit-others-toggle">
+            <input
+              type="checkbox"
+              checked={auditOthersOnly}
+              onChange={(e) => setAuditOthersOnly(e.target.checked)}
+            />
+            Approuvés par d'autres
+          </label>
+        </div>
+
+        <div className="data-table-wrapper">
+          <table className="data-table audit-table">
+            <thead>
+              <tr>
+                <th style={{ width: '70px' }}></th>
+                <th>Set</th>
+                <th>Troupe / Patrouille</th>
+                <th>Approuvé par</th>
+                <th>Éditeurs</th>
+                <th className="num-col">Édits</th>
+                <th className="num-col">Après approbation</th>
+                <th style={{ width: '40px' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLoading ? (
+                <tr>
+                  <td colSpan={8} className="empty-row">Chargement…</td>
+                </tr>
+              ) : auditApprovals.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="empty-row">Aucune approbation à afficher</td>
+                </tr>
+              ) : (
+                auditApprovals.map((a) => {
+                  const isOpen = auditExpanded.has(a.id);
+                  return (
+                    <Fragment key={a.id}>
+                      <tr
+                        className={a.editsAfterApproval > 0 ? 'audit-row-warn' : ''}
+                        onClick={() => toggleAuditRow(a.id)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td>
+                          {a.thumbnailPath && (
+                            <img
+                              src={getImageUrl(a.thumbnailPath)}
+                              alt={a.title}
+                              className="audit-thumb"
+                            />
+                          )}
+                        </td>
+                        <td>
+                          <div className="user-cell">
+                            <span className="user-name">{a.category || a.title || '—'}</span>
+                            <span className="user-email">{a.type === 'SCHEMATIC' ? 'Schéma' : 'Photo'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="user-cell">
+                            <span>{a.troupe || '—'}</span>
+                            <span className="user-email">
+                              {a.patrouille?.name ? `${a.patrouille.name} (${a.patrouille.totem})` : '—'}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="user-cell">
+                            <span className="user-name">{a.approvedBy?.name || '—'}</span>
+                            <span className="user-email">{formatDate(a.approvedAt)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          {a.editors.length === 0 ? (
+                            <span className="muted-text">—</span>
+                          ) : (
+                            <div className="editor-chips">
+                              {a.editors.slice(0, 3).map((e) => (
+                                <span
+                                  key={e.id}
+                                  className={`editor-chip ${e.afterApprovalCount > 0 ? 'after-approval' : ''}`}
+                                  title={`${e.editCount} édit${e.editCount > 1 ? 's' : ''}${e.afterApprovalCount > 0 ? ` — ${e.afterApprovalCount} après approbation` : ''}`}
+                                >
+                                  {e.name}
+                                </span>
+                              ))}
+                              {a.editors.length > 3 && (
+                                <span className="editor-chip more">+{a.editors.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="num-col">{a.totalEdits}</td>
+                        <td className="num-col">
+                          {a.editsAfterApproval > 0 ? (
+                            <span className="badge-warn">{a.editsAfterApproval}</span>
+                          ) : (
+                            <span className="muted-text">0</span>
+                          )}
+                        </td>
+                        <td>{isOpen ? '▾' : '▸'}</td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="audit-detail-row">
+                          <td colSpan={8}>
+                            <div className="audit-detail">
+                              <div className="audit-detail-header">
+                                Historique des édits ({a.totalEdits})
+                              </div>
+                              {a.edits.length === 0 ? (
+                                <div className="muted-text">Aucune édit enregistrée.</div>
+                              ) : (
+                                <table className="audit-edits-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Date</th>
+                                      <th>Éditeur</th>
+                                      <th>Type</th>
+                                      <th>Statut à l'édit</th>
+                                      <th>Après approbation?</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {a.edits.map((e) => (
+                                      <tr key={e.id}>
+                                        <td>{formatDate(e.editedAt)}</td>
+                                        <td>{e.editor?.name || '—'}</td>
+                                        <td>{e.editType || '—'}</td>
+                                        <td>{e.statusAtEdit}</td>
+                                        <td>
+                                          {e.afterApproval ? (
+                                            <span className="badge-warn">Oui</span>
+                                          ) : (
+                                            'Non'
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
 
         {/* Users Stats Section */}

@@ -978,22 +978,22 @@
 }
 
 .category-stats-header .total-approved {
-  color: var(--success);
-  background: rgba(76, 175, 80, 0.15);
+  color: #4a7c4e;
+  background: rgba(76, 175, 80, 0.12);
   padding: 2px 8px;
   border-radius: 10px;
 }
 
 .category-stats-header .total-pending {
-  color: var(--warning);
-  background: rgba(255, 193, 7, 0.15);
+  color: #a67c00;
+  background: rgba(255, 193, 7, 0.12);
   padding: 2px 8px;
   border-radius: 10px;
 }
 
 .category-stats-header .total-uploads {
-  color: var(--text-muted);
-  background: rgba(128, 128, 128, 0.15);
+  color: var(--text-secondary);
+  background: rgba(128, 128, 128, 0.12);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -1038,13 +1038,13 @@
 }
 
 .category-stats-item .count.approved {
-  background: rgba(76, 175, 80, 0.2);
-  color: #81c784;
+  background: rgba(76, 175, 80, 0.15);
+  color: #4a7c4e;
 }
 
 .category-stats-item .count.pending {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffd54f;
+  background: rgba(255, 193, 7, 0.15);
+  color: #a67c00;
 }
 
 .category-stats-item .count.rejected {

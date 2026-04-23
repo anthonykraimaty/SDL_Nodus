@@ -779,4 +779,128 @@ router.post('/users/import', authenticate, authorize('ADMIN'), sensitiveLimiter,
   }
 });
 
+// GET /api/admin/audit/approvals
+// Audit trail for approved schematic/picture sets: who approved and who edited.
+// Query params:
+//   - type: 'SCHEMATIC' | 'INSTALLATION_PHOTO' | 'all' (default 'SCHEMATIC')
+//   - others: '1' to return only sets approved by users OTHER than the caller
+//   - limit: default 100, max 500
+router.get('/audit/approvals', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { type = 'SCHEMATIC', others, limit = 100 } = req.query;
+    const take = Math.min(parseInt(limit) || 100, 500);
+
+    const where = {
+      status: 'APPROVED',
+      approvedById: { not: null },
+    };
+
+    if (type !== 'all') {
+      where.type = type;
+    }
+
+    if (others === '1') {
+      where.approvedById = { not: req.user.id };
+    }
+
+    const sets = await prisma.pictureSet.findMany({
+      where,
+      orderBy: { approvedAt: 'desc' },
+      take,
+      include: {
+        approvedBy: { select: { id: true, name: true, email: true, role: true } },
+        uploadedBy: { select: { id: true, name: true } },
+        troupe: {
+          include: {
+            group: { include: { district: true } },
+          },
+        },
+        patrouille: { select: { id: true, name: true, totem: true } },
+        category: { select: { id: true, name: true } },
+        schematicCategory: { select: { id: true, name: true } },
+        pictures: {
+          select: {
+            id: true,
+            filePath: true,
+            originalFilePath: true,
+            updatedAt: true,
+            edits: {
+              orderBy: { editedAt: 'desc' },
+              include: {
+                editedBy: { select: { id: true, name: true, email: true, role: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Flatten edits across all pictures in the set + compute editor summary
+    const result = sets.map((s) => {
+      const allEdits = s.pictures.flatMap((p) =>
+        p.edits.map((e) => ({
+          id: e.id,
+          pictureId: p.id,
+          editedAt: e.editedAt,
+          editType: e.editType,
+          statusAtEdit: e.pictureSetStatusAtEdit,
+          editor: e.editedBy,
+          afterApproval: s.approvedAt ? e.editedAt > s.approvedAt : false,
+        }))
+      );
+
+      // Unique editor summary
+      const editorMap = new Map();
+      for (const e of allEdits) {
+        const id = e.editor?.id;
+        if (!id) continue;
+        if (!editorMap.has(id)) {
+          editorMap.set(id, {
+            id,
+            name: e.editor.name,
+            role: e.editor.role,
+            editCount: 0,
+            afterApprovalCount: 0,
+            lastEditAt: e.editedAt,
+          });
+        }
+        const entry = editorMap.get(id);
+        entry.editCount += 1;
+        if (e.afterApproval) entry.afterApprovalCount += 1;
+        if (e.editedAt > entry.lastEditAt) entry.lastEditAt = e.editedAt;
+      }
+
+      return {
+        id: s.id,
+        title: s.title,
+        type: s.type,
+        approvedAt: s.approvedAt,
+        approvedBy: s.approvedBy,
+        uploadedBy: s.uploadedBy,
+        uploadedAt: s.uploadedAt,
+        district: s.troupe?.group?.district?.name || null,
+        group: s.troupe?.group?.name || null,
+        troupe: s.troupe?.name || null,
+        patrouille: s.patrouille || null,
+        category: s.category?.name || s.schematicCategory?.name || null,
+        pictureCount: s.pictures.length,
+        thumbnailPath: s.pictures[0]?.filePath || null,
+        edits: allEdits.sort((a, b) => new Date(b.editedAt) - new Date(a.editedAt)),
+        editors: Array.from(editorMap.values()).sort((a, b) => b.editCount - a.editCount),
+        totalEdits: allEdits.length,
+        editsAfterApproval: allEdits.filter((e) => e.afterApproval).length,
+      };
+    });
+
+    res.json({
+      approvals: result,
+      total: result.length,
+      filter: { type, others: others === '1' },
+    });
+  } catch (error) {
+    console.error('Failed to load approval audit:', error);
+    res.status(500).json({ error: 'Failed to load approval audit' });
+  }
+});
+
 export default router;

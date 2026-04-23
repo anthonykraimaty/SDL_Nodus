@@ -111,6 +111,7 @@ model User {
   uploadedPictureSets    PictureSet[]           @relation("PictureSetUploader")
   approvedPictureSets    PictureSet[]           @relation("PictureSetApprover")
   classifiedPictureSets  PictureSet[]           @relation("PictureSetClassifier")
+  pictureEdits           PictureEdit[]          @relation("PictureEditor")
   createdDesignGroups    DesignGroup[]          // Design groups created by this user
   districtAccess         UserDistrictAccess[]
   isActive               Boolean                @default(true)
@@ -289,12 +290,34 @@ model Picture {
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  // Edit audit trail
+  edits         PictureEdit[]
+
   @@index([pictureSetId])
   @@index([displayOrder])
   @@index([categoryId])
   @@index([type])
   @@index([designGroupId])
   @@index([isArchived])
+}
+
+// Audit log for picture edits (crop, magic background, rotate, blur, etc.)
+model PictureEdit {
+  id                     Int         @id @default(autoincrement())
+  pictureId              Int
+  picture                Picture     @relation(fields: [pictureId], references: [id], onDelete: Cascade)
+  pictureSetId           Int         // Denormalized for easier audit queries
+  editedById             Int
+  editedBy               User        @relation("PictureEditor", fields: [editedById], references: [id], onDelete: Cascade)
+  editedAt               DateTime    @default(now())
+  editType               String?     // free-form: "retouch", "magic_bg", "crop", etc.
+  pictureSetStatusAtEdit PictureStatus // Status at the moment of the edit
+
+  @@index([pictureId])
+  @@index([pictureSetId])
+  @@index([editedById])
+  @@index([editedAt])
+  @@index([pictureSetStatusAtEdit])
 }
 
 // Tagging system for additional classification

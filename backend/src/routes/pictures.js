@@ -1756,6 +1756,21 @@ router.put(
         },
       });
 
+      // Write audit row — captures who edited and the pictureSet status at edit time
+      const editType = (req.body?.editType || req.query?.editType || null);
+      await prisma.pictureEdit.create({
+        data: {
+          pictureId: parseInt(pictureId),
+          pictureSetId: picture.pictureSetId,
+          editedById: req.user.id,
+          editType: editType ? String(editType).slice(0, 40) : null,
+          pictureSetStatusAtEdit: status,
+        },
+      }).catch((auditErr) => {
+        // Do not fail the edit if audit insert fails — just log it
+        console.error('Failed to write picture edit audit:', auditErr);
+      });
+
       res.json({
         message: 'Picture updated successfully',
         picture: updatedPicture,

@@ -197,9 +197,10 @@ export const pictureService = {
   updateIndividualPicture: (pictureId, data) => api.put(`/api/pictures/individual/${pictureId}`, data, true),
   deleteIndividualPicture: (pictureId) => api.delete(`/api/pictures/individual/${pictureId}`, true),
   // Edit picture image (crop/rotate/blur)
-  editImage: async (pictureId, imageBlob) => {
+  editImage: async (pictureId, imageBlob, editType = 'retouch') => {
     const formData = new FormData();
     formData.append('picture', imageBlob, 'edited-image.jpg');
+    if (editType) formData.append('editType', editType);
     const response = await fetch(`${API_URL}/api/pictures/${pictureId}/edit-image`, {
       method: 'PUT',
       headers: getHeaders(true, true), // Auth but no Content-Type (FormData sets it)
