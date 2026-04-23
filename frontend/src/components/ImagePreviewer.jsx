@@ -403,6 +403,16 @@ const ImagePreviewer = ({
           <button onClick={handleZoomReset} aria-label="Reset zoom">
             Reset
           </button>
+          {canEdit && !isEditing && !isImageEditing && (
+            <button
+              onClick={() => setIsImageEditing(true)}
+              className="toolbar-edit-btn"
+              aria-label="Edit image"
+              title="Retoucher l'image"
+            >
+              ✎ Edit
+            </button>
+          )}
           <button
             onClick={() => setShowDetails(!showDetails)}
             className="toggle-details"

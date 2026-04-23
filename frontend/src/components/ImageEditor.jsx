@@ -1496,6 +1496,74 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   // Reset all edits
+  // Magic background: whiten paper + boost contrast so the image looks scanned
+  const applyMagicBackground = () => {
+    const img = imageRef.current;
+    if (!img) return;
+
+    pushUndo();
+
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = img.width;
+    srcCanvas.height = img.height;
+    const srcCtx = srcCanvas.getContext('2d');
+    srcCtx.drawImage(img, 0, 0);
+
+    const imageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    const data = imageData.data;
+
+    // Two-pass: (1) sample near-white background luminance, (2) normalize + contrast
+    let sum = 0;
+    let count = 0;
+    const sampleStep = Math.max(1, Math.floor(Math.sqrt(data.length / 4) / 200));
+    for (let i = 0; i < data.length; i += 4 * sampleStep) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (lum > 150) { sum += lum; count++; }
+    }
+    const paperLum = count > 0 ? sum / count : 220;
+    const gain = Math.min(255 / paperLum, 1.6);
+
+    // White threshold — pixels above this get pushed fully to white
+    const whiteCut = 200;
+    // Contrast factor for darker pixels (lines/ink)
+    const contrast = 1.25;
+    const midpoint = 128;
+
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i] * gain;
+      let g = data[i + 1] * gain;
+      let b = data[i + 2] * gain;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      if (lum >= whiteCut) {
+        // Paper region — push to pure white, preserve tiny color cast
+        const t = Math.min(1, (lum - whiteCut) / (255 - whiteCut));
+        r = r + (255 - r) * t;
+        g = g + (255 - g) * t;
+        b = b + (255 - b) * t;
+      } else {
+        // Ink/drawing region — boost contrast around midpoint
+        r = midpoint + (r - midpoint) * contrast;
+        g = midpoint + (g - midpoint) * contrast;
+        b = midpoint + (b - midpoint) * contrast;
+      }
+
+      data[i] = Math.max(0, Math.min(255, r));
+      data[i + 1] = Math.max(0, Math.min(255, g));
+      data[i + 2] = Math.max(0, Math.min(255, b));
+    }
+
+    srcCtx.putImageData(imageData, 0, 0);
+
+    const cleaned = new Image();
+    cleaned.onload = () => {
+      imageRef.current = cleaned;
+      setOriginalSize({ width: cleaned.width, height: cleaned.height });
+    };
+    cleaned.src = srcCanvas.toDataURL('image/jpeg', 0.95);
+  };
+
   const resetEdits = () => {
     if (!blobUrl) return;
 
@@ -1815,6 +1883,18 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
             title="Redo (Ctrl+Y)"
           >
             Redo
+          </button>
+        </div>
+
+        <div className="image-editor__toolbar-divider" />
+
+        <div className="image-editor__toolbar-group">
+          <button
+            className="image-editor__btn image-editor__btn--magic"
+            onClick={applyMagicBackground}
+            title="Blanchir le fond (effet scan)"
+          >
+            ✨ Fond Magique
           </button>
         </div>
 

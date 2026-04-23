@@ -124,6 +124,19 @@
   border-color: #43a047;
 }
 
+.image-editor__btn--magic {
+  background: linear-gradient(135deg, #7c4dff 0%, #536dfe 100%);
+  border-color: #5e35b1;
+  color: #fff;
+  font-weight: 600;
+}
+
+.image-editor__btn--magic:hover:not(:disabled) {
+  background: linear-gradient(135deg, #651fff 0%, #3d5afe 100%);
+  border-color: #4527a0;
+  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.4);
+}
+
 .image-editor__help {
   padding: 6px 16px;
   background: #e3f2fd;

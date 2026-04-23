@@ -152,6 +152,17 @@
   background: var(--accent-dark, #c19564) !important;
 }
 
+.toolbar-edit-btn {
+  background: rgba(124, 77, 255, 0.85) !important;
+  border-color: rgba(124, 77, 255, 0.9) !important;
+  font-weight: 600;
+}
+
+.toolbar-edit-btn:hover:not(:disabled) {
+  background: rgba(124, 77, 255, 1) !important;
+  border-color: rgba(124, 77, 255, 1) !important;
+}
+
 /* Image Container */
 .previewer-image-container {
   flex: 1;

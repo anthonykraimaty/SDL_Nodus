@@ -46,6 +46,12 @@ const SchematicReview = () => {
     reason: '',
   });
 
+  // Pre-approval confirmation modal (for un-edited schematics)
+  const [approveModal, setApproveModal] = useState({
+    open: false,
+    schematic: null,
+  });
+
   // Image preview
   const [previewPictures, setPreviewPictures] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -125,9 +131,21 @@ const SchematicReview = () => {
     }
   };
 
-  const handleApprove = async (id) => {
+  const handleApprove = (schematic) => {
+    const hasUnedited = schematic.pictures.some(
+      (p) => !p.filePath?.toLowerCase().endsWith('.pdf') && !p.originalFilePath
+    );
+    if (hasUnedited) {
+      setApproveModal({ open: true, schematic });
+      return;
+    }
+    doApprove(schematic.id);
+  };
+
+  const doApprove = async (id) => {
     try {
       setActionLoading(id);
+      setApproveModal({ open: false, schematic: null });
       const result = await schematicService.approve(id);
 
       if (result.progress?.setComplete) {
@@ -380,7 +398,7 @@ const SchematicReview = () => {
                       <div className="schematic-actions">
                         <button
                           className="btn-approve"
-                          onClick={() => handleApprove(schematic.id)}
+                          onClick={() => handleApprove(schematic)}
                           disabled={actionLoading === schematic.id}
                         >
                           {actionLoading === schematic.id
@@ -469,6 +487,63 @@ const SchematicReview = () => {
               }
             >
               Cancel
+            </button>
+          </Modal.Actions>
+        </Modal>
+
+        {/* Pre-approval confirmation modal */}
+        <Modal
+          isOpen={approveModal.open}
+          onClose={() => setApproveModal({ open: false, schematic: null })}
+          title="Nettoyer les schémas avant approbation ?"
+          variant="warning"
+          size="medium"
+        >
+          <Modal.Body>
+            <p>
+              Ces schémas n'ont pas encore été retouchés. Vous pouvez les nettoyer
+              (fond blanc, recadrage…) avant de les approuver, ou continuer tel
+              quels.
+            </p>
+            <div className="approval-preview-grid">
+              {approveModal.schematic?.pictures
+                ?.filter((p) => !p.filePath?.toLowerCase().endsWith('.pdf') && !p.originalFilePath)
+                .map((pic) => (
+                  <div key={pic.id} className="approval-preview-item">
+                    <img
+                      src={getImageUrl(pic.filePath)}
+                      alt="Schematic to review"
+                      onClick={() => {
+                        setApproveModal({ open: false, schematic: null });
+                        handleEditImage(pic);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-edit-preview"
+                      onClick={() => {
+                        setApproveModal({ open: false, schematic: null });
+                        handleEditImage(pic);
+                      }}
+                    >
+                      ✎ Retoucher
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </Modal.Body>
+          <Modal.Actions>
+            <button
+              className="primary"
+              onClick={() => doApprove(approveModal.schematic.id)}
+            >
+              Approuver quand même
+            </button>
+            <button
+              className="secondary"
+              onClick={() => setApproveModal({ open: false, schematic: null })}
+            >
+              Annuler
             </button>
           </Modal.Actions>
         </Modal>
