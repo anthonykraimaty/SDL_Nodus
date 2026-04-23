@@ -28,6 +28,7 @@ import ProfileSettings from './pages/ProfileSettings';
 import SchematicUpload from './pages/SchematicUpload';
 import SchematicReview from './pages/SchematicReview';
 import SchematicProgress from './pages/SchematicProgress';
+import UsersStats from './pages/UsersStats';
 import ShareTarget from './pages/ShareTarget';
 import Archive from './pages/Archive';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
@@ -192,6 +193,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <SchematicProgress />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="stats/users"
+              element={
+                <ProtectedRoute allowedRoles={['BRANCHE_ECLAIREURS', 'ADMIN']}>
+                  <UsersStats />
                 </ProtectedRoute>
               }
             />

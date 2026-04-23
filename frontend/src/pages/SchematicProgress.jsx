@@ -53,8 +53,11 @@ const SchematicProgress = () => {
   });
 
   // Image preview
-  const [previewImages, setPreviewImages] = useState([]);
+  const [previewPictures, setPreviewPictures] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+
+  // Pending review count (Branche/Admin only)
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   // Delete state for CT users
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -89,6 +92,7 @@ const SchematicProgress = () => {
       loadGroupedProgress();
       loadCategoryStats();
       loadOrgData();
+      loadPendingReviewCount();
     } else {
       // Public user - show gallery by default
       setView('gallery');
@@ -174,6 +178,15 @@ const SchematicProgress = () => {
     }
   };
 
+  const loadPendingReviewCount = async () => {
+    try {
+      const data = await schematicService.getPending({ page: 1, limit: 1 });
+      setPendingReviewCount(data.pagination?.total || 0);
+    } catch (err) {
+      console.error('Failed to load pending review count:', err);
+    }
+  };
+
   const loadDetailProgress = async (patrouilleId) => {
     try {
       setLoading(true);
@@ -242,25 +255,17 @@ const SchematicProgress = () => {
 
   const openPreview = (pictureSet) => {
     if (!pictureSet?.pictures) return;
-    const images = pictureSet.pictures.map((p) => ({
-      url: getImageUrl(p.filePath),
-      caption: p.caption,
-    }));
-    setPreviewImages(images);
+    setPreviewPictures(pictureSet.pictures);
     setPreviewIndex(0);
   };
 
   const openGalleryPreview = (schematic, index = 0) => {
-    const images = schematic.pictures.map((p) => ({
-      url: getImageUrl(p.filePath),
-      caption: `${schematic.schematicCategory?.setName} - ${schematic.schematicCategory?.itemName}`,
-    }));
-    setPreviewImages(images);
+    setPreviewPictures(schematic.pictures);
     setPreviewIndex(index);
   };
 
   const closePreview = () => {
-    setPreviewImages([]);
+    setPreviewPictures([]);
     setPreviewIndex(0);
   };
 
@@ -305,6 +310,9 @@ const SchematicProgress = () => {
       loadGroupedProgress(allFilters);
       loadCategoryStats();
       loadOrgData();
+      if (['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role)) {
+        loadPendingReviewCount();
+      }
     } else if (newView === 'gallery') {
       loadGalleryCategories();
       loadGallerySchematics();
@@ -442,6 +450,24 @@ const SchematicProgress = () => {
         {/* All Patrouilles View - Grouped by District/Group */}
         {view === 'all' && groupedData && (
           <div className="all-progress">
+            {/* Review CTA for Branche/Admin */}
+            {['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role) && (
+              <div className={`review-cta-banner ${pendingReviewCount > 0 ? 'has-pending' : ''}`}>
+                <div className="review-cta-text">
+                  {pendingReviewCount > 0 ? (
+                    <>
+                      <strong>{pendingReviewCount}</strong> schéma{pendingReviewCount !== 1 ? 's' : ''} en attente de validation
+                    </>
+                  ) : (
+                    <>Aucun schéma en attente de validation</>
+                  )}
+                </div>
+                <Link to="/schematics/review" className="btn-review-schematics">
+                  Valider les schémas
+                </Link>
+              </div>
+            )}
+
             {/* Toolbar: Filters + Search + Sort */}
             <div className="grouped-toolbar">
               <div className="toolbar-filters">
@@ -1017,9 +1043,9 @@ const SchematicProgress = () => {
         )}
 
         {/* Image Preview */}
-        {previewImages.length > 0 && (
+        {previewPictures.length > 0 && (
           <ImagePreviewer
-            images={previewImages}
+            pictures={previewPictures}
             initialIndex={previewIndex}
             onClose={closePreview}
           />

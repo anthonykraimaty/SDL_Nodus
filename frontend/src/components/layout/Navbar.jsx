@@ -37,6 +37,7 @@ const Navbar = () => {
         <div className={`navbar-links ${mobileMenuOpen ? 'open' : ''}`}>
           <Link to="/" className="nav-link" onClick={closeMobileMenu}>Accueil</Link>
           <Link to="/browse" className="nav-link" onClick={closeMobileMenu}>Explorer</Link>
+          <Link to="/schematics" className="nav-link" onClick={closeMobileMenu}>Schémas</Link>
 
           {isAuthenticated() ? (
             <>
@@ -48,6 +49,12 @@ const Navbar = () => {
               )}
               {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
                 <Link to="/review" className="nav-link" onClick={closeMobileMenu}>Pour Valider</Link>
+              )}
+              {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+                <Link to="/schematics/review" className="nav-link" onClick={closeMobileMenu}>Valider Schémas</Link>
+              )}
+              {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+                <Link to="/stats/users" className="nav-link" onClick={closeMobileMenu}>Statistiques</Link>
               )}
               <Link to="/dashboard" className="nav-link" onClick={closeMobileMenu}>Tableau de bord</Link>
               <ProfileDropdown closeMobileMenu={closeMobileMenu} />

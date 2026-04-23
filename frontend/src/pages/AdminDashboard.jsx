@@ -18,6 +18,10 @@ const AdminDashboard = () => {
   });
   const [categoryStats, setCategoryStats] = useState([]);
 
+  // Schematic progress summary
+  const [schematicSummary, setSchematicSummary] = useState(null);
+  const [schematicPending, setSchematicPending] = useState(0);
+
   // Troupe table state
   const [troupeSort, setTroupeSort] = useState({ key: 'district', dir: 'asc' });
   const [troupeFilter, setTroupeFilter] = useState('all'); // 'all', 'zero', 'active'
@@ -53,18 +57,26 @@ const AdminDashboard = () => {
       const token = localStorage.getItem('token');
 
       // Load all data in parallel
-      const [dashboardRes, byCategoryRes] = await Promise.all([
+      const [dashboardRes, byCategoryRes, schematicGroupedRes, schematicPendingRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/dashboard-stats`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
         fetch(`${API_URL}/api/analytics/pictures/by-category?status=APPROVED`, {
           headers: { 'Authorization': `Bearer ${token}` },
         }),
+        fetch(`${API_URL}/api/schematics/progress/grouped`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch(`${API_URL}/api/schematics/pending?limit=1`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
       ]);
 
-      const [dashboardData, byCategoryData] = await Promise.all([
+      const [dashboardData, byCategoryData, schematicGroupedData, schematicPendingData] = await Promise.all([
         dashboardRes.json(),
         byCategoryRes.json(),
+        schematicGroupedRes.json(),
+        schematicPendingRes.json(),
       ]);
 
       setUserStats(dashboardData.userStats);
@@ -76,6 +88,9 @@ const AdminDashboard = () => {
       // Category chart: real per-category Picture counts (already sorted desc)
       const topCategories = (byCategoryData.categories || []).slice(0, 10);
       setCategoryStats(topCategories);
+
+      setSchematicSummary(schematicGroupedData.summary || null);
+      setSchematicPending(schematicPendingData.pagination?.total || 0);
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {
@@ -369,6 +384,55 @@ const AdminDashboard = () => {
               ))
             )}
           </div>
+        </div>
+
+        {/* Schematics Progress Section */}
+        <div className="section-header">
+          <h2>Schematics Progress</h2>
+          <span className="section-subtitle">Patrouille completion across all schematic sets</span>
+        </div>
+        <div className="stats-grid">
+          <Link to="/schematics" className="stat-card clickable">
+            <div className="stat-icon total">📐</div>
+            <div className="stat-content">
+              <h3>{schematicSummary?.overallCompletion ?? 0}%</h3>
+              <p>Overall Completion</p>
+              <span className="stat-detail">
+                {schematicSummary?.totalPatrouilles ?? 0} patrouilles tracked
+              </span>
+            </div>
+          </Link>
+
+          <Link to="/schematics" className="stat-card clickable approved-card">
+            <div className="stat-icon approved">🏆</div>
+            <div className="stat-content">
+              <h3>{schematicSummary?.totalWinners ?? 0}</h3>
+              <p>Winners</p>
+              <span className="stat-detail">Completed all sets</span>
+            </div>
+          </Link>
+
+          <Link to="/schematics" className="stat-card clickable">
+            <div className="stat-icon total">🖼️</div>
+            <div className="stat-content">
+              <h3>{schematicSummary?.totalPictureCount ?? 0}</h3>
+              <p>Approved Schematics</p>
+              <span className="stat-detail">
+                {schematicSummary?.totalGroups ?? 0} groups, {schematicSummary?.totalDistricts ?? 0} districts
+              </span>
+            </div>
+          </Link>
+
+          <Link to="/schematics/review" className={`stat-card clickable ${schematicPending > 0 ? 'pending-card' : ''}`}>
+            <div className="stat-icon pending">📋</div>
+            <div className="stat-content">
+              <h3>{schematicPending}</h3>
+              <p>Pending Review</p>
+              <span className="stat-detail">
+                {schematicPending > 0 ? 'Click to validate' : 'All reviewed'}
+              </span>
+            </div>
+          </Link>
         </div>
 
         {/* Users Stats Section */}

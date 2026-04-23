@@ -309,6 +309,7 @@ export const analyticsService = {
     return api.get(`/api/analytics/participation${query ? '?' + query : ''}`, true);
   },
   getPictureStats: () => api.get('/api/analytics/pictures/stats', true),
+  getUsersUploads: () => api.get('/api/analytics/users/uploads', true),
   getPicturesByCategory: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return api.get(`/api/analytics/pictures/by-category${query ? '?' + query : ''}`, true);

@@ -47,7 +47,7 @@ const SchematicReview = () => {
   });
 
   // Image preview
-  const [previewImages, setPreviewImages] = useState([]);
+  const [previewPictures, setPreviewPictures] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
 
   // Image editor
@@ -168,16 +168,12 @@ const SchematicReview = () => {
   };
 
   const openPreview = (pictures, index = 0) => {
-    const images = pictures.map((p) => ({
-      url: getImageUrl(p.filePath),
-      caption: p.caption,
-    }));
-    setPreviewImages(images);
+    setPreviewPictures(pictures);
     setPreviewIndex(index);
   };
 
   const closePreview = () => {
-    setPreviewImages([]);
+    setPreviewPictures([]);
     setPreviewIndex(0);
   };
 
@@ -478,9 +474,9 @@ const SchematicReview = () => {
         </Modal>
 
         {/* Image Preview */}
-        {previewImages.length > 0 && (
+        {previewPictures.length > 0 && (
           <ImagePreviewer
-            images={previewImages}
+            pictures={previewPictures}
             initialIndex={previewIndex}
             onClose={closePreview}
           />
