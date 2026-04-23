@@ -32,6 +32,7 @@ const AdminDashboard = () => {
   // Troupe table state
   const [troupeSort, setTroupeSort] = useState({ key: 'district', dir: 'asc' });
   const [troupeFilter, setTroupeFilter] = useState('all'); // 'all', 'zero', 'active'
+  const [troupeDistrictFilter, setTroupeDistrictFilter] = useState('all');
   const [troupeSearch, setTroupeSearch] = useState('');
   const [troupeSectionOpen, setTroupeSectionOpen] = useState(true);
 
@@ -237,11 +238,17 @@ const AdminDashboard = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Unique districts from troupe stats (for the district filter dropdown)
+  const troupeDistricts = Array.from(
+    new Set(troupeStats.map(t => t.district).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+
   // Filtered and sorted troupe data
   const searchLower = troupeSearch.trim().toLowerCase();
   const filteredTroupes = troupeStats.filter(t => {
     if (troupeFilter === 'zero' && !(t.photos.total === 0 && t.schematics.total === 0)) return false;
     if (troupeFilter === 'active' && !(t.photos.total > 0 || t.schematics.total > 0)) return false;
+    if (troupeDistrictFilter !== 'all' && t.district !== troupeDistrictFilter) return false;
     if (!searchLower) return true;
     return (
       t.name.toLowerCase().includes(searchLower) ||
@@ -800,6 +807,16 @@ const AdminDashboard = () => {
                 Active ({troupeStats.length - zeroUploadTroupes})
               </button>
             </div>
+            <select
+              className="troupe-district-filter"
+              value={troupeDistrictFilter}
+              onChange={(e) => setTroupeDistrictFilter(e.target.value)}
+            >
+              <option value="all">All Districts</option>
+              {troupeDistricts.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
             <input
               type="search"
               className="troupe-search"

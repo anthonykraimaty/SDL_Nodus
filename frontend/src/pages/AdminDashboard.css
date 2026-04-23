@@ -522,6 +522,22 @@
   border-color: var(--accent, #d97706);
 }
 
+.troupe-district-filter {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.troupe-district-filter:focus {
+  outline: none;
+  border-color: var(--accent, #d97706);
+}
+
 .filter-tab {
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-dark);
