@@ -78,9 +78,12 @@ const UsersStats = () => {
         acc.schematics += u.schematics.total;
         acc.approved += u.photos.approved + u.schematics.approved;
         acc.pending += u.photos.pending + u.photos.classified + u.schematics.pending + u.schematics.classified;
+        if (u.total === 0) acc.zeroUploads += 1;
+        if (u.photos.total === 0) acc.zeroPhotos += 1;
+        if (u.schematics.total === 0) acc.zeroSchematics += 1;
         return acc;
       },
-      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0 }
+      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
     );
   }, [filteredSorted]);
 
@@ -135,6 +138,24 @@ const UsersStats = () => {
           </div>
         ) : (
           <>
+            <div className="zero-uploads-row">
+              <div className="zero-card">
+                <div className="zero-value">{totals.zeroUploads}</div>
+                <div className="zero-label">0 uploads</div>
+                <div className="zero-sublabel">Aucun upload</div>
+              </div>
+              <div className="zero-card">
+                <div className="zero-value">{totals.zeroPhotos}</div>
+                <div className="zero-label">0 photos</div>
+                <div className="zero-sublabel">Aucune photo</div>
+              </div>
+              <div className="zero-card">
+                <div className="zero-value">{totals.zeroSchematics}</div>
+                <div className="zero-label">0 schémas</div>
+                <div className="zero-sublabel">Aucun schéma</div>
+              </div>
+            </div>
+
             <div className="summary-bar">
               <div className="summary-item">
                 <span className="summary-value">{filteredSorted.length}</span>

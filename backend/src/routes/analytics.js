@@ -409,57 +409,51 @@ router.get('/pictures/stats', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADM
 // GET /api/analytics/users/uploads - Per-user upload statistics (Branche/Admin)
 router.get('/users/uploads', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
-    const grouped = await prisma.pictureSet.groupBy({
-      by: ['uploadedById', 'type', 'status'],
-      _count: { id: true },
-    });
-
-    const userIds = [...new Set(grouped.map(g => g.uploadedById))];
-    const users = await prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        lastLogin: true,
-        troupe: {
-          select: {
-            id: true,
-            name: true,
-            group: { select: { id: true, name: true, district: { select: { id: true, name: true } } } },
+    const [grouped, allUsers] = await Promise.all([
+      prisma.pictureSet.groupBy({
+        by: ['uploadedById', 'type', 'status'],
+        _count: { id: true },
+      }),
+      prisma.user.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          lastLogin: true,
+          troupe: {
+            select: {
+              id: true,
+              name: true,
+              group: { select: { id: true, name: true, district: { select: { id: true, name: true } } } },
+            },
           },
         },
-      },
+      }),
+    ]);
+
+    const makeEntry = (user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      lastLogin: user.lastLogin,
+      district: user.troupe?.group?.district?.name || null,
+      group: user.troupe?.group?.name || null,
+      troupe: user.troupe?.name || null,
+      total: 0,
+      photos: { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
+      schematics: { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
     });
 
-    const userMap = new Map(users.map(u => [u.id, u]));
-    const statsByUser = new Map();
+    const statsByUser = new Map(allUsers.map(u => [u.id, makeEntry(u)]));
 
     for (const row of grouped) {
-      const user = userMap.get(row.uploadedById);
-      if (!user) continue;
-
       let entry = statsByUser.get(row.uploadedById);
-      if (!entry) {
-        entry = {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          isActive: user.isActive,
-          lastLogin: user.lastLogin,
-          district: user.troupe?.group?.district?.name || null,
-          group: user.troupe?.group?.name || null,
-          troupe: user.troupe?.name || null,
-          total: 0,
-          photos: { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
-          schematics: { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
-        };
-        statsByUser.set(row.uploadedById, entry);
-      }
-
+      if (!entry) continue; // uploader is inactive or deleted
       const bucket = row.type === 'SCHEMATIC' ? entry.schematics : entry.photos;
       const statusKey = row.status.toLowerCase();
       bucket[statusKey] = (bucket[statusKey] || 0) + row._count.id;
