@@ -200,6 +200,12 @@
   accent-color: #d4a574;
 }
 
+.magic-slider {
+  width: 120px;
+  cursor: pointer;
+  accent-color: #7c4dff;
+}
+
 .blur-value {
   font-size: 11px;
   color: #666;
@@ -304,5 +310,9 @@
 
   .blur-slider {
     width: 60px;
+  }
+
+  .magic-slider {
+    width: 90px;
   }
 }

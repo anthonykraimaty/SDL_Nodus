@@ -60,6 +60,10 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const wasErasingRef = useRef(false);
   const [hasMask, setHasMask] = useState(false);
 
+  // Magic background state
+  const [isMagicOpen, setIsMagicOpen] = useState(false);
+  const [magicIntensity, setMagicIntensity] = useState(50); // 0-100
+
   // Undo/Redo state
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -1496,12 +1500,15 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   // Reset all edits
-  // Magic background: whiten paper + boost contrast so the image looks scanned
-  const applyMagicBackground = () => {
+  // Magic background: whiten paper + boost contrast so the image looks scanned.
+  // Intensity 0 = subtle, 100 = aggressive (more pixels pushed to white, higher contrast).
+  const applyMagicBackground = (intensity = 50) => {
     const img = imageRef.current;
     if (!img) return;
 
     pushUndo();
+
+    const t = Math.max(0, Math.min(100, intensity)) / 100;
 
     const srcCanvas = document.createElement('canvas');
     srcCanvas.width = img.width;
@@ -1512,7 +1519,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     const imageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
     const data = imageData.data;
 
-    // Two-pass: (1) sample near-white background luminance, (2) normalize + contrast
+    // Sample near-white background luminance
     let sum = 0;
     let count = 0;
     const sampleStep = Math.max(1, Math.floor(Math.sqrt(data.length / 4) / 200));
@@ -1522,12 +1529,13 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       if (lum > 150) { sum += lum; count++; }
     }
     const paperLum = count > 0 ? sum / count : 220;
-    const gain = Math.min(255 / paperLum, 1.6);
+    // Gain scales from 1.0 (no boost) up to ~1.8 at max intensity
+    const gain = Math.min((255 / paperLum - 1) * t + 1, 1.8);
 
-    // White threshold — pixels above this get pushed fully to white
-    const whiteCut = 200;
-    // Contrast factor for darker pixels (lines/ink)
-    const contrast = 1.25;
+    // whiteCut: higher intensity → lower threshold → more pixels treated as paper
+    const whiteCut = 230 - 60 * t; // 230 → 170
+    // contrast: higher intensity → harder contrast on ink
+    const contrast = 1 + 0.6 * t; // 1.0 → 1.6
     const midpoint = 128;
 
     for (let i = 0; i < data.length; i += 4) {
@@ -1537,13 +1545,11 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
       if (lum >= whiteCut) {
-        // Paper region — push to pure white, preserve tiny color cast
-        const t = Math.min(1, (lum - whiteCut) / (255 - whiteCut));
-        r = r + (255 - r) * t;
-        g = g + (255 - g) * t;
-        b = b + (255 - b) * t;
+        const k = Math.min(1, (lum - whiteCut) / (255 - whiteCut));
+        r = r + (255 - r) * k;
+        g = g + (255 - g) * k;
+        b = b + (255 - b) * k;
       } else {
-        // Ink/drawing region — boost contrast around midpoint
         r = midpoint + (r - midpoint) * contrast;
         g = midpoint + (g - midpoint) * contrast;
         b = midpoint + (b - midpoint) * contrast;
@@ -1890,12 +1896,37 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
         <div className="image-editor__toolbar-group">
           <button
-            className="image-editor__btn image-editor__btn--magic"
-            onClick={applyMagicBackground}
+            className={`image-editor__btn image-editor__btn--magic ${isMagicOpen ? 'active' : ''}`}
+            onClick={() => setIsMagicOpen((v) => !v)}
             title="Blanchir le fond (effet scan)"
           >
             ✨ Fond Magique
           </button>
+          {isMagicOpen && (
+            <>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={magicIntensity}
+                onChange={(e) => setMagicIntensity(Number(e.target.value))}
+                className="magic-slider"
+                title="Intensité"
+                aria-label="Magic background intensity"
+              />
+              <span className="blur-value">{magicIntensity}%</span>
+              <button
+                className="image-editor__btn image-editor__btn--magic"
+                onClick={() => {
+                  applyMagicBackground(magicIntensity);
+                  setIsMagicOpen(false);
+                }}
+                title="Appliquer"
+              >
+                Apply
+              </button>
+            </>
+          )}
         </div>
 
         <div className="image-editor__toolbar-divider" />
