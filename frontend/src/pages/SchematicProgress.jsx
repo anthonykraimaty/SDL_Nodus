@@ -1048,6 +1048,7 @@ const SchematicProgress = () => {
             pictures={previewPictures}
             initialIndex={previewIndex}
             onClose={closePreview}
+            user={user}
           />
         )}
 

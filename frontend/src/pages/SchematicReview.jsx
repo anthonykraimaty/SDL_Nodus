@@ -554,6 +554,7 @@ const SchematicReview = () => {
             pictures={previewPictures}
             initialIndex={previewIndex}
             onClose={closePreview}
+            user={user}
           />
         )}
       </div>
