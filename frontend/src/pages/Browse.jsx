@@ -93,6 +93,11 @@ const Browse = () => {
         const comparison = (a._count?.pictures || 0) - (b._count?.pictures || 0);
         return sortOrder === 'asc' ? comparison : -comparison;
       });
+    } else if (sortBy === 'uploads') {
+      result = [...result].sort((a, b) => {
+        const comparison = (a._count?.uploads || 0) - (b._count?.uploads || 0);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
     }
     // 'default' keeps the original displayOrder from API (admin-configured order)
 
@@ -200,8 +205,23 @@ const Browse = () => {
                   setSortOrder('desc'); // Default to most photos first
                 }
               }}
+              title="Trier par photos approuvées"
             >
               Photos {sortBy === 'photos' && (sortOrder === 'asc' ? '↑' : '↓')}
+            </button>
+            <button
+              className={`sort-btn ${sortBy === 'uploads' ? 'active' : ''}`}
+              onClick={() => {
+                if (sortBy === 'uploads') {
+                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                } else {
+                  setSortBy('uploads');
+                  setSortOrder('desc');
+                }
+              }}
+              title="Trier par tous les uploads (approuvés ou non)"
+            >
+              Uploads {sortBy === 'uploads' && (sortOrder === 'asc' ? '↑' : '↓')}
             </button>
           </div>
 
@@ -225,119 +245,147 @@ const Browse = () => {
                 <div className="category-section">
                   <h2 className="section-title">Photos d'Installations</h2>
                   <section className="categories-grid" aria-label="Categories de photos">
-                    {filteredPhotoCategories.map((category) => (
-                      <article key={category.id} className="category-card-wrapper">
-                        <Link
-                          to={`/category/${category.id}${typeFilter ? `?type=${typeFilter}` : ''}`}
-                          className="category-card"
-                          aria-label={`Voir les photos de type ${category.name}`}
-                        >
-                          <figure className="category-image">
-                            {category.thumbnailPictures && category.thumbnailPictures.length > 0 ? (
-                              <div className={`thumbnail-grid thumbnails-${Math.min(category.thumbnailPictures.length, 4)}`}>
-                                {category.thumbnailPictures.slice(0, 4).map((pic, idx) => (
-                                  <div key={pic.id} className="thumbnail-cell">
-                                    <img
-                                      src={getThumbnailUrl(pic.filePath)}
-                                      alt={`${category.name} - aperçu ${idx + 1}`}
-                                      loading="lazy"
-                                      decoding="async"
-                                      onError={(e) => {
-                                        const full = getImageUrl(pic.filePath);
-                                        if (e.currentTarget.src !== full) e.currentTarget.src = full;
-                                      }}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="placeholder-image" role="img" aria-label={`Catégorie ${category.name}`}>
-                                <div className="placeholder-content">
-                                  <svg className="placeholder-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                                    <circle cx="8.5" cy="8.5" r="1.5" />
-                                    <path d="M21 15l-5-5L5 21" />
-                                  </svg>
-                                  <span className="placeholder-text">Pas encore d'images</span>
+                    {filteredPhotoCategories.map((category) => {
+                      const thumbCount = category.thumbnailPictures?.length || 0;
+                      const shownCount = Math.min(thumbCount, 4);
+                      return (
+                        <article key={category.id} className="category-card-wrapper">
+                          <Link
+                            to={`/category/${category.id}${typeFilter ? `?type=${typeFilter}` : ''}`}
+                            className={`category-card ${shownCount === 1 ? 'is-single' : ''}`}
+                            aria-label={`Voir les photos de type ${category.name}`}
+                          >
+                            <figure className="category-image">
+                              {thumbCount > 0 ? (
+                                <div
+                                  className={`thumbnail-grid thumbnails-${shownCount}`}
+                                  data-count={shownCount}
+                                >
+                                  {category.thumbnailPictures.slice(0, 4).map((pic, idx) => (
+                                    <div key={pic.id} className="thumbnail-cell">
+                                      <img
+                                        src={getThumbnailUrl(pic.filePath)}
+                                        alt={`${category.name} - aperçu ${idx + 1}`}
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          const full = getImageUrl(pic.filePath);
+                                          if (e.currentTarget.src !== full) e.currentTarget.src = full;
+                                        }}
+                                      />
+                                    </div>
+                                  ))}
                                 </div>
-                              </div>
-                            )}
-                            <figcaption className="category-overlay">
-                              <span className="category-count">
-                                {category._count?.pictures || 0} {category._count?.pictures === 1 ? 'photo' : 'photos'}
+                              ) : (
+                                <div className="placeholder-image" role="img" aria-label={`Catégorie ${category.name}`}>
+                                  <div className="placeholder-content">
+                                    <svg className="placeholder-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                                      <circle cx="8.5" cy="8.5" r="1.5" />
+                                      <path d="M21 15l-5-5L5 21" />
+                                    </svg>
+                                    <span className="placeholder-text">Pas encore d'images</span>
+                                  </div>
+                                </div>
+                              )}
+                              <figcaption className="category-overlay">
+                                <span className="category-count">
+                                  {category._count?.pictures || 0} {category._count?.pictures === 1 ? 'photo' : 'photos'}
+                                </span>
+                              </figcaption>
+                            </figure>
+                            <div className="category-info">
+                              <h3>{category.name}</h3>
+                              {category.description && (
+                                <p className="category-desc">{category.description}</p>
+                              )}
+                              <span className="card-cta" aria-hidden="true">
+                                Explorer
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                  <polyline points="12 5 19 12 12 19" />
+                                </svg>
                               </span>
-                            </figcaption>
-                          </figure>
-                          <div className="category-info">
-                            <h3>{category.name}</h3>
-                            {category.description && (
-                              <p className="category-desc">{category.description}</p>
-                            )}
-                          </div>
-                        </Link>
-                      </article>
-                    ))}
+                            </div>
+                          </Link>
+                        </article>
+                      );
+                    })}
                   </section>
                 </div>
               )}
 
               {/* Schematics Section */}
               {showSchematics && filteredSchematicCategories.length > 0 && (
-                <div className="category-section">
+                <div className="category-section category-section--schemas">
                   <h2 className="section-title">Schémas</h2>
                   <section className="categories-grid" aria-label="Categories de schémas">
-                    {filteredSchematicCategories.map((category) => (
-                      <article key={category.id} className="category-card-wrapper">
-                        <Link
-                          to={`/category/${category.id}${typeFilter ? `?type=${typeFilter}` : ''}`}
-                          className="category-card"
-                          aria-label={`Voir les schémas de type ${category.name}`}
-                        >
-                          <figure className="category-image">
-                            {category.thumbnailPictures && category.thumbnailPictures.length > 0 ? (
-                              <div className={`thumbnail-grid thumbnails-${Math.min(category.thumbnailPictures.length, 4)}`}>
-                                {category.thumbnailPictures.slice(0, 4).map((pic, idx) => (
-                                  <div key={pic.id} className="thumbnail-cell">
-                                    <img
-                                      src={getThumbnailUrl(pic.filePath)}
-                                      alt={`${category.name} - aperçu ${idx + 1}`}
-                                      loading="lazy"
-                                      decoding="async"
-                                      onError={(e) => {
-                                        const full = getImageUrl(pic.filePath);
-                                        if (e.currentTarget.src !== full) e.currentTarget.src = full;
-                                      }}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="placeholder-image" role="img" aria-label={`Catégorie ${category.name}`}>
-                                <div className="placeholder-content">
-                                  <svg className="placeholder-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                                    <circle cx="8.5" cy="8.5" r="1.5" />
-                                    <path d="M21 15l-5-5L5 21" />
-                                  </svg>
-                                  <span className="placeholder-text">Pas encore de schémas</span>
+                    {filteredSchematicCategories.map((category) => {
+                      const thumbCount = category.thumbnailPictures?.length || 0;
+                      const shownCount = Math.min(thumbCount, 4);
+                      return (
+                        <article key={category.id} className="category-card-wrapper">
+                          <Link
+                            to={`/category/${category.id}${typeFilter ? `?type=${typeFilter}` : ''}`}
+                            className={`category-card ${shownCount === 1 ? 'is-single' : ''}`}
+                            aria-label={`Voir les schémas de type ${category.name}`}
+                          >
+                            <figure className="category-image">
+                              {thumbCount > 0 ? (
+                                <div
+                                  className={`thumbnail-grid thumbnails-${shownCount}`}
+                                  data-count={shownCount}
+                                >
+                                  {category.thumbnailPictures.slice(0, 4).map((pic, idx) => (
+                                    <div key={pic.id} className="thumbnail-cell">
+                                      <img
+                                        src={getThumbnailUrl(pic.filePath)}
+                                        alt={`${category.name} - aperçu ${idx + 1}`}
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          const full = getImageUrl(pic.filePath);
+                                          if (e.currentTarget.src !== full) e.currentTarget.src = full;
+                                        }}
+                                      />
+                                    </div>
+                                  ))}
                                 </div>
-                              </div>
-                            )}
-                            <figcaption className="category-overlay">
-                              <span className="category-count">
-                                {category._count?.pictures || 0} {category._count?.pictures === 1 ? 'schéma' : 'schémas'}
+                              ) : (
+                                <div className="placeholder-image" role="img" aria-label={`Catégorie ${category.name}`}>
+                                  <div className="placeholder-content">
+                                    <svg className="placeholder-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                                      <circle cx="8.5" cy="8.5" r="1.5" />
+                                      <path d="M21 15l-5-5L5 21" />
+                                    </svg>
+                                    <span className="placeholder-text">Pas encore de schémas</span>
+                                  </div>
+                                </div>
+                              )}
+                              <figcaption className="category-overlay">
+                                <span className="category-count">
+                                  {category._count?.pictures || 0} {category._count?.pictures === 1 ? 'schéma' : 'schémas'}
+                                </span>
+                              </figcaption>
+                            </figure>
+                            <div className="category-info">
+                              <h3>{category.name}</h3>
+                              {category.description && (
+                                <p className="category-desc">{category.description}</p>
+                              )}
+                              <span className="card-cta" aria-hidden="true">
+                                Explorer
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                  <polyline points="12 5 19 12 12 19" />
+                                </svg>
                               </span>
-                            </figcaption>
-                          </figure>
-                          <div className="category-info">
-                            <h3>{category.name}</h3>
-                            {category.description && (
-                              <p className="category-desc">{category.description}</p>
-                            )}
-                          </div>
-                        </Link>
-                      </article>
-                    ))}
+                            </div>
+                          </Link>
+                        </article>
+                      );
+                    })}
                   </section>
                 </div>
               )}

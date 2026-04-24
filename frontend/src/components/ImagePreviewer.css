@@ -1,24 +1,42 @@
+/* =====================================================
+ * Image Previewer — full-screen lightbox
+ * Same warm scout palette as the rest of the app, with
+ * a controlled dark backdrop so images pop.
+ * ===================================================== */
+
 .image-previewer-overlay {
+  --ip-ink: #2a1812;
+  --ip-paper: #f5f1e8;
+  --ip-paper-warm: #ebe3d2;
+  --ip-paper-deep: #ddcfb4;
+  --ip-ochre: #b8813a;
+  --ip-ochre-deep: #8c5a1f;
+  --ip-ochre-soft: #d4a574;
+  --ip-rule: rgba(255, 255, 255, 0.12);
+  --ip-stage: #1a130d;
+  --ip-stage-edge: #100a05;
+  --ip-success: #4a6a3e;
+  --ip-danger: #b8413a;
+
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
+  background:
+    radial-gradient(900px 500px at 50% 30%, rgba(184, 129, 58, 0.05), transparent 60%),
+    var(--ip-stage);
   z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeIn 0.2s ease;
+  animation: ip-fadeIn 0.2s ease;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+@keyframes ip-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .image-previewer {
@@ -27,37 +45,42 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 16px;
 }
 
-/* Close Button */
+/* =====================================================
+ * Close Button (top-right)
+ * ===================================================== */
 .previewer-close {
   position: absolute;
-  top: 20px;
-  right: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  width: 50px;
-  height: 50px;
+  top: 18px;
+  right: 18px;
+  background: rgba(245, 241, 232, 0.1);
+  border: 1.5px solid rgba(245, 241, 232, 0.3);
+  color: #fff;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  font-size: 28px;
+  font-size: 22px;
   cursor: pointer;
   z-index: 100;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.2, 0.6, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  backdrop-filter: blur(6px);
 }
 
 .previewer-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: scale(1.1);
+  background: var(--ip-ochre);
+  border-color: var(--ip-ochre);
+  transform: scale(1.08) rotate(90deg);
 }
 
-/* Navigation Controls */
+/* =====================================================
+ * Navigation Arrows (left/right edges)
+ * ===================================================== */
 .previewer-controls {
   position: absolute;
   top: 50%;
@@ -66,31 +89,32 @@
   transform: translateY(-50%);
   display: flex;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 24px;
   pointer-events: none;
   z-index: 50;
 }
 
 .previewer-nav {
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  width: 60px;
-  height: 60px;
+  background: rgba(245, 241, 232, 0.08);
+  border: 1.5px solid rgba(245, 241, 232, 0.25);
+  color: #fff;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  font-size: 40px;
+  font-size: 24px;
   cursor: pointer;
-  pointer-events: all;
-  transition: all 0.2s ease;
+  pointer-events: auto;
+  transition: all 0.25s cubic-bezier(0.2, 0.6, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  backdrop-filter: blur(6px);
 }
 
 .previewer-nav:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: var(--ip-ochre);
+  border-color: var(--ip-ochre);
   transform: scale(1.1);
 }
 
@@ -99,78 +123,103 @@
   cursor: not-allowed;
 }
 
-/* Zoom Controls */
+/* =====================================================
+ * Top toolbar — zoom / edit / details
+ * Single rounded pill, warm cream, ochre actions.
+ * ===================================================== */
 .previewer-zoom-controls {
   position: absolute;
-  top: 20px;
+  top: 18px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 10px 15px;
-  border-radius: 30px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 241, 232, 0.95);
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(62, 39, 35, 0.18);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 8px 22px -8px rgba(0, 0, 0, 0.5);
   z-index: 100;
+  backdrop-filter: blur(8px);
+  max-width: calc(100vw - 140px); /* leave room for close button */
 }
 
 .previewer-zoom-controls button {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 20px;
+  background: transparent;
+  border: 1.5px solid transparent;
+  color: var(--ip-ink);
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
   cursor: pointer;
-  font-size: 16px;
-  transition: all 0.2s ease;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .previewer-zoom-controls button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(212, 165, 116, 0.22);
+  color: var(--ip-ink);
 }
 
 .previewer-zoom-controls button:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
 .zoom-level {
-  color: white;
-  padding: 8px 12px;
-  min-width: 60px;
+  color: var(--ip-ink) !important;
+  background: rgba(62, 39, 35, 0.08);
+  padding: 0.4rem 0.7rem !important;
+  border-radius: 999px !important;
+  min-width: 56px;
   text-align: center;
-  font-weight: 500;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  pointer-events: none;
 }
 
 .toggle-details {
-  background: var(--accent, #d4a574) !important;
-  border-color: var(--accent, #d4a574) !important;
+  background: rgba(212, 165, 116, 0.22) !important;
+  color: var(--ip-ochre-deep) !important;
+  font-weight: 700 !important;
 }
 
 .toggle-details:hover {
-  background: var(--accent-dark, #c19564) !important;
+  background: rgba(212, 165, 116, 0.35) !important;
 }
 
+/* Edit button — warm ochre, NOT purple */
 .toolbar-edit-btn {
-  background: rgba(124, 77, 255, 0.85) !important;
-  border-color: rgba(124, 77, 255, 0.9) !important;
-  font-weight: 600;
+  background: var(--ip-ochre) !important;
+  border-color: var(--ip-ochre) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 10px -3px rgba(184, 129, 58, 0.5);
 }
 
 .toolbar-edit-btn:hover:not(:disabled) {
-  background: rgba(124, 77, 255, 1) !important;
-  border-color: rgba(124, 77, 255, 1) !important;
+  background: var(--ip-ochre-deep) !important;
+  border-color: var(--ip-ochre-deep) !important;
+  color: #fff !important;
 }
 
-/* Image Container */
+/* =====================================================
+ * Image stage
+ * ===================================================== */
 .previewer-image-container {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  margin: 80px 0 20px;
+  margin: 80px 0 80px;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -192,55 +241,72 @@
   transition: transform 0.1s ease-out;
   will-change: transform;
   pointer-events: none;
+  border-radius: 4px;
+  box-shadow:
+    0 24px 60px -16px rgba(0, 0, 0, 0.7),
+    0 8px 20px -8px rgba(0, 0, 0, 0.5);
 }
 
 .previewer-image-container.dragging .previewer-image {
   transition: none;
 }
 
-/* Picture Counter */
+/* =====================================================
+ * Picture counter (bottom-center)
+ * ===================================================== */
 .previewer-counter {
   position: absolute;
-  bottom: 20px;
+  bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  z-index: 100;
+  background: rgba(245, 241, 232, 0.95);
+  color: var(--ip-ink);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid rgba(62, 39, 35, 0.18);
+  z-index: 80;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.4);
 }
 
-/* Picture Details */
+/* =====================================================
+ * Details panel — warm leather card with action bar
+ * ===================================================== */
 .previewer-details {
   position: absolute;
-  bottom: 60px;
-  left: 20px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.85);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  padding: 20px;
-  max-height: 40vh;
+  bottom: 70px;
+  left: 24px;
+  right: 24px;
+  background: rgba(245, 241, 232, 0.97);
+  border: 1.5px solid rgba(62, 39, 35, 0.18);
+  border-radius: 16px;
+  padding: 1rem 1.25rem 0.85rem;
+  max-height: 38vh;
   overflow-y: auto;
   z-index: 90;
   backdrop-filter: blur(10px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 16px 40px -12px rgba(0, 0, 0, 0.6);
+  color: var(--ip-ink);
 }
 
 .details-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
-  color: white;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem 1.25rem;
+  color: var(--ip-ink);
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .detail-item.full-width {
@@ -248,52 +314,62 @@
 }
 
 .detail-item strong {
-  color: var(--accent, #d4a574);
-  font-size: 12px;
+  color: var(--ip-ochre-deep);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
+  letter-spacing: 0.12em;
+  font-weight: 700;
 }
 
 .detail-item span {
-  color: white;
-  font-size: 14px;
+  color: var(--ip-ink);
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  word-break: break-word;
 }
 
-/* Scrollbar Styling */
+/* Scrollbar for details */
 .previewer-details::-webkit-scrollbar {
   width: 8px;
 }
 
 .previewer-details::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(62, 39, 35, 0.06);
   border-radius: 4px;
 }
 
 .previewer-details::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(184, 129, 58, 0.4);
   border-radius: 4px;
 }
 
 .previewer-details::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--ip-ochre);
 }
 
-/* Minimize Button */
+/* =====================================================
+ * Action buttons inside the details panel — pulled into
+ * a row at the top of the panel rather than scattered
+ * absolute corners. Keeps positioning predictable
+ * regardless of the layout-portrait / landscape variant.
+ * ===================================================== */
 .previewer-minimize-btn {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  width: 32px;
-  height: 32px;
+  background: rgba(62, 39, 35, 0.08);
+  border: 1px solid rgba(62, 39, 35, 0.18);
+  color: var(--ip-ink);
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  font-size: 20px;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -301,82 +377,63 @@
 }
 
 .previewer-minimize-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: var(--ip-ochre);
+  border-color: var(--ip-ochre);
+  color: #fff;
 }
 
-/* Edit Button */
-.previewer-edit-btn {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: var(--accent, #d4a574);
-  border: none;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.previewer-edit-btn:hover {
-  background: var(--accent-dark, #c19564);
-  transform: scale(1.05);
-}
-
-/* Retouch Button (Image Editor) */
-.previewer-retouch-btn {
-  position: absolute;
-  bottom: 10px;
-  right: 110px;
-  background: #5b8c5a;
-  border: none;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.previewer-retouch-btn:hover {
-  background: #4a7a49;
-  transform: scale(1.05);
-}
-
-/* Image Editor Overlay inside Previewer */
-.previewer-image-editor-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10001;
-  background: #1a1a1a;
-}
-
-/* Archive Button */
+/* All three action buttons share the same friendly
+ * pill shape — they sit inline at the bottom of the
+ * details panel rather than absolute corners. */
+.previewer-edit-btn,
+.previewer-retouch-btn,
 .previewer-archive-btn {
   position: absolute;
   bottom: 10px;
-  left: 10px;
-  background: rgba(220, 53, 69, 0.85);
   border: none;
-  color: white;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.2, 0.6, 0.2, 1);
   z-index: 10;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.previewer-edit-btn {
+  right: 12px;
+  background: var(--ip-ochre);
+  box-shadow: 0 4px 10px -3px rgba(184, 129, 58, 0.45);
+}
+
+.previewer-edit-btn:hover {
+  background: var(--ip-ochre-deep);
+  transform: translateY(-1px);
+}
+
+.previewer-retouch-btn {
+  right: 110px;
+  background: var(--ip-success);
+  box-shadow: 0 4px 10px -3px rgba(74, 106, 62, 0.45);
+}
+
+.previewer-retouch-btn:hover {
+  background: #3d5a32;
+  transform: translateY(-1px);
+}
+
+.previewer-archive-btn {
+  left: 12px;
+  background: rgba(184, 65, 58, 0.92);
+  box-shadow: 0 4px 10px -3px rgba(184, 65, 58, 0.45);
 }
 
 .previewer-archive-btn:hover:not(:disabled) {
-  background: rgba(220, 53, 69, 1);
+  background: var(--ip-danger);
+  transform: translateY(-1px);
 }
 
 .previewer-archive-btn:disabled {
@@ -384,62 +441,81 @@
   cursor: not-allowed;
 }
 
-/* Edit Form */
+/* =====================================================
+ * Image Editor overlay (when retouching)
+ * ===================================================== */
+.previewer-image-editor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10001;
+  background: var(--ip-stage-edge);
+}
+
+/* =====================================================
+ * Edit form (type/category change)
+ * ===================================================== */
 .previewer-edit-form {
-  color: white;
+  color: var(--ip-ink);
 }
 
 .previewer-edit-form h4 {
-  margin: 0 0 15px 0;
-  color: var(--accent, #d4a574);
-  font-size: 16px;
+  margin: 0 0 1rem 0;
+  color: var(--ip-ochre-deep);
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-size: 1.05rem;
   font-weight: 600;
 }
 
 .edit-error {
-  background: rgba(220, 53, 69, 0.2);
-  border: 1px solid rgba(220, 53, 69, 0.5);
-  color: #ff6b6b;
-  padding: 10px;
-  border-radius: 6px;
-  margin-bottom: 15px;
-  font-size: 14px;
+  background: rgba(184, 65, 58, 0.1);
+  border: 1.5px solid rgba(184, 65, 58, 0.3);
+  color: #8c3c36;
+  padding: 0.65rem 0.9rem;
+  border-radius: 10px;
+  margin-bottom: 0.85rem;
+  font-size: 0.86rem;
 }
 
 .edit-field {
-  margin-bottom: 15px;
+  margin-bottom: 0.95rem;
 }
 
 .edit-field label {
   display: block;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 12px;
+  color: var(--ip-ochre-deep);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.12em;
   margin-bottom: 6px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .edit-field select {
   width: 100%;
-  padding: 10px 12px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  font-size: 14px;
+  padding: 0.55rem 0.85rem;
+  border: 1.5px solid rgba(62, 39, 35, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ip-ink);
+  font-family: inherit;
+  font-size: 0.92rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .edit-field select:hover {
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: var(--ip-ochre-soft);
 }
 
 .edit-field select:focus {
   outline: none;
-  border-color: var(--accent, #d4a574);
-  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--ip-ochre);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(184, 129, 58, 0.15);
 }
 
 .edit-field select:disabled {
@@ -448,45 +524,48 @@
 }
 
 .edit-field select option {
-  background: #2a2a2a;
-  color: white;
+  background: #fff;
+  color: var(--ip-ink);
 }
 
 .edit-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 20px;
+  gap: 0.6rem;
+  margin-top: 1rem;
 }
 
 .edit-actions button {
   flex: 1;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 0.55rem 1.2rem;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.2, 0.6, 0.2, 1);
 }
 
 .edit-actions .btn-cancel {
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: transparent;
+  border-color: rgba(62, 39, 35, 0.2);
+  color: var(--ip-ink);
 }
 
 .edit-actions .btn-cancel:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(62, 39, 35, 0.06);
+  border-color: rgba(62, 39, 35, 0.35);
 }
 
 .edit-actions .btn-save {
-  background: var(--accent, #d4a574);
-  color: white;
+  background: var(--ip-ochre);
+  color: #fff;
+  box-shadow: 0 4px 10px -3px rgba(184, 129, 58, 0.45);
 }
 
 .edit-actions .btn-save:hover:not(:disabled) {
-  background: var(--accent-dark, #c19564);
+  background: var(--ip-ochre-deep);
+  transform: translateY(-1px);
 }
 
 .edit-actions button:disabled {
@@ -494,7 +573,9 @@
   cursor: not-allowed;
 }
 
-/* Desktop Layout - Portrait Images (details on left) */
+/* =====================================================
+ * Desktop Layout — Portrait Images (details on left)
+ * ===================================================== */
 @media (min-width: 769px) {
   .image-previewer.layout-portrait {
     flex-direction: row;
@@ -502,56 +583,59 @@
 
   .layout-portrait .previewer-image-container {
     flex: 1;
-    margin: 80px 20px 60px 320px;
+    margin: 84px 24px 80px 340px;
   }
 
   .layout-portrait .previewer-details {
     position: absolute;
-    left: 20px;
-    top: 80px;
+    left: 24px;
+    top: 84px;
     bottom: auto;
     right: auto;
-    width: 280px;
-    max-height: calc(100vh - 160px);
-    border-radius: 12px;
+    width: 300px;
+    max-height: calc(100vh - 180px);
+    border-radius: 16px;
+    /* Reserve room at the bottom for the action buttons */
+    padding-bottom: 56px;
   }
 
   .layout-portrait .previewer-counter {
-    left: 180px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
-  /* Desktop Layout - Landscape Images (compact footer at bottom) */
+  /* Desktop Layout — Landscape Images (details strip at bottom) */
   .layout-landscape .previewer-details {
-    bottom: 60px;
+    bottom: 70px;
     left: 50%;
     right: auto;
     transform: translateX(-50%);
     width: auto;
-    max-width: 800px;
-    min-width: 400px;
+    max-width: 880px;
+    min-width: 480px;
     max-height: none;
-    padding: 16px 24px;
+    padding: 0.95rem 1.5rem 3.4rem; /* extra bottom space for actions */
   }
 
   .layout-landscape .details-grid {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 16px 32px;
+    gap: 0.65rem 1.85rem;
   }
 
   .layout-landscape .detail-item {
     flex-direction: row;
-    align-items: center;
+    align-items: baseline;
     gap: 8px;
   }
 
   .layout-landscape .detail-item strong {
-    font-size: 11px;
+    font-size: 0.62rem;
   }
 
   .layout-landscape .detail-item span {
-    font-size: 13px;
+    font-size: 0.86rem;
   }
 
   .layout-landscape .detail-item.full-width {
@@ -559,61 +643,56 @@
     justify-content: center;
   }
 
-  /* Hide minimize button on landscape desktop - use top bar toggle instead */
+  /* Hide minimize button on landscape desktop — top bar Hide handles it */
   .layout-landscape .previewer-minimize-btn {
     display: none;
   }
 
-  /* Move edit button for landscape */
+  /* Action buttons sit at the bottom of the panel for landscape */
   .layout-landscape .previewer-edit-btn {
-    position: absolute;
-    bottom: auto;
-    top: 10px;
-    right: 10px;
+    bottom: 10px;
+    right: 12px;
   }
 
-  /* Move retouch button for landscape */
   .layout-landscape .previewer-retouch-btn {
-    position: absolute;
-    bottom: auto;
-    top: 10px;
+    bottom: 10px;
     right: 110px;
   }
 
-  /* Move archive button for landscape */
   .layout-landscape .previewer-archive-btn {
-    position: absolute;
-    bottom: auto;
-    top: 10px;
-    left: 10px;
+    bottom: 10px;
+    left: 12px;
   }
 }
 
-/* Responsive Design - Mobile always uses bottom layout regardless of orientation */
+/* =====================================================
+ * Mobile (always bottom layout)
+ * ===================================================== */
 @media (max-width: 768px) {
   .image-previewer,
   .image-previewer.layout-portrait,
   .image-previewer.layout-landscape {
     flex-direction: column;
-    padding: 10px;
+    padding: 8px;
   }
 
   .layout-portrait .previewer-image-container,
   .layout-landscape .previewer-image-container {
-    margin: 80px 0 10px;
+    margin: 76px 0 80px;
   }
 
   .layout-portrait .previewer-details,
   .layout-landscape .previewer-details {
     position: absolute;
-    left: 10px;
-    right: 10px;
+    left: 8px;
+    right: 8px;
     top: auto;
-    bottom: 50px;
+    bottom: 60px;
     width: auto;
     max-width: none;
     min-width: auto;
     transform: none;
+    padding-bottom: 56px;
   }
 
   .layout-portrait .previewer-counter,
@@ -626,61 +705,58 @@
     display: flex;
   }
 
+  .layout-portrait .previewer-edit-btn,
   .layout-landscape .previewer-edit-btn {
-    position: absolute;
-    top: auto;
     bottom: 10px;
-    right: 10px;
+    right: 12px;
   }
 
+  .layout-portrait .previewer-retouch-btn,
   .layout-landscape .previewer-retouch-btn {
-    position: absolute;
-    top: auto;
     bottom: 10px;
     right: 110px;
   }
 
+  .layout-portrait .previewer-archive-btn,
   .layout-landscape .previewer-archive-btn {
-    position: absolute;
-    top: auto;
     bottom: 10px;
-    left: 10px;
+    left: 12px;
   }
 
   .previewer-close {
-    width: 40px;
-    height: 40px;
-    font-size: 24px;
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
     top: 10px;
     right: 10px;
   }
 
   .previewer-nav {
-    width: 50px;
-    height: 50px;
-    font-size: 32px;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
   }
 
   .previewer-controls {
-    padding: 0 10px;
+    padding: 0 8px;
   }
 
   .previewer-zoom-controls {
     flex-wrap: nowrap;
-    max-width: 95%;
-    gap: 6px;
-    padding: 8px 10px;
+    max-width: calc(100vw - 60px);
+    gap: 4px;
+    padding: 4px 6px;
   }
 
   .previewer-zoom-controls button {
-    padding: 6px 10px;
-    font-size: 13px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.78rem;
   }
 
   .zoom-level {
-    padding: 6px 8px;
-    min-width: 50px;
-    font-size: 13px;
+    padding: 0.3rem 0.55rem !important;
+    min-width: 46px;
+    font-size: 0.72rem !important;
   }
 
   .details-grid,
@@ -688,6 +764,7 @@
   .layout-portrait .details-grid {
     display: grid;
     grid-template-columns: 1fr;
+    gap: 0.55rem;
     flex-wrap: unset;
   }
 
@@ -695,17 +772,14 @@
   .layout-portrait .detail-item {
     flex-direction: column;
     align-items: flex-start;
+    gap: 1px;
   }
 
   .previewer-details {
-    bottom: 50px;
-    left: 10px;
-    right: 10px;
-    padding: 15px;
-    max-height: 30vh;
-  }
-
-  .previewer-image-container {
-    margin: 80px 0 10px;
+    bottom: 60px;
+    left: 8px;
+    right: 8px;
+    padding: 0.85rem 1rem 3.2rem;
+    max-height: 38vh;
   }
 }

@@ -381,6 +381,22 @@ router.get(
         pictureMap[row.patrouilleId] = row._count.id;
       }
 
+      // 5b. Bulk fetch SCHEMATIC upload counts per patrouille across ALL
+      // statuses — used for "Uploads" sort so we can see who's been
+      // submitting schematics regardless of approval state.
+      const uploadCounts = await prisma.pictureSet.groupBy({
+        by: ['patrouilleId'],
+        where: {
+          patrouilleId: { in: patrouilleIds },
+          type: 'SCHEMATIC',
+        },
+        _count: { id: true },
+      });
+      const uploadMap = {};
+      for (const row of uploadCounts) {
+        uploadMap[row.patrouilleId] = row._count.id;
+      }
+
       // 6. Per-set completion: fetch approved categoryProgress + map to sets
       const approvedProgress = await prisma.categoryProgress.findMany({
         where: { patrouilleId: { in: patrouilleIds }, status: 'APPROVED' },
@@ -421,6 +437,7 @@ router.get(
         const group = p.troupe.group;
         const progress = progressMap[p.id] || { approved: 0, submitted: 0 };
         const pictureCount = pictureMap[p.id] || 0;
+        const uploadCount = uploadMap[p.id] || 0;
         const completionPct = totalItems > 0 ? Math.round((progress.approved / totalItems) * 100) : 0;
         const isWinner = totalItems > 0 && progress.approved === totalItems;
 
@@ -434,6 +451,7 @@ router.get(
           totalItems,
           completionPercentage: completionPct,
           pictureCount,
+          uploadCount,
           isWinner,
         };
 
@@ -471,6 +489,7 @@ router.get(
               ? Math.round(pats.reduce((s, p) => s + p.completedItems, 0) / (totalItems * pats.length) * 100)
               : 0,
             pictureCount: pats.reduce((s, p) => s + p.pictureCount, 0),
+            uploadCount: pats.reduce((s, p) => s + p.uploadCount, 0),
             pendingReview: pats.reduce((s, p) => s + p.pendingReview, 0),
             winners: pats.filter(p => p.isWinner).length,
             perSet: allSetIds.map(setId => {
@@ -488,8 +507,17 @@ router.get(
             }).sort((a, b) => a.setOrder - b.setOrder),
           };
 
-          // Sort patrouilles within group
-          pats.sort((a, b) => b.completionPercentage - a.completionPercentage);
+          // Sort patrouilles within group: alphabetical when sorting by
+          // district, by uploads when sorting by uploads, otherwise by
+          // completion (default) — keeps the inner ordering consistent
+          // with the chosen outer sort.
+          if (sortBy === 'district') {
+            pats.sort((a, b) => a.name.localeCompare(b.name));
+          } else if (sortBy === 'uploadCount') {
+            pats.sort((a, b) => b.uploadCount - a.uploadCount);
+          } else {
+            pats.sort((a, b) => b.completionPercentage - a.completionPercentage);
+          }
 
           return { ...g, patrouilles: pats, aggregates: groupAgg };
         });
@@ -498,9 +526,10 @@ router.get(
         const sortMultiplier = sortDir === 'asc' ? 1 : -1;
         groupArray.sort((a, b) => {
           switch (sortBy) {
-            case 'name': return sortMultiplier * a.name.localeCompare(b.name);
-            case 'pictureCount': return sortMultiplier * (a.aggregates.pictureCount - b.aggregates.pictureCount);
-            case 'patrouilleCount': return sortMultiplier * (a.aggregates.totalPatrouilles - b.aggregates.totalPatrouilles);
+            case 'district':
+              // Within a district, groups go alphabetical regardless of sortDir
+              return a.name.localeCompare(b.name);
+            case 'uploadCount': return sortMultiplier * (a.aggregates.uploadCount - b.aggregates.uploadCount);
             case 'completion':
             default: return sortMultiplier * (a.aggregates.completionPercentage - b.aggregates.completionPercentage);
           }
@@ -514,6 +543,7 @@ router.get(
             ? Math.round(groupArray.reduce((s, g) => s + g.aggregates.completedItems, 0) / Math.max(1, groupArray.reduce((s, g) => s + g.aggregates.totalItems, 0)) * 100)
             : 0,
           pictureCount: groupArray.reduce((s, g) => s + g.aggregates.pictureCount, 0),
+          uploadCount: groupArray.reduce((s, g) => s + g.aggregates.uploadCount, 0),
           pendingReview: groupArray.reduce((s, g) => s + g.aggregates.pendingReview, 0),
           winners: groupArray.reduce((s, g) => s + g.aggregates.winners, 0),
         };
@@ -525,9 +555,8 @@ router.get(
       const sortMultiplier = sortDir === 'asc' ? 1 : -1;
       districtArray.sort((a, b) => {
         switch (sortBy) {
-          case 'name': return sortMultiplier * a.name.localeCompare(b.name);
-          case 'pictureCount': return sortMultiplier * (a.aggregates.pictureCount - b.aggregates.pictureCount);
-          case 'patrouilleCount': return sortMultiplier * (a.aggregates.totalPatrouilles - b.aggregates.totalPatrouilles);
+          case 'district': return sortMultiplier * a.name.localeCompare(b.name);
+          case 'uploadCount': return sortMultiplier * (a.aggregates.uploadCount - b.aggregates.uploadCount);
           case 'completion':
           default: return sortMultiplier * (a.aggregates.completionPercentage - b.aggregates.completionPercentage);
         }
@@ -541,6 +570,7 @@ router.get(
           ? Math.round(districtArray.reduce((s, d) => s + d.aggregates.completedItems, 0) / Math.max(1, districtArray.reduce((s, d) => s + d.aggregates.totalItems, 0)) * 100)
           : 0,
         totalPictureCount: districtArray.reduce((s, d) => s + d.aggregates.pictureCount, 0),
+        totalUploadCount: districtArray.reduce((s, d) => s + d.aggregates.uploadCount, 0),
         totalWinners: districtArray.reduce((s, d) => s + d.aggregates.winners, 0),
       };
 

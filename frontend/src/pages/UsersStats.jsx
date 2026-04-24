@@ -16,9 +16,20 @@ const UsersStats = () => {
   const [groupBy, setGroupBy] = useState('troupe'); // 'troupe' | 'group' | 'district'
   const [sort, setSort] = useState({ key: 'total', dir: 'desc' });
 
+  // Pictures-by-category chart (moved here from Dashboard)
+  const [categoryStats, setCategoryStats] = useState([]);
+  const [categoryTotal, setCategoryTotal] = useState(0);
+  const [categoryStatusFilter, setCategoryStatusFilter] = useState('all'); // all|pending|classified|approved|rejected
+  const [categoryPage, setCategoryPage] = useState(1);
+  const CATEGORY_PAGE_SIZE = 10;
+
   useEffect(() => {
     loadStats();
   }, []);
+
+  useEffect(() => {
+    loadCategoryStats(categoryStatusFilter);
+  }, [categoryStatusFilter]);
 
   const loadStats = async () => {
     try {
@@ -31,6 +42,25 @@ const UsersStats = () => {
       setLoading(false);
     }
   };
+
+  const loadCategoryStats = async (status) => {
+    try {
+      const params = {};
+      if (status && status !== 'all') params.status = status.toUpperCase();
+      const data = await analyticsService.getPicturesByCategory(params);
+      setCategoryStats(data.categories || []);
+      setCategoryTotal(data.totalPictures || 0);
+      setCategoryPage(1); // reset to first page when filter changes
+    } catch (err) {
+      console.error('Failed to load category stats:', err);
+    }
+  };
+
+  const categoryTotalPages = Math.max(1, Math.ceil(categoryStats.length / CATEGORY_PAGE_SIZE));
+  const categoryPageItems = categoryStats.slice(
+    (categoryPage - 1) * CATEGORY_PAGE_SIZE,
+    categoryPage * CATEGORY_PAGE_SIZE
+  );
 
   const getNested = (obj, path) =>
     path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
@@ -281,7 +311,7 @@ const UsersStats = () => {
             <div className="zero-uploads-row">
               <div className="zero-card">
                 <div className="zero-value">{totals.zeroUploads}</div>
-                <div className="zero-label">0 uploads</div>
+                <div className="zero-label">Troupes with 0 uploads</div>
                 <div className="zero-sublabel">Aucun upload</div>
               </div>
               <div className="zero-card">
@@ -291,10 +321,86 @@ const UsersStats = () => {
               </div>
               <div className="zero-card">
                 <div className="zero-value">{totals.zeroSchematics}</div>
-                <div className="zero-label">0 schémas</div>
+                <div className="zero-label">Troupes with 0 schémas</div>
                 <div className="zero-sublabel">Aucun schéma</div>
               </div>
             </div>
+
+            {/* Pictures by Category — paginated, 10 per page */}
+            {categoryStats.length > 0 && (
+              <div className="chart-section">
+                <div className="section-header">
+                  <h3>Photos par catégorie</h3>
+                  <span className="section-subtitle">
+                    {categoryStats.length} catégorie{categoryStats.length !== 1 ? 's' : ''}
+                    {' · '}
+                    {categoryStatusFilter === 'all' ? 'tous statuts' : categoryStatusFilter}
+                  </span>
+                </div>
+
+                <div className="category-status-tabs">
+                  {[
+                    { key: 'all', label: 'Tous' },
+                    { key: 'pending', label: 'En attente' },
+                    { key: 'classified', label: 'Classés' },
+                    { key: 'approved', label: 'Approuvés' },
+                    { key: 'rejected', label: 'Rejetés' },
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`category-status-tab ${categoryStatusFilter === key ? 'active' : ''}`}
+                      onClick={() => setCategoryStatusFilter(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="category-chart">
+                  {categoryPageItems.map((cat, index) => {
+                    const barWidth = categoryTotal > 0 ? (cat.count / categoryTotal) * 100 : 0;
+                    return (
+                      <div key={`${cat.name}-${index}`} className="chart-bar-row">
+                        <span className="chart-label" title={cat.name}>
+                          {cat.name.length > 22 ? cat.name.substring(0, 22) + '…' : cat.name}
+                        </span>
+                        <div className="chart-bar-container">
+                          <div className="chart-bar" style={{ width: `${barWidth}%` }} />
+                        </div>
+                        <span className="chart-value">{cat.count}/{categoryTotal}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {categoryTotalPages > 1 && (
+                  <div className="chart-pagination">
+                    <button
+                      type="button"
+                      className="chart-page-btn"
+                      onClick={() => setCategoryPage((p) => Math.max(1, p - 1))}
+                      disabled={categoryPage === 1}
+                      aria-label="Page précédente"
+                    >
+                      ←
+                    </button>
+                    <span className="chart-page-status">
+                      Page <strong>{categoryPage}</strong> sur {categoryTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="chart-page-btn"
+                      onClick={() => setCategoryPage((p) => Math.min(categoryTotalPages, p + 1))}
+                      disabled={categoryPage === categoryTotalPages}
+                      aria-label="Page suivante"
+                    >
+                      →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="summary-meta">
               <strong>{filteredCounts.troupes}</strong> troupes

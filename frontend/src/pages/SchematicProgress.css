@@ -1249,6 +1249,12 @@
   color: var(--info);
 }
 
+.agg-uploads {
+  background: rgba(240, 184, 32, 0.22);
+  color: #8c5a1f;
+  font-weight: 700 !important;
+}
+
 .agg-patrouilles {
   background: rgba(128, 128, 128, 0.15);
   color: var(--text-muted);
@@ -1321,6 +1327,19 @@
   white-space: nowrap;
   min-width: 55px;
   text-align: center;
+}
+
+/* Upload Count in patrouille row — pending submissions, all statuses */
+.upload-count {
+  font-size: 0.8rem;
+  color: #8c5a1f;
+  background: rgba(240, 184, 32, 0.22);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  min-width: 55px;
+  text-align: center;
+  font-weight: 700;
 }
 
 /* Mobile adjustments for grouped view */

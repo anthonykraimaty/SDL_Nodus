@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, schematicService, analyticsService } from '../services/api';
-import { getImageUrl, API_URL } from '../config/api';
+import { pictureService, schematicService } from '../services/api';
+import { API_URL } from '../config/api';
 import Modal from '../components/Modal';
 import { ToastContainer, useToast } from '../components/Toast';
 import './Dashboard.css';
@@ -29,8 +29,6 @@ const Dashboard = () => {
     rejected: 0,
     total: 0,
   });
-  const [categoryStats, setCategoryStats] = useState([]);
-  const [categoryTotal, setCategoryTotal] = useState(0);
   const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
@@ -103,15 +101,6 @@ const Dashboard = () => {
           approved,
           rejected,
         });
-
-        // Load category stats for Branche users
-        try {
-          const catData = await analyticsService.getPicturesByCategory();
-          setCategoryStats(catData.categories || []);
-          setCategoryTotal(catData.totalPictures || 0);
-        } catch (err) {
-          console.error('Failed to load category stats:', err);
-        }
       }
 
       // Load schematic stats for all authenticated users
@@ -128,19 +117,6 @@ const Dashboard = () => {
     }
   };
 
-  const loadCategoryStats = async (status) => {
-    if (user?.role !== 'BRANCHE_ECLAIREURS' && user?.role !== 'ADMIN') return;
-    try {
-      const params = {};
-      if (status && status !== 'all') params.status = status.toUpperCase();
-      const catData = await analyticsService.getPicturesByCategory(params);
-      setCategoryStats(catData.categories || []);
-      setCategoryTotal(catData.totalPictures || 0);
-    } catch (err) {
-      console.error('Failed to load category stats:', err);
-    }
-  };
-
   const filterByStatus = (status) => {
     setActiveFilter(status);
     if (status === 'all') {
@@ -148,7 +124,6 @@ const Dashboard = () => {
     } else {
       setPictures(allPictures.filter(p => p.status === status.toUpperCase()));
     }
-    loadCategoryStats(status);
   };
 
   // Check if user can delete a picture set
@@ -362,32 +337,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Category Chart - Only for Branche users */}
-        {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && categoryStats.length > 0 && (
-          <div className="chart-section">
-            <div className="section-header">
-              <h3>Pictures by Category</h3>
-              <span className="section-subtitle">Top categories by {activeFilter === 'all' ? 'all' : activeFilter} pictures</span>
-            </div>
-            <div className="category-chart">
-              {categoryStats.map((cat, index) => {
-                const barWidth = categoryTotal > 0 ? (cat.count / categoryTotal) * 100 : 0;
-                return (
-                  <div key={index} className="chart-bar-row">
-                    <span className="chart-label" title={cat.name}>
-                      {cat.name.length > 18 ? cat.name.substring(0, 18) + '...' : cat.name}
-                    </span>
-                    <div className="chart-bar-container">
-                      <div
-                        className="chart-bar"
-                        style={{ width: `${barWidth}%` }}
-                      />
-                    </div>
-                    <span className="chart-value">{cat.count}/{categoryTotal}</span>
-                  </div>
-                );
-              })}
-            </div>
+        {/* Category breakdown moved to Statistiques — link there instead */}
+        {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
+          <div className="stats-link-section">
+            <Link to="/stats/users" className="stats-link-card">
+              <div className="stats-link-icon" aria-hidden="true">📊</div>
+              <div className="stats-link-body">
+                <h3>Statistiques</h3>
+                <p>Voir le détail complet par catégorie, troupe et district</p>
+              </div>
+              <span className="stats-link-arrow" aria-hidden="true">→</span>
+            </Link>
           </div>
         )}
 
@@ -415,60 +375,49 @@ const Dashboard = () => {
               )}
             </div>
           ) : (
-            <div className="pictures-grid-container">
-              {pictures.slice(0, 10).map((picture) => (
-                <div key={picture.id} className="picture-card">
-                  <div className="picture-card-image">
-                    <div className="picture-thumbnails-grid">
-                      {picture.pictures?.slice(0, 6).map((pic, index) => (
-                        <div key={pic.id} className="thumbnail-item">
-                          <img
-                            src={getImageUrl(pic.filePath)}
-                            alt={`${picture.title} - ${index + 1}`}
-                          />
-                        </div>
-                      ))}
-                      {/* Fill empty slots if less than 6 pictures */}
-                      {picture.pictures?.length < 6 &&
-                        Array.from({ length: Math.min(6, 6 - (picture.pictures?.length || 0)) }).map((_, i) => (
-                          <div key={`empty-${i}`} className="thumbnail-item empty"></div>
-                        ))
-                      }
-                    </div>
-                    <div className="picture-card-type">
-                      {picture.type === 'INSTALLATION_PHOTO' ? '📸' : '📐'}
-                    </div>
-                    {picture.pictures?.length > 6 && (
-                      <div className="picture-card-more">+{picture.pictures.length - 6}</div>
-                    )}
-                  </div>
-                  <div className="picture-card-content">
-                    <h4 className="picture-card-title">{picture.title}</h4>
-                    <div className="picture-card-meta">
-                      <span className={`status-badge ${picture.status.toLowerCase()}`}>
-                        {picture.status}
-                      </span>
-                      <span className="picture-card-date">
-                        {new Date(picture.uploadedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="picture-card-actions">
-                      <Link to={`/picture/${picture.id}`} className="btn-view-card">
-                        View Details
-                      </Link>
-                      {canDelete(picture) && (
-                        <button
-                          className="btn-delete-card"
-                          onClick={() => setDeleteConfirm(picture)}
-                          title="Delete picture set"
-                        >
-                          🗑️
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="recent-table-wrapper">
+              <table className="recent-table">
+                <thead>
+                  <tr>
+                    <th>District</th>
+                    <th>Groupe</th>
+                    <th>Troupe</th>
+                    <th>Set</th>
+                    <th>Date</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pictures.slice(0, 10).map((picture) => {
+                    const district = picture.troupe?.group?.district?.name || '—';
+                    const groupName = picture.troupe?.group?.name || '—';
+                    const troupeName = picture.troupe?.name || '—';
+                    return (
+                      <tr
+                        key={picture.id}
+                        className="recent-row"
+                        onClick={() => window.location.assign(`/picture/${picture.id}`)}
+                      >
+                        <td>{district}</td>
+                        <td>{groupName}</td>
+                        <td>{troupeName}</td>
+                        <td className="recent-set">
+                          <span className="recent-type" aria-hidden="true">
+                            {picture.type === 'INSTALLATION_PHOTO' ? '📸' : '📐'}
+                          </span>
+                          {picture.title}
+                        </td>
+                        <td>{new Date(picture.uploadedAt).toLocaleDateString()}</td>
+                        <td>
+                          <span className={`status-badge ${picture.status.toLowerCase()}`}>
+                            {picture.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

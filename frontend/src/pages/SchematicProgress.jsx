@@ -536,9 +536,8 @@ const SchematicProgress = () => {
                     }}
                   >
                     <option value="completion">Completion %</option>
-                    <option value="name">Name</option>
-                    <option value="pictureCount">Pictures</option>
-                    <option value="patrouilleCount">Patrouilles</option>
+                    <option value="uploadCount">Uploads</option>
+                    <option value="district">District</option>
                   </select>
                 </div>
                 <button
@@ -656,6 +655,11 @@ const SchematicProgress = () => {
                       <div className="aggregate-stats">
                         <span className="agg-completion">{district.aggregates.completionPercentage}%</span>
                         <span className="agg-pictures">{district.aggregates.pictureCount} pic{district.aggregates.pictureCount !== 1 ? 's' : ''}</span>
+                        {district.aggregates.uploadCount > 0 && (
+                          <span className="agg-uploads" title="Schémas uploadés (tous statuts)">
+                            {district.aggregates.uploadCount} upload{district.aggregates.uploadCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
                         <span className="agg-patrouilles">{district.aggregates.totalPatrouilles} pat.</span>
                         {district.aggregates.winners > 0 && (
                           <span className="agg-winners">{district.aggregates.winners} winner{district.aggregates.winners !== 1 ? 's' : ''}</span>
@@ -684,6 +688,11 @@ const SchematicProgress = () => {
                               <div className="aggregate-stats">
                                 <span className="agg-completion">{group.aggregates.completionPercentage}%</span>
                                 <span className="agg-pictures">{group.aggregates.pictureCount} pic{group.aggregates.pictureCount !== 1 ? 's' : ''}</span>
+                                {group.aggregates.uploadCount > 0 && (
+                                  <span className="agg-uploads" title="Schémas uploadés (tous statuts)">
+                                    {group.aggregates.uploadCount} upload{group.aggregates.uploadCount !== 1 ? 's' : ''}
+                                  </span>
+                                )}
                                 <span className="agg-patrouilles">{group.aggregates.totalPatrouilles} pat.</span>
                                 {group.aggregates.winners > 0 && (
                                   <span className="agg-winners">{group.aggregates.winners} winner{group.aggregates.winners !== 1 ? 's' : ''}</span>
@@ -746,6 +755,11 @@ const SchematicProgress = () => {
                                       <div className="picture-count" title="Approved pictures">
                                         {pat.pictureCount} pic{pat.pictureCount !== 1 ? 's' : ''}
                                       </div>
+                                      {pat.uploadCount > 0 && (
+                                        <div className="upload-count" title="Schémas uploadés (tous statuts)">
+                                          {pat.uploadCount} upload{pat.uploadCount !== 1 ? 's' : ''}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>

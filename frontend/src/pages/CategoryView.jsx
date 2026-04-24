@@ -303,7 +303,7 @@ const CategoryView = () => {
       await pictureService.editImage(pictureId, blob);
       setSuccess('Image modifiée avec succès');
       setEditingPicture(null);
-      loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
+      reloadPictures();
     } catch (err) {
       console.error('Failed to save edited image:', err);
       setError('Échec de la sauvegarde: ' + err.message);
@@ -313,7 +313,7 @@ const CategoryView = () => {
   // Handler for when picture metadata is updated in the previewer
   const handlePictureUpdate = () => {
     setSuccess('Image mise à jour avec succès');
-    loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
+    reloadPictures();
   };
 
   // Reset selection when context changes
@@ -324,7 +324,27 @@ const CategoryView = () => {
 
   // Grouping handlers
   const reloadPictures = () => {
-    loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
+    loadCategoryPictures({
+      reset: true,
+      filters: { dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear },
+    });
+  };
+
+  // Remove a set of picture IDs from all local state for instant UI feedback
+  // (mirrors the ImagePreviewer onPictureArchived callback).
+  const removePicturesFromState = (ids) => {
+    const idSet = ids instanceof Set ? ids : new Set(ids);
+    setPictures(prev => prev.filter(p => !idSet.has(p.id)));
+    setUngroupedPictures(prev => prev.filter(p => !idSet.has(p.id)));
+    setDesignGroups(prev =>
+      prev
+        .map(group => ({
+          ...group,
+          pictures: (group.pictures || []).filter(p => !idSet.has(p.id)),
+        }))
+        .filter(group => (group.pictures?.length || 0) > 0)
+    );
+    setTotal(prev => Math.max(0, prev - idSet.size));
   };
 
   const toggleSelectionMode = () => {
@@ -357,7 +377,7 @@ const CategoryView = () => {
       return;
     }
     setBulkArchiveLoading(true);
-    let archived = 0;
+    const archivedIds = [];
     const failures = [];
     for (const pic of picsToArchive) {
       const setId = pic.pictureSet?.id;
@@ -367,7 +387,7 @@ const CategoryView = () => {
       }
       try {
         await pictureService.archivePicture(setId, pic.id);
-        archived++;
+        archivedIds.push(pic.id);
       } catch (err) {
         console.error(`Failed to archive picture ${pic.id}:`, err);
         failures.push(pic.id);
@@ -377,8 +397,14 @@ const CategoryView = () => {
     setShowBulkArchive(false);
     setSelectedPictures(new Set());
     setSelectionMode(false);
-    if (archived > 0) setSuccess(`${archived} photo(s) archivée(s)`);
+    // Optimistic: strip archived pictures from local state immediately so the
+    // grid updates without waiting for the refetch round-trip.
+    if (archivedIds.length > 0) {
+      removePicturesFromState(archivedIds);
+      setSuccess(`${archivedIds.length} photo(s) archivée(s)`);
+    }
     if (failures.length > 0) setError(`${failures.length} photo(s) n'ont pas pu être archivées`);
+    // Reload in the background to reconcile (group auto-deletion, last-picture-deletes-set, etc.)
     reloadPictures();
   };
 
@@ -941,6 +967,9 @@ const CategoryView = () => {
                       <div className="thumbnail-info">
                         {picture.troupe && (
                           <>
+                            {picture.troupe.group?.district?.name && (
+                              <span className="thumbnail-district">{picture.troupe.group.district.name}</span>
+                            )}
                             {picture.troupe.group?.name && (
                               <span className="thumbnail-group">{picture.troupe.group.name}</span>
                             )}
@@ -958,75 +987,77 @@ const CategoryView = () => {
             })}
           </section>
         ) : (
-          /* Flat View - Show all pictures individually */
+          /* Flat / List View — horizontal rows with thumbnail + metadata inline */
           <section
-            className="pictures-grid"
+            className="pictures-list"
             aria-label={`Photos de ${category?.name}`}
-            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${200 + thumbnailSize * 3}px, 1fr))` }}
           >
             {pictures.map((picture, index) => {
               const isSelected = selectedPictures.has(picture.id);
               return (
-              <article
-                key={picture.id}
-                className={`picture-thumbnail ${isSelected ? 'selected' : ''}`}
-                onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index)}
-                role="button"
-                tabIndex={0}
-                aria-label={`Voir ${getImageAlt(picture, category)}`}
-                onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index))}
-              >
-                <figure className="thumbnail-image">
-                  <img
-                    src={getImageUrl(picture.filePath)}
-                    alt={getImageAlt(picture, category)}
-                    loading="lazy"
-                  />
+                <article
+                  key={picture.id}
+                  className={`picture-row ${isSelected ? 'selected' : ''}`}
+                  onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Voir ${getImageAlt(picture, category)}`}
+                  onKeyDown={(e) => e.key === 'Enter' && (selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index))}
+                >
+                  <figure className="row-image">
+                    <img
+                      src={getImageUrl(picture.filePath)}
+                      alt={getImageAlt(picture, category)}
+                      loading="lazy"
+                    />
+                    {canBulkManage && (
+                      <div
+                        className={`picture-selection-badge ${isSelected ? 'selected' : ''} ${selectionMode ? 'mode-active' : 'hover-reveal'}`}
+                        onClick={(e) => togglePictureSelection(picture.id, e)}
+                        title={isSelected ? 'Désélectionner' : 'Sélectionner'}
+                      >
+                        {isSelected ? '✓' : ''}
+                      </div>
+                    )}
+                    {canReview && !selectionMode && (
+                      <button
+                        className="picture-edit-btn"
+                        onClick={(e) => handleEditPicture(picture, e)}
+                        title="Modifier l'image (recadrer/rotation)"
+                      >
+                        ✎
+                      </button>
+                    )}
+                  </figure>
 
-                  {/* Selection checkbox (BRANCHE / ADMIN — hover-reveal when not in selection mode) */}
-                  {canBulkManage && (
-                    <div
-                      className={`picture-selection-badge ${isSelected ? 'selected' : ''} ${selectionMode ? 'mode-active' : 'hover-reveal'}`}
-                      onClick={(e) => togglePictureSelection(picture.id, e)}
-                      title={isSelected ? 'Désélectionner' : 'Sélectionner'}
-                    >
-                      {isSelected ? '✓' : ''}
+                  <div className="row-meta">
+                    <div className="row-meta-main">
+                      {picture.troupe?.group?.district?.name && (
+                        <span className="row-district">{picture.troupe.group.district.name}</span>
+                      )}
+                      {picture.troupe?.group?.name && (
+                        <h4 className="row-group">{picture.troupe.group.name}</h4>
+                      )}
+                      {picture.troupe?.name && (
+                        <span className="row-troupe">{picture.troupe.name}</span>
+                      )}
                     </div>
-                  )}
-
-                  {/* Edit button for authorized users */}
-                  {canReview && !selectionMode && (
-                    <button
-                      className="picture-edit-btn"
-                      onClick={(e) => handleEditPicture(picture, e)}
-                      title="Modifier l'image (recadrer/rotation)"
-                    >
-                      ✎
-                    </button>
-                  )}
-
-                  {/* Category label on the image */}
-                  {picture.category && (
-                    <div className="picture-category-label">{picture.category.name}</div>
-                  )}
-
-                  <figcaption className="thumbnail-overlay">
-                    <div className="thumbnail-info">
-                      {picture.troupe && (
-                        <>
-                          {picture.troupe.group?.name && (
-                            <span className="thumbnail-group">{picture.troupe.group.name}</span>
-                          )}
-                          <span className="thumbnail-troupe">{picture.troupe.name}</span>
-                        </>
+                    <div className="row-meta-tags">
+                      {picture.category && (
+                        <span className="row-tag row-tag-category">{picture.category.name}</span>
                       )}
                       {picture.pictureSet?.location && (
-                        <span className="thumbnail-location">{picture.pictureSet.location}</span>
+                        <span className="row-tag row-tag-location">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13" aria-hidden="true">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                          {picture.pictureSet.location}
+                        </span>
                       )}
                     </div>
-                  </figcaption>
-                </figure>
-              </article>
+                  </div>
+                </article>
               );
             })}
           </section>

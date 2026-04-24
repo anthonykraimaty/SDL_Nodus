@@ -378,6 +378,51 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   }, [redoStack, captureState, clearMaskCanvas]);
 
   // Draw the image on canvas
+  // Core pixel transform used by both live preview and final apply.
+  // Mutates the passed imageData in place.
+  // Declared before drawImage because drawImage's dep array references it.
+  const transformMagicBackground = useCallback((imageData, intensity) => {
+    const t = Math.max(0, Math.min(100, intensity)) / 100;
+    const data = imageData.data;
+
+    // Sample near-white background luminance
+    let sum = 0;
+    let count = 0;
+    const sampleStep = Math.max(1, Math.floor(Math.sqrt(data.length / 4) / 200));
+    for (let i = 0; i < data.length; i += 4 * sampleStep) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (lum > 150) { sum += lum; count++; }
+    }
+    const paperLum = count > 0 ? sum / count : 220;
+    const gain = Math.min((255 / paperLum - 1) * t + 1, 1.8);
+    const whiteCut = 230 - 60 * t;
+    const contrast = 1 + 0.6 * t;
+    const midpoint = 128;
+
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i] * gain;
+      let g = data[i + 1] * gain;
+      let b = data[i + 2] * gain;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      if (lum >= whiteCut) {
+        const k = Math.min(1, (lum - whiteCut) / (255 - whiteCut));
+        r = r + (255 - r) * k;
+        g = g + (255 - g) * k;
+        b = b + (255 - b) * k;
+      } else {
+        r = midpoint + (r - midpoint) * contrast;
+        g = midpoint + (g - midpoint) * contrast;
+        b = midpoint + (b - midpoint) * contrast;
+      }
+
+      data[i] = Math.max(0, Math.min(255, r));
+      data[i + 1] = Math.max(0, Math.min(255, g));
+      data[i + 2] = Math.max(0, Math.min(255, b));
+    }
+  }, []);
+
   const drawImage = useCallback(() => {
     if (!canvasRef.current || !imageRef.current || !imageLoaded) return;
 
@@ -1517,50 +1562,6 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   // Reset all edits
-  // Core pixel transform used by both live preview and final apply.
-  // Mutates the passed imageData in place.
-  const transformMagicBackground = useCallback((imageData, intensity) => {
-    const t = Math.max(0, Math.min(100, intensity)) / 100;
-    const data = imageData.data;
-
-    // Sample near-white background luminance
-    let sum = 0;
-    let count = 0;
-    const sampleStep = Math.max(1, Math.floor(Math.sqrt(data.length / 4) / 200));
-    for (let i = 0; i < data.length; i += 4 * sampleStep) {
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-      if (lum > 150) { sum += lum; count++; }
-    }
-    const paperLum = count > 0 ? sum / count : 220;
-    const gain = Math.min((255 / paperLum - 1) * t + 1, 1.8);
-    const whiteCut = 230 - 60 * t;
-    const contrast = 1 + 0.6 * t;
-    const midpoint = 128;
-
-    for (let i = 0; i < data.length; i += 4) {
-      let r = data[i] * gain;
-      let g = data[i + 1] * gain;
-      let b = data[i + 2] * gain;
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-
-      if (lum >= whiteCut) {
-        const k = Math.min(1, (lum - whiteCut) / (255 - whiteCut));
-        r = r + (255 - r) * k;
-        g = g + (255 - g) * k;
-        b = b + (255 - b) * k;
-      } else {
-        r = midpoint + (r - midpoint) * contrast;
-        g = midpoint + (g - midpoint) * contrast;
-        b = midpoint + (b - midpoint) * contrast;
-      }
-
-      data[i] = Math.max(0, Math.min(255, r));
-      data[i + 1] = Math.max(0, Math.min(255, g));
-      data[i + 2] = Math.max(0, Math.min(255, b));
-    }
-  }, []);
-
   // Final (destructive) magic background — mutates imageRef.current and pushes undo
   const applyMagicBackground = (intensity = 50) => {
     const img = imageRef.current;

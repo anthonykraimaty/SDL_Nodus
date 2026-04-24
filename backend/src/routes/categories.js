@@ -112,6 +112,19 @@ router.get('/', async (req, res) => {
             where: pictureFilter,
           });
 
+          // Also count total uploads (all statuses) so the UI can sort by
+          // "uploads" — useful to see which categories scouts are submitting
+          // even if the pictures aren't approved yet.
+          const { status: _approvedOnly, ...pictureSetWithoutStatus } =
+            pictureFilter.pictureSet || {};
+          const totalUploadsFilter = {
+            ...pictureFilter,
+            pictureSet: pictureSetWithoutStatus,
+          };
+          const uploadsCount = await prisma.picture.count({
+            where: totalUploadsFilter,
+          });
+
           // Get random thumbnail pictures for preview
           // Prioritize photos over schematics when no type filter is set
           let thumbnailPictures = [];
@@ -152,6 +165,7 @@ router.get('/', async (req, res) => {
             ...category,
             _count: {
               pictures: count,
+              uploads: uploadsCount,
             },
             thumbnailPictures,
           };
@@ -161,6 +175,7 @@ router.get('/', async (req, res) => {
             ...category,
             _count: {
               pictures: 0,
+              uploads: 0,
             },
             thumbnailPictures: [],
           };
@@ -667,6 +682,7 @@ router.get('/:id/pictures', async (req, res) => {
     // Filter by Picture.categoryId (individual picture category, not set)
     const pictureWhere = {
       categoryId: parseInt(id), // Filter by Picture.categoryId
+      isArchived: false,
       pictureSet: {
         status: 'APPROVED',
       },

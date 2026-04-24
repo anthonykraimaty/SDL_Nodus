@@ -868,3 +868,144 @@
     padding: 14px;
   }
 }
+
+/* Link card replacing the inline category chart on Dashboard */
+.stats-link-section {
+  margin-bottom: var(--spacing-xxl);
+}
+
+.stats-link-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  background: var(--bg-medium);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.25s cubic-bezier(0.2, 0.6, 0.2, 1);
+  cursor: pointer;
+}
+
+.stats-link-card:hover {
+  border-color: var(--accent, #b8813a);
+  transform: translateX(4px);
+  box-shadow: 0 10px 22px -10px rgba(62, 39, 35, 0.2);
+}
+
+.stats-link-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.stats-link-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.stats-link-body h3 {
+  margin: 0 0 4px;
+  font-family: var(--font-display, 'Fraunces', Georgia, serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stats-link-body p {
+  margin: 0;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.stats-link-arrow {
+  font-size: 1.5rem;
+  color: var(--accent, #b8813a);
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: transform 0.25s cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.stats-link-card:hover .stats-link-arrow {
+  transform: translateX(4px);
+}
+
+/* Recent submissions — list table */
+.recent-table-wrapper {
+  background: var(--bg-medium);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.recent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+}
+
+.recent-table thead th {
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  padding: 0.7rem 1rem;
+  background: rgba(62, 39, 35, 0.04);
+  border-bottom: 1.5px solid var(--border);
+  white-space: nowrap;
+}
+
+.recent-table tbody tr {
+  border-bottom: 1px solid rgba(62, 39, 35, 0.07);
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.recent-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.recent-table tbody tr:hover {
+  background: rgba(212, 165, 116, 0.12);
+}
+
+.recent-table td {
+  padding: 0.7rem 1rem;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+/* District / Groupe / Troupe — first three columns bolded */
+.recent-table tbody td:nth-child(1),
+.recent-table tbody td:nth-child(2),
+.recent-table tbody td:nth-child(3) {
+  font-weight: 700;
+}
+
+.recent-set {
+  font-weight: 400;
+}
+
+.recent-type {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+@media (max-width: 768px) {
+  .recent-table-wrapper {
+    overflow-x: auto;
+  }
+  .recent-table {
+    min-width: 640px;
+  }
+  .recent-table thead th,
+  .recent-table td {
+    padding: 0.55rem 0.7rem;
+    font-size: 0.85rem;
+  }
+}

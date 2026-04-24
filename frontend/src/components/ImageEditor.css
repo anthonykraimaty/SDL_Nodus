@@ -1,418 +1,581 @@
+/* =====================================================
+ * Image Editor — workshop / scout-leather workbench
+ * Same warm palette as the rest of the app:
+ *   ink (cocoa)  ochre   paper-warm   paper-deep
+ * Layout: top utility strip + canvas stage + bottom
+ * action bar. Mode chips share the top strip but inflate
+ * a contextual sub-bar that sits flush with the canvas
+ * so the toolbar height never jumps.
+ * ===================================================== */
+
 .image-editor {
+  --ie-ink: #2a1812;
+  --ie-ink-soft: #5a4035;
+  --ie-paper: #f5f1e8;
+  --ie-paper-warm: #ebe3d2;
+  --ie-paper-deep: #ddcfb4;
+  --ie-ochre: #b8813a;
+  --ie-ochre-deep: #8c5a1f;
+  --ie-ochre-soft: #d4a574;
+  --ie-rule: rgba(62, 39, 35, 0.18);
+  --ie-rule-soft: rgba(62, 39, 35, 0.09);
+  --ie-stage: #2a221c;            /* warm dark workbench behind canvas */
+  --ie-stage-edge: #1a130d;
+  --ie-help-info: #3f5f7a;
+  --ie-help-warn: #8b5e1a;
+  --ie-help-good: #4a6a3e;
+
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #ffffff;
-  border-radius: 8px;
+  background: var(--ie-paper);
+  color: var(--ie-ink);
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  border-radius: 0;
   overflow: hidden;
 }
 
+/* -- Loading / error states -- */
 .image-editor__loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 300px;
-  color: #666;
+  height: 320px;
+  color: var(--ie-ink-soft);
+  gap: 0.5rem;
 }
 
 .image-editor__loading .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e0e0e0;
-  border-top-color: #d4a574;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--ie-rule-soft);
+  border-top-color: var(--ie-ochre);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+  animation: spin 0.9s linear infinite;
+  margin-bottom: 12px;
 }
 
 .image-editor__error {
-  color: #d32f2f;
+  color: #8c3c36;
+  background: rgba(184, 65, 58, 0.08);
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  border: 1.5px solid rgba(184, 65, 58, 0.25);
   margin-bottom: 16px;
   text-align: center;
+  max-width: 480px;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
+
+/* =====================================================
+ * Toolbar — single row, scrollable on small screens.
+ * Groups separated by warm-leather dividers. Mode chips
+ * carry the same shape as quick-action buttons but flag
+ * an active state with ochre fill.
+ * ===================================================== */
 
 .image-editor__toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #e0e0e0;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: linear-gradient(180deg, var(--ie-paper-warm) 0%, var(--ie-paper) 100%);
+  border-bottom: 1px solid var(--ie-rule);
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ie-ochre-soft) transparent;
+  flex-wrap: wrap; /* let it wrap when there's vertical room */
+  row-gap: 0.5rem;
+}
+
+.image-editor__toolbar::-webkit-scrollbar {
+  height: 6px;
+}
+.image-editor__toolbar::-webkit-scrollbar-thumb {
+  background: var(--ie-ochre-soft);
+  border-radius: 999px;
 }
 
 .image-editor__toolbar-group {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 6px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--ie-rule-soft);
+  border-radius: 12px;
+  flex-shrink: 0;
 }
 
 .image-editor__toolbar-divider {
   width: 1px;
-  height: 24px;
-  background: #ddd;
+  height: 26px;
+  background: var(--ie-rule);
   margin: 0 2px;
+  flex-shrink: 0;
 }
 
+/* -- Buttons (all variants) -- */
 .image-editor__btn {
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--ie-rule);
+  border-radius: 10px;
   background: #fff;
-  color: #333;
-  font-size: 13px;
+  color: var(--ie-ink);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
+  transition: all 0.18s cubic-bezier(0.2, 0.6, 0.2, 1);
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   white-space: nowrap;
+  line-height: 1.1;
 }
 
 .image-editor__btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  border-color: #d4a574;
+  background: rgba(212, 165, 116, 0.18);
+  border-color: var(--ie-ochre-soft);
+  color: var(--ie-ink);
+  transform: translateY(-1px);
+}
+
+.image-editor__btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .image-editor__btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
+  filter: grayscale(0.4);
 }
 
 .image-editor__btn.active {
-  background: #d4a574;
-  border-color: #d4a574;
+  background: var(--ie-ochre);
+  border-color: var(--ie-ochre);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 10px -4px rgba(184, 129, 58, 0.5);
+}
+
+.image-editor__btn.active:hover:not(:disabled) {
+  background: var(--ie-ochre-deep);
+  border-color: var(--ie-ochre-deep);
   color: #fff;
 }
 
 .image-editor__btn--primary {
-  background: #d4a574;
-  border-color: #d4a574;
+  background: var(--ie-ochre);
+  border-color: var(--ie-ochre);
   color: #fff;
+  box-shadow: 0 4px 10px -4px rgba(184, 129, 58, 0.45);
 }
 
 .image-editor__btn--primary:hover:not(:disabled) {
-  background: #c49464;
-  border-color: #c49464;
+  background: var(--ie-ochre-deep);
+  border-color: var(--ie-ochre-deep);
 }
 
 .image-editor__btn--secondary {
-  background: #fff;
-  border-color: #ccc;
-  color: #333;
+  background: transparent;
+  border-color: var(--ie-rule);
+  color: var(--ie-ink-soft);
 }
 
 .image-editor__btn--secondary:hover:not(:disabled) {
-  background: #f0f0f0;
+  background: rgba(212, 165, 116, 0.15);
+  border-color: var(--ie-ochre-soft);
+  color: var(--ie-ink);
 }
 
 .image-editor__btn--restore {
-  background: #4caf50;
-  border-color: #4caf50;
+  background: #4a6a3e;            /* mossy green — restore = back to original */
+  border-color: #4a6a3e;
   color: #fff;
 }
 
 .image-editor__btn--restore:hover:not(:disabled) {
-  background: #43a047;
-  border-color: #43a047;
+  background: #3d5a32;
+  border-color: #3d5a32;
 }
 
+/* Magic — same warm ochre family, not a purple gradient.
+ * Differentiate via a subtle inner shimmer + sparkle weight. */
 .image-editor__btn--magic {
-  background: linear-gradient(135deg, #7c4dff 0%, #536dfe 100%);
-  border-color: #5e35b1;
+  background: linear-gradient(135deg, var(--ie-ochre-deep) 0%, var(--ie-ochre) 100%);
+  border-color: var(--ie-ochre-deep);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 4px 12px -4px rgba(140, 90, 31, 0.5);
 }
 
 .image-editor__btn--magic:hover:not(:disabled) {
-  background: linear-gradient(135deg, #651fff 0%, #3d5afe 100%);
-  border-color: #4527a0;
-  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.4);
+  background: linear-gradient(135deg, #6e4516 0%, var(--ie-ochre-deep) 100%);
+  border-color: #6e4516;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 6px 14px -4px rgba(140, 90, 31, 0.6);
 }
 
+/* =====================================================
+ * Sliders — warm ochre track + thumb everywhere
+ * ===================================================== */
+.blur-slider,
+.magic-slider {
+  width: 100px;
+  height: 6px;
+  cursor: pointer;
+  accent-color: var(--ie-ochre);
+}
+
+.magic-slider {
+  width: 130px;
+}
+
+.blur-value {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ie-ink-soft);
+  min-width: 36px;
+  padding: 0 4px;
+}
+
+.blur-count {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ie-ochre-deep);
+  padding: 3px 9px;
+  background: rgba(212, 165, 116, 0.22);
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+/* =====================================================
+ * Help bar — single row that anchors below the toolbar.
+ * Soft tinted background, italic instruction, no shouting.
+ * ===================================================== */
 .image-editor__help {
-  padding: 6px 16px;
-  background: #e3f2fd;
-  color: #1565c0;
-  font-size: 12px;
+  padding: 0.55rem 1.1rem;
+  background: rgba(63, 95, 122, 0.1);
+  color: var(--ie-help-info);
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.86rem;
+  font-style: italic;
   text-align: center;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--ie-rule-soft);
 }
 
 .image-editor__help--blur {
-  background: #fff3e0;
-  color: #e65100;
+  background: rgba(139, 94, 26, 0.1);
+  color: var(--ie-help-warn);
 }
 
 .image-editor__help--heal {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: rgba(74, 106, 62, 0.1);
+  color: var(--ie-help-good);
 }
 
+/* =====================================================
+ * Blur regions list — tag chips across one line
+ * ===================================================== */
 .image-editor__blur-list {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: #fafafa;
-  border-bottom: 1px solid #e0e0e0;
-  font-size: 12px;
-  color: #666;
+  gap: 0.5rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--ie-paper-warm);
+  border-bottom: 1px solid var(--ie-rule-soft);
+  font-size: 0.82rem;
+  color: var(--ie-ink-soft);
   flex-wrap: wrap;
 }
 
 .blur-region-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  background: #ff6b6b;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--ie-ochre);
   color: #fff;
   border: none;
-  border-radius: 16px;
-  font-size: 11px;
+  border-radius: 999px;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.74rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.18s ease;
+  letter-spacing: 0.01em;
 }
 
 .blur-region-tag:hover {
-  background: #ee5a5a;
+  background: var(--ie-ochre-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px -2px rgba(140, 90, 31, 0.45);
 }
 
-.blur-count {
-  font-size: 11px;
-  color: #666;
-  padding: 3px 8px;
-  background: #e0e0e0;
-  border-radius: 12px;
-}
-
-.blur-slider {
-  width: 80px;
-  cursor: pointer;
-  accent-color: #d4a574;
-}
-
-.magic-slider {
-  width: 120px;
-  cursor: pointer;
-  accent-color: #7c4dff;
-}
-
-.blur-value {
-  font-size: 11px;
-  color: #666;
-  min-width: 30px;
-}
-
+/* =====================================================
+ * Canvas stage — warm dark workbench so the image pops.
+ * Center the canvas; leave room on the right for the
+ * vertical zoom rail.
+ * ===================================================== */
 .image-editor__canvas-container {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 76px 20px 20px; /* reserve space for vertical zoom bar */
+  padding: 24px 88px 24px 24px;
   overflow: auto;
-  background: #e8e8e8;
+  background:
+    radial-gradient(900px 500px at 50% 30%, rgba(212, 165, 116, 0.06), transparent 60%),
+    radial-gradient(600px 400px at 100% 100%, rgba(184, 129, 58, 0.04), transparent 60%),
+    var(--ie-stage);
+  position: relative;
 }
 
-/* Vertical zoom bar on the right of the canvas area */
+/* Subtle grid texture so the workbench isn't a flat block.
+ * Helps the eye judge alignment when cropping. */
+.image-editor__canvas-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.image-editor__canvas {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 24px 60px -16px rgba(0, 0, 0, 0.6),
+    0 8px 20px -8px rgba(0, 0, 0, 0.4);
+  position: relative;
+  z-index: 1;
+}
+
+.image-editor__canvas.cropping,
+.image-editor__canvas.blurring,
+.image-editor__canvas.healing {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* =====================================================
+ * Vertical zoom rail — floats on the right of the canvas
+ * ===================================================== */
 .image-editor__zoom-bar {
   position: absolute;
   top: 50%;
-  right: 12px;
+  right: 16px;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px 8px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #d0d0d0;
-  border-radius: 28px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  gap: 10px;
+  padding: 12px 8px;
+  background: rgba(245, 241, 232, 0.96);
+  border: 1px solid var(--ie-rule);
+  border-radius: 32px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 8px 24px -8px rgba(0, 0, 0, 0.45);
   z-index: 5;
   user-select: none;
+  backdrop-filter: blur(4px);
 }
 
 .image-editor__zoom-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--ie-rule);
   background: #fff;
-  color: #333;
+  color: var(--ie-ink);
   border-radius: 50%;
   font-size: 16px;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.2, 0.6, 0.2, 1);
 }
 
 .image-editor__zoom-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  border-color: #999;
+  background: var(--ie-ochre);
+  border-color: var(--ie-ochre);
+  color: #fff;
+  transform: scale(1.06);
 }
 
 .image-editor__zoom-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
 .image-editor__zoom-reset {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .image-editor__zoom-slider {
-  /* Vertical native range input */
   appearance: slider-vertical;
   -webkit-appearance: slider-vertical;
-  writing-mode: bt-lr; /* Edge legacy */
+  writing-mode: bt-lr;
   width: 28px;
-  height: 160px;
+  height: 168px;
   cursor: pointer;
-  accent-color: #d4a574;
+  accent-color: var(--ie-ochre);
   background: transparent;
 }
 
-/* Fallback for browsers that don't support appearance: slider-vertical */
 @supports not (appearance: slider-vertical) {
   .image-editor__zoom-slider {
     transform: rotate(-90deg);
-    width: 160px;
+    width: 168px;
     height: 28px;
-    margin: 66px -66px;
+    margin: 70px -70px;
   }
 }
 
 .image-editor__zoom-value {
-  font-size: 11px;
-  color: #555;
-  font-weight: 600;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--ie-ink);
+  font-weight: 700;
   min-width: 40px;
   text-align: center;
+  padding: 2px 6px;
+  background: var(--ie-paper-warm);
+  border-radius: 999px;
 }
 
-@media (max-width: 640px) {
-  .image-editor__canvas-container {
-    padding: 10px 60px 10px 10px;
-  }
-
-  .image-editor__zoom-bar {
-    right: 6px;
-    padding: 8px 6px;
-    gap: 6px;
-  }
-
-  .image-editor__zoom-slider {
-    height: 120px;
-  }
-}
-
-.image-editor__canvas {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 4px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.image-editor__canvas.cropping {
-  cursor: crosshair;
-  touch-action: none;
-}
-
-.image-editor__canvas.blurring {
-  cursor: crosshair;
-  touch-action: none;
-}
-
-.image-editor__canvas.healing {
-  cursor: crosshair;
-  touch-action: none;
-}
-
+/* =====================================================
+ * Processing overlay (heal in progress)
+ * ===================================================== */
 .image-editor__processing-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(26, 19, 13, 0.55);
+  backdrop-filter: blur(2px);
   z-index: 10;
 }
 
 .image-editor__processing-overlay .spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  width: 52px;
+  height: 52px;
+  border: 4px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--ie-ochre-soft);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.85s linear infinite;
 }
 
+/* =====================================================
+ * Bottom action bar — Cancel + Save
+ * ===================================================== */
 .image-editor__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #f5f5f5;
-  border-top: 1px solid #e0e0e0;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1.2rem;
+  background: linear-gradient(0deg, var(--ie-paper-warm) 0%, var(--ie-paper) 100%);
+  border-top: 1px solid var(--ie-rule);
 }
 
-/* Responsive adjustments */
+.image-editor__actions .image-editor__btn {
+  padding: 0.55rem 1.5rem;
+  font-size: 0.92rem;
+  border-radius: 999px;
+}
+
+.image-editor__actions .image-editor__btn--primary {
+  min-width: 160px;
+  justify-content: center;
+}
+
+/* =====================================================
+ * Responsive
+ * ===================================================== */
+@media (max-width: 900px) {
+  .image-editor__toolbar {
+    padding: 0.55rem 0.7rem;
+  }
+  .image-editor__btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+  }
+  .image-editor__toolbar-group {
+    padding: 3px 5px;
+  }
+}
+
 @media (max-width: 768px) {
   .image-editor__toolbar {
-    gap: 6px;
-    padding: 8px;
+    flex-wrap: nowrap;
+    padding: 0.5rem 0.6rem;
   }
-
   .image-editor__toolbar-divider {
     display: none;
   }
-
   .image-editor__toolbar-group {
-    flex-wrap: wrap;
+    flex-shrink: 0;
   }
-
-  .image-editor__btn {
-    padding: 5px 10px;
-    font-size: 12px;
-  }
-
   .image-editor__canvas-container {
-    padding: 10px;
+    padding: 14px 72px 14px 14px;
   }
-
   .image-editor__actions {
-    flex-direction: column;
+    flex-direction: column-reverse;
+    padding: 0.7rem 0.9rem;
   }
-
   .image-editor__actions .image-editor__btn {
     width: 100%;
     justify-content: center;
   }
-
   .blur-slider {
-    width: 60px;
+    width: 70px;
   }
-
   .magic-slider {
-    width: 90px;
+    width: 100px;
+  }
+}
+
+@media (max-width: 640px) {
+  .image-editor__canvas-container {
+    padding: 10px 64px 10px 10px;
+  }
+  .image-editor__zoom-bar {
+    right: 8px;
+    padding: 8px 6px;
+    gap: 7px;
+    border-radius: 24px;
+  }
+  .image-editor__zoom-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .image-editor__zoom-slider {
+    height: 130px;
   }
 }
