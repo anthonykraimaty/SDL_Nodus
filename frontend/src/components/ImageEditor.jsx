@@ -64,6 +64,9 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const [isMagicOpen, setIsMagicOpen] = useState(false);
   const [magicIntensity, setMagicIntensity] = useState(50); // 0-100
 
+  // Zoom state for the canvas (1.0 = fit, up to 3.0 = 300%)
+  const [zoom, setZoom] = useState(1);
+
   // Undo/Redo state
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -172,12 +175,13 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     };
   }, [blobUrl]);
 
-  // Calculate display size based on container
+  // Calculate display size based on container + zoom
   useEffect(() => {
     if (!imageLoaded || !containerRef.current) return;
 
     const container = containerRef.current;
-    const maxWidth = container.clientWidth - 40;
+    // Reserve space for the right-side zoom sidebar (56px)
+    const maxWidth = container.clientWidth - 40 - 56;
     const maxHeight = window.innerHeight - 350;
 
     let { width, height } = originalSize;
@@ -187,13 +191,14 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       [width, height] = [height, width];
     }
 
-    const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+    const fitScale = Math.min(maxWidth / width, maxHeight / height, 1);
+    const scale = fitScale * zoom;
 
     setDisplaySize({
       width: Math.round(width * scale),
       height: Math.round(height * scale),
     });
-  }, [imageLoaded, originalSize, rotation]);
+  }, [imageLoaded, originalSize, rotation, zoom]);
 
   // Helper to check if point is near a position
   const isNearPoint = (pos, px, py, threshold = HANDLE_SIZE) => {
@@ -602,13 +607,25 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       ctx.stroke();
     }
 
+    // Magic background live preview (non-destructive): applied after draw, before mask overlay.
+    // Skipped while cropping/blurring/healing to avoid interfering with those overlays.
+    if (isMagicOpen && !isCropping && !isBlurring && !isHealing && canvas.width > 0 && canvas.height > 0) {
+      try {
+        const previewData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        transformMagicBackground(previewData, magicIntensity);
+        ctx.putImageData(previewData, 0, 0);
+      } catch (err) {
+        // getImageData can throw on tainted canvases; silently skip preview
+      }
+    }
+
     // Draw healing mask overlay
     if (isHealing && maskCanvasRef.current) {
       ctx.globalAlpha = 0.4;
       ctx.drawImage(maskCanvasRef.current, 0, 0);
       ctx.globalAlpha = 1.0;
     }
-  }, [displaySize, rotation, flipH, flipV, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask]);
+  }, [displaySize, rotation, flipH, flipV, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask, isMagicOpen, magicIntensity, transformMagicBackground]);
 
   useEffect(() => {
     drawImage();
@@ -1500,23 +1517,10 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   };
 
   // Reset all edits
-  // Magic background: whiten paper + boost contrast so the image looks scanned.
-  // Intensity 0 = subtle, 100 = aggressive (more pixels pushed to white, higher contrast).
-  const applyMagicBackground = (intensity = 50) => {
-    const img = imageRef.current;
-    if (!img) return;
-
-    pushUndo();
-
+  // Core pixel transform used by both live preview and final apply.
+  // Mutates the passed imageData in place.
+  const transformMagicBackground = useCallback((imageData, intensity) => {
     const t = Math.max(0, Math.min(100, intensity)) / 100;
-
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = img.width;
-    srcCanvas.height = img.height;
-    const srcCtx = srcCanvas.getContext('2d');
-    srcCtx.drawImage(img, 0, 0);
-
-    const imageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
     const data = imageData.data;
 
     // Sample near-white background luminance
@@ -1529,13 +1533,9 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       if (lum > 150) { sum += lum; count++; }
     }
     const paperLum = count > 0 ? sum / count : 220;
-    // Gain scales from 1.0 (no boost) up to ~1.8 at max intensity
     const gain = Math.min((255 / paperLum - 1) * t + 1, 1.8);
-
-    // whiteCut: higher intensity → lower threshold → more pixels treated as paper
-    const whiteCut = 230 - 60 * t; // 230 → 170
-    // contrast: higher intensity → harder contrast on ink
-    const contrast = 1 + 0.6 * t; // 1.0 → 1.6
+    const whiteCut = 230 - 60 * t;
+    const contrast = 1 + 0.6 * t;
     const midpoint = 128;
 
     for (let i = 0; i < data.length; i += 4) {
@@ -1559,7 +1559,23 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       data[i + 1] = Math.max(0, Math.min(255, g));
       data[i + 2] = Math.max(0, Math.min(255, b));
     }
+  }, []);
 
+  // Final (destructive) magic background — mutates imageRef.current and pushes undo
+  const applyMagicBackground = (intensity = 50) => {
+    const img = imageRef.current;
+    if (!img) return;
+
+    pushUndo();
+
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = img.width;
+    srcCanvas.height = img.height;
+    const srcCtx = srcCanvas.getContext('2d');
+    srcCtx.drawImage(img, 0, 0);
+
+    const imageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    transformMagicBackground(imageData, intensity);
     srcCtx.putImageData(imageData, 0, 0);
 
     const cleaned = new Image();
@@ -1898,7 +1914,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
           <button
             className={`image-editor__btn image-editor__btn--magic ${isMagicOpen ? 'active' : ''}`}
             onClick={() => setIsMagicOpen((v) => !v)}
-            title="Blanchir le fond (effet scan)"
+            title="Blanchir le fond (effet scan) — aperçu en direct"
           >
             ✨ Fond Magique
           </button>
@@ -1911,7 +1927,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
                 value={magicIntensity}
                 onChange={(e) => setMagicIntensity(Number(e.target.value))}
                 className="magic-slider"
-                title="Intensité"
+                title="Glissez pour ajuster — aperçu en direct"
                 aria-label="Magic background intensity"
               />
               <span className="blur-value">{magicIntensity}%</span>
@@ -1921,9 +1937,16 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
                   applyMagicBackground(magicIntensity);
                   setIsMagicOpen(false);
                 }}
-                title="Appliquer"
+                title="Appliquer l'effet"
               >
                 Apply
+              </button>
+              <button
+                className="image-editor__btn"
+                onClick={() => setIsMagicOpen(false)}
+                title="Annuler l'aperçu"
+              >
+                ✕
               </button>
             </>
           )}
@@ -2004,6 +2027,51 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
           onTouchEnd={handleTouchEnd}
           onDoubleClick={handleDoubleClick}
         />
+
+        {/* Vertical zoom bar on the right edge of the canvas area */}
+        <div className="image-editor__zoom-bar" aria-label="Zoom">
+          <button
+            type="button"
+            className="image-editor__zoom-btn"
+            onClick={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+            title="Zoom +"
+            disabled={zoom >= 3}
+          >
+            +
+          </button>
+          <input
+            type="range"
+            min="1"
+            max="3"
+            step="0.05"
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="image-editor__zoom-slider"
+            orient="vertical"
+            aria-label="Canvas zoom"
+          />
+          <span className="image-editor__zoom-value">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className="image-editor__zoom-btn"
+            onClick={() => setZoom((z) => Math.max(1, +(z - 0.25).toFixed(2)))}
+            title="Zoom −"
+            disabled={zoom <= 1}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="image-editor__zoom-btn image-editor__zoom-reset"
+            onClick={() => setZoom(1)}
+            title="Reset zoom"
+            disabled={zoom === 1}
+          >
+            ↺
+          </button>
+        </div>
       </div>
 
       <div className="image-editor__actions">

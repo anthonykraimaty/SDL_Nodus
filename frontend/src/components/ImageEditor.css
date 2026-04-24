@@ -42,8 +42,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 10px 14px;
   background: #f5f5f5;
   border-bottom: 1px solid #e0e0e0;
 }
@@ -52,13 +52,17 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
 }
 
 .image-editor__toolbar-divider {
   width: 1px;
   height: 24px;
   background: #ddd;
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .image-editor__btn {
@@ -217,9 +221,105 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 20px 76px 20px 20px; /* reserve space for vertical zoom bar */
   overflow: auto;
   background: #e8e8e8;
+}
+
+/* Vertical zoom bar on the right of the canvas area */
+.image-editor__zoom-bar {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #d0d0d0;
+  border-radius: 28px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+  user-select: none;
+}
+
+.image-editor__zoom-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #333;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.image-editor__zoom-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #999;
+}
+
+.image-editor__zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.image-editor__zoom-reset {
+  font-size: 14px;
+}
+
+.image-editor__zoom-slider {
+  /* Vertical native range input */
+  appearance: slider-vertical;
+  -webkit-appearance: slider-vertical;
+  writing-mode: bt-lr; /* Edge legacy */
+  width: 28px;
+  height: 160px;
+  cursor: pointer;
+  accent-color: #d4a574;
+  background: transparent;
+}
+
+/* Fallback for browsers that don't support appearance: slider-vertical */
+@supports not (appearance: slider-vertical) {
+  .image-editor__zoom-slider {
+    transform: rotate(-90deg);
+    width: 160px;
+    height: 28px;
+    margin: 66px -66px;
+  }
+}
+
+.image-editor__zoom-value {
+  font-size: 11px;
+  color: #555;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .image-editor__canvas-container {
+    padding: 10px 60px 10px 10px;
+  }
+
+  .image-editor__zoom-bar {
+    right: 6px;
+    padding: 8px 6px;
+    gap: 6px;
+  }
+
+  .image-editor__zoom-slider {
+    height: 120px;
+  }
 }
 
 .image-editor__canvas {
