@@ -847,8 +847,16 @@ input::placeholder, textarea::placeholder {
 }
 
 .pwa-install-prompt .prompt-icon {
-  font-size: 2rem;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pwa-install-prompt .prompt-icon img {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
 }
 
 .pwa-install-prompt .prompt-text {

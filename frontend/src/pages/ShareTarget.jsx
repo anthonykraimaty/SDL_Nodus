@@ -72,7 +72,7 @@ const ShareTarget = () => {
 
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
-  const [status, setStatus] = useState('loading'); // loading, no-files, auth-required, uploading, success, error
+  const [status, setStatus] = useState('loading'); // loading, no-files, auth-required, choose-type, uploading, success, error
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState({
     percent: 0,
@@ -154,7 +154,7 @@ const ShareTarget = () => {
     loadFiles();
   }, [searchParams]);
 
-  // Handle upload when user is authenticated and files are ready
+  // Once files are ready, gate on auth and then let the user pick photo vs schematic
   useEffect(() => {
     if (authLoading) return;
 
@@ -165,11 +165,19 @@ const ShareTarget = () => {
         setStatus('error');
         setError('Only Chef Troupe members can upload pictures.');
       } else {
-        // Auto-start upload
-        handleUpload();
+        setStatus('choose-type');
       }
     }
   }, [authLoading, user, status, files]);
+
+  const handleChoosePhoto = () => {
+    handleUpload();
+  };
+
+  const handleChooseSchematic = () => {
+    // Files stay in IndexedDB; SchematicUpload reads them when ?from=share
+    navigate('/schematics/upload?from=share');
+  };
 
   const handleUpload = async () => {
     if (!user || files.length === 0) return;
@@ -385,7 +393,51 @@ const ShareTarget = () => {
     );
   }
 
-  // Ready state (should auto-upload, but shown briefly)
+  // Choose type (photo vs schematic)
+  if (status === 'choose-type') {
+    return (
+      <div className="share-target-page">
+        <div className="container">
+          <div className="share-target-container">
+            <div className="choose-type-state">
+              <h2>
+                Upload {files.length} file{files.length !== 1 ? 's' : ''}
+              </h2>
+              <p className="text-muted">What are you sharing?</p>
+
+              {previews.length > 0 && (
+                <div className="preview-strip">
+                  {previews.slice(0, 4).map((preview, index) => (
+                    <img key={index} src={preview} alt={`Preview ${index + 1}`} className="preview-thumb" />
+                  ))}
+                  {previews.length > 4 && <span className="preview-more">+{previews.length - 4}</span>}
+                </div>
+              )}
+
+              <div className="choose-type-actions">
+                <button onClick={handleChoosePhoto} className="choose-type-btn">
+                  <span className="choose-type-icon">📷</span>
+                  <span className="choose-type-label">Installation Photo</span>
+                  <span className="choose-type-sub">Camp installation photos</span>
+                </button>
+                <button onClick={handleChooseSchematic} className="choose-type-btn">
+                  <span className="choose-type-icon">📐</span>
+                  <span className="choose-type-label">Schematic</span>
+                  <span className="choose-type-sub">Hand-drawn schematic</span>
+                </button>
+              </div>
+
+              <button onClick={handleClearAndClose} className="btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Ready state (transitional)
   return (
     <div className="share-target-page">
       <div className="container">

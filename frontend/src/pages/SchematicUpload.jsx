@@ -1,7 +1,55 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { schematicService, patrouilleService, pictureService } from '../services/api';
+
+// Shared IndexedDB store written by the service worker on a Web Share Target hit
+const SHARE_DB_NAME = 'nodus-share-target';
+const SHARE_STORE_NAME = 'shared-files';
+
+function openShareDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(SHARE_DB_NAME, 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(SHARE_STORE_NAME)) {
+        db.createObjectStore(SHARE_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+  });
+}
+
+async function getSharedFiles() {
+  const db = await openShareDB();
+  const tx = db.transaction(SHARE_STORE_NAME, 'readonly');
+  const store = tx.objectStore(SHARE_STORE_NAME);
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () =>
+      resolve(
+        req.result.map((item) => {
+          const blob = new Blob([item.data], { type: item.type });
+          return new File([blob], item.name, {
+            type: item.type,
+            lastModified: item.lastModified,
+          });
+        })
+      );
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function clearSharedFiles() {
+  const db = await openShareDB();
+  const tx = db.transaction(SHARE_STORE_NAME, 'readwrite');
+  tx.objectStore(SHARE_STORE_NAME).clear();
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -18,6 +66,8 @@ const formatBytes = (bytes) => {
 const SchematicUpload = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromShare = searchParams.get('from') === 'share';
   const abortControllerRef = useRef(null);
 
   // Step: 'upload' or 'classify'
@@ -75,6 +125,52 @@ const SchematicUpload = () => {
   useEffect(() => {
     loadInitialData();
   }, [user]);
+
+  // Hydrate from the Web Share Target: pick up files the service worker stashed
+  useEffect(() => {
+    if (!fromShare) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const shared = await getSharedFiles();
+        if (cancelled || shared.length === 0) return;
+
+        if (shared.length > 10) {
+          setError('Maximum 10 files allowed per schematic. Only the first 10 were kept.');
+        }
+        const capped = shared.slice(0, 10);
+        setFiles(capped);
+
+        const newPreviews = [];
+        let loadedCount = 0;
+        capped.forEach((file) => {
+          if (file.type === 'application/pdf') {
+            newPreviews.push({ type: 'pdf', name: file.name });
+            loadedCount++;
+            if (loadedCount === capped.length && !cancelled) setPreviews([...newPreviews]);
+          } else {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              newPreviews.push({ type: 'image', src: reader.result });
+              loadedCount++;
+              if (loadedCount === capped.length && !cancelled) setPreviews([...newPreviews]);
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+
+        // Consume the shared-files store so we don't re-hydrate on back-nav
+        await clearSharedFiles();
+      } catch (err) {
+        console.error('Failed to hydrate shared files:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fromShare]);
 
   useEffect(() => {
     if (formData.patrouilleId) {

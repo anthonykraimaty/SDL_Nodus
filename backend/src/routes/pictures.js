@@ -193,6 +193,97 @@ router.delete('/archive/:pictureId', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/pictures/my-troupe - List individual pictures from the current CHEF_TROUPE's own troupe
+// (strictly scoped to the authenticated user's troupeId, all statuses).
+router.get('/my-troupe', authenticate, authorize('CHEF_TROUPE'), async (req, res) => {
+  try {
+    if (!req.user.troupeId) {
+      return res.status(400).json({ error: 'User is not attached to a troupe' });
+    }
+
+    const {
+      status,
+      type,
+      categoryId,
+      search,
+      page = 1,
+      limit = 100,
+    } = req.query;
+
+    const pictureSetWhere = { troupeId: req.user.troupeId };
+    if (status) {
+      pictureSetWhere.status = status.includes(',')
+        ? { in: status.split(',') }
+        : status;
+    }
+
+    const pictureWhere = {
+      isArchived: false,
+      pictureSet: pictureSetWhere,
+    };
+    if (type) pictureWhere.type = type;
+    if (categoryId) pictureWhere.categoryId = parseInt(categoryId);
+
+    const searchTerm = typeof search === 'string' ? search.trim() : '';
+    if (searchTerm) {
+      const mode = 'insensitive';
+      pictureWhere.OR = [
+        { pictureSet: { ...pictureSetWhere, title: { contains: searchTerm, mode } } },
+        { pictureSet: { ...pictureSetWhere, uploadedBy: { name: { contains: searchTerm, mode } } } },
+        { pictureSet: { ...pictureSetWhere, patrouille: { totem: { contains: searchTerm, mode } } } },
+        { category: { name: { contains: searchTerm, mode } } },
+      ];
+      delete pictureWhere.pictureSet;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [pictures, total] = await Promise.all([
+      prisma.picture.findMany({
+        where: pictureWhere,
+        select: {
+          id: true,
+          filePath: true,
+          type: true,
+          uploadedAt: true,
+          categoryId: true,
+          category: { select: { id: true, name: true } },
+          pictureSet: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              rejectionReason: true,
+              troupeId: true,
+              uploadedAt: true,
+              uploadedBy: { select: { id: true, name: true } },
+              patrouille: { select: { id: true, totem: true, name: true } },
+              troupe: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { uploadedAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.picture.count({ where: pictureWhere }),
+    ]);
+
+    res.json({
+      pictures,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Get my-troupe pictures error:', error);
+    res.status(500).json({ error: 'Failed to fetch troupe pictures' });
+  }
+});
+
 // GET /api/pictures - Get all picture sets (public for approved, filtered for authenticated)
 router.get('/', optionalAuth, async (req, res) => {
   try {

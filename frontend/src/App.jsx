@@ -31,6 +31,7 @@ import SchematicProgress from './pages/SchematicProgress';
 import UsersStats from './pages/UsersStats';
 import ShareTarget from './pages/ShareTarget';
 import Archive from './pages/Archive';
+import MyTroupePictures from './pages/MyTroupePictures';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './App.css';
 
@@ -120,6 +121,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['CHEF_TROUPE', 'BRANCHE_ECLAIREURS', 'ADMIN']}>
                   <Classify />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="my-troupe-pictures"
+              element={
+                <ProtectedRoute allowedRoles={['CHEF_TROUPE']}>
+                  <MyTroupePictures />
                 </ProtectedRoute>
               }
             />

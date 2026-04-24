@@ -28,7 +28,7 @@ const Modal = ({
   variant = 'default', // 'default' | 'warning' | 'danger' | 'success' | 'image'
   size = 'medium', // 'small' | 'medium' | 'large' | 'fullscreen'
   showClose = true,
-  closeOnOverlay = true,
+  closeOnOverlay = false,
 }) => {
   // Handle escape key
   useEffect(() => {

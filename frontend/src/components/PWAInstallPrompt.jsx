@@ -63,7 +63,9 @@ const PWAInstallPrompt = () => {
   return (
     <div className="pwa-install-prompt">
       <div className="prompt-content">
-        <div className="prompt-icon">🏕️</div>
+        <div className="prompt-icon">
+          <img src="/logo_nodus-transparent.png" alt="Nodus" />
+        </div>
         <div className="prompt-text">
           <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Install Nodus</h3>
           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>

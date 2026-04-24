@@ -176,6 +176,13 @@ export const pictureService = {
     return api.get(`/api/pictures${query ? '?' + query : ''}`, true); // Send auth token
   },
   getById: (id) => api.get(`/api/pictures/${id}`, true), // Send auth token
+  getMyTroupePictures: (params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const query = new URLSearchParams(cleaned).toString();
+    return api.get(`/api/pictures/my-troupe${query ? '?' + query : ''}`, true);
+  },
   upload: (formData) => api.upload('/api/pictures', formData),
   uploadWithProgress: (formData, onProgress, signal) =>
     api.uploadWithProgress('/api/pictures', formData, onProgress, signal),

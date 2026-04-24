@@ -211,6 +211,15 @@ const Dashboard = () => {
               </div>
             </Link>
           )}
+          {user?.role === 'CHEF_TROUPE' && (
+            <Link to="/my-troupe-pictures" className="action-card my-troupe-action">
+              <div className="action-icon">🏕️</div>
+              <div className="action-content">
+                <h3>Photos de ma troupe</h3>
+                <p>Parcourir, modifier ou supprimer les séries</p>
+              </div>
+            </Link>
+          )}
           {(user?.role === 'CHEF_TROUPE' || user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
             <Link to="/classify" className="action-card classify-action">
               <div className="action-icon">🏷️</div>

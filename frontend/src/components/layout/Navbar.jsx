@@ -44,6 +44,9 @@ const Navbar = () => {
               {isAdmin() && (
                 <Link to="/admin" className="nav-link" onClick={closeMobileMenu}>Administration</Link>
               )}
+              {user?.role === 'CHEF_TROUPE' && (
+                <Link to="/my-troupe-pictures" className="nav-link" onClick={closeMobileMenu}>Ma Troupe</Link>
+              )}
               {(user?.role === 'CHEF_TROUPE' || user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
                 <Link to="/classify" className="nav-link" onClick={closeMobileMenu}>Classification</Link>
               )}
