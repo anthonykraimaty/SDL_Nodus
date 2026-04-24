@@ -113,7 +113,14 @@
 
 /* Quick Actions Separator */
 .quick-actions-separator {
-  display: none;
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: var(--spacing-lg) 0;
+}
+
+.quick-actions-single {
+  grid-template-columns: 1fr;
 }
 
 .action-icon {

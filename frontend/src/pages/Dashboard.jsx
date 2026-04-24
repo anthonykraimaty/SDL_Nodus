@@ -200,77 +200,100 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Quick Actions - Pictures */}
-        <div className="quick-actions">
-          {user?.role === 'CHEF_TROUPE' && (
-            <Link to="/upload" className="action-card upload-action">
-              <div className="action-icon">📤</div>
-              <div className="action-content">
-                <h3>Upload Pictures</h3>
-                <p>Add new installation photos</p>
-              </div>
-            </Link>
-          )}
-          {user?.role === 'CHEF_TROUPE' && (
-            <Link to="/my-troupe-pictures" className="action-card my-troupe-action">
-              <div className="action-icon">🏕️</div>
-              <div className="action-content">
-                <h3>Photos de ma troupe</h3>
-                <p>Parcourir, modifier ou supprimer les séries</p>
-              </div>
-            </Link>
-          )}
-          {(user?.role === 'CHEF_TROUPE' || user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
-            <Link to="/classify" className="action-card classify-action">
-              <div className="action-icon">🏷️</div>
-              <div className="action-content">
-                <h3>Classify Pictures</h3>
-                <p>Add categories and details to pending pictures</p>
-              </div>
-            </Link>
-          )}
-          {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
-            <Link to="/review" className="action-card review-action">
-              <div className="action-icon">✅</div>
-              <div className="action-content">
-                <h3>Review Queue</h3>
-                <p>Approve or reject classified pictures</p>
-              </div>
-            </Link>
-          )}
-        </div>
-
-        {/* Separator */}
-        <div className="quick-actions-separator"></div>
-
-        {/* Quick Actions - Schematics */}
-        <div className="quick-actions">
-          {user?.role === 'CHEF_TROUPE' && (
-            <Link to="/schematics/upload" className="action-card schematic-action">
-              <div className="action-icon">📐</div>
-              <div className="action-content">
-                <h3>Upload Schematic</h3>
-                <p>Add patrouille hand-drawn schematics</p>
-              </div>
-            </Link>
-          )}
-          <Link to="/schematics/progress" className="action-card progress-action">
-            <div className="action-icon">📊</div>
-            <div className="action-content">
-              <h3>Schematic Progress</h3>
-              <p>Track patrouille completion</p>
+        {user?.role === 'CHEF_TROUPE' ? (
+          <>
+            {/* Top: Show photos (all uploads) */}
+            <div className="quick-actions quick-actions-single">
+              <Link to="/my-troupe-pictures" className="action-card my-troupe-action">
+                <div className="action-icon">🏕️</div>
+                <div className="action-content">
+                  <h3>Photos de ma troupe</h3>
+                  <p>Parcourir, modifier ou supprimer les séries</p>
+                </div>
+              </Link>
             </div>
-          </Link>
-          {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (
-            <Link to="/schematics/review" className="action-card schematic-review-action">
-              <div className="action-icon">📋</div>
-              <div className="action-content">
-                <h3>Review Schematics</h3>
-                <p>{schematicStats.pending} pending approval</p>
-              </div>
-            </Link>
-          )}
-        </div>
+
+            <div className="quick-actions-separator"></div>
+
+            {/* Pictures: Upload + Classify */}
+            <div className="quick-actions">
+              <Link to="/upload" className="action-card upload-action">
+                <div className="action-icon">📤</div>
+                <div className="action-content">
+                  <h3>Upload Pictures</h3>
+                  <p>Add new installation photos</p>
+                </div>
+              </Link>
+              <Link to="/classify" className="action-card classify-action">
+                <div className="action-icon">🏷️</div>
+                <div className="action-content">
+                  <h3>Classify Pictures</h3>
+                  <p>Add categories and details to pending pictures</p>
+                </div>
+              </Link>
+            </div>
+
+            <div className="quick-actions-separator"></div>
+
+            {/* Schematics: Upload + Nodus Challenge Progress */}
+            <div className="quick-actions">
+              <Link to="/schematics/upload" className="action-card schematic-action">
+                <div className="action-icon">📐</div>
+                <div className="action-content">
+                  <h3>Upload Schematic</h3>
+                  <p>Add patrouille hand-drawn schematics</p>
+                </div>
+              </Link>
+              <Link to="/schematics/progress" className="action-card progress-action">
+                <div className="action-icon">📊</div>
+                <div className="action-content">
+                  <h3>Schematics "Nodus Challenge" Progress</h3>
+                  <p>Track patrouille completion</p>
+                </div>
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Quick Actions - Pictures (Branche/Admin) */}
+            <div className="quick-actions">
+              <Link to="/classify" className="action-card classify-action">
+                <div className="action-icon">🏷️</div>
+                <div className="action-content">
+                  <h3>Classify Pictures</h3>
+                  <p>Add categories and details to pending pictures</p>
+                </div>
+              </Link>
+              <Link to="/review" className="action-card review-action">
+                <div className="action-icon">✅</div>
+                <div className="action-content">
+                  <h3>Review Queue</h3>
+                  <p>Approve or reject classified pictures</p>
+                </div>
+              </Link>
+            </div>
+
+            <div className="quick-actions-separator"></div>
+
+            {/* Quick Actions - Schematics (Branche/Admin) */}
+            <div className="quick-actions">
+              <Link to="/schematics/progress" className="action-card progress-action">
+                <div className="action-icon">📊</div>
+                <div className="action-content">
+                  <h3>Schematics "Nodus Challenge" Progress</h3>
+                  <p>Track patrouille completion</p>
+                </div>
+              </Link>
+              <Link to="/schematics/review" className="action-card schematic-review-action">
+                <div className="action-icon">📋</div>
+                <div className="action-content">
+                  <h3>Review Schematics</h3>
+                  <p>{schematicStats.pending} pending approval</p>
+                </div>
+              </Link>
+            </div>
+          </>
+        )}
 
         {/* Stats Cards */}
         <div className="stats-grid stats-grid-5">
