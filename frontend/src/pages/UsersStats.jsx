@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { analyticsService } from '../services/api';
 import './UsersStats.css';
 
-const emptyBucket = () => ({ total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 });
+const emptyBucket = () => ({ total: 0, toClassify: 0, toApprove: 0, approved: 0, rejected: 0 });
 
 const UsersStats = () => {
   const { user } = useAuth();
@@ -70,9 +70,9 @@ const UsersStats = () => {
       entry.users += 1;
       if (u.total > 0) entry.uploaders += 1;
       entry.total += u.total;
-      for (const status of ['total', 'pending', 'classified', 'approved', 'rejected']) {
-        entry.photos[status] += u.photos?.[status] || 0;
-        entry.schematics[status] += u.schematics?.[status] || 0;
+      for (const k of ['total', 'toClassify', 'toApprove', 'approved', 'rejected']) {
+        entry.photos[k] += u.photos?.[k] || 0;
+        entry.schematics[k] += u.schematics?.[k] || 0;
       }
     }
     return Array.from(map.values());
@@ -115,34 +115,32 @@ const UsersStats = () => {
         acc.photos += r.photos.total;
         acc.schematics += r.schematics.total;
         acc.approved += r.photos.approved + r.schematics.approved;
-        // Photos have two pre-approval states:
-        //   - PENDING     → needs classification (chef or branche)
-        //   - CLASSIFIED  → needs approval decision (branche only)
-        // Schematics skip classify — they're uploaded PENDING with a category, then approved.
-        acc.photosToClassify += r.photos.pending;
-        acc.photosToApprove += r.photos.classified;
-        acc.schematicsToApprove += r.schematics.pending + r.schematics.classified;
-        acc.pending += r.photos.pending + r.photos.classified + r.schematics.pending + r.schematics.classified;
+        acc.photosToClassify += r.photos.toClassify;
+        acc.photosToApprove += r.photos.toApprove;
+        acc.schematicsToApprove += r.schematics.toClassify + r.schematics.toApprove;
+        acc.pending += r.photos.toClassify + r.photos.toApprove + r.schematics.toClassify + r.schematics.toApprove;
+        acc.rejected += r.photos.rejected + r.schematics.rejected;
         if (r.total === 0) acc.zeroUploads += 1;
         if (r.photos.total === 0) acc.zeroPhotos += 1;
         if (r.schematics.total === 0) acc.zeroSchematics += 1;
         return acc;
       },
-      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, photosToClassify: 0, photosToApprove: 0, schematicsToApprove: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
+      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, rejected: 0, photosToClassify: 0, photosToApprove: 0, schematicsToApprove: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
     );
   }, [filteredSorted]);
 
   const exportCSV = () => {
     const headers = [
       'District', 'Group', 'Users', 'Uploaders',
-      'Total', 'Photos', 'Photos Approved', 'Photos Pending',
-      'Schematics', 'Schematics Approved', 'Schematics Pending',
+      'Total',
+      'Photos', 'Photos Approved', 'Photos To Classify', 'Photos To Approve', 'Photos Rejected',
+      'Schematics', 'Schematics Approved', 'Schematics To Approve', 'Schematics Rejected',
     ];
     const rows = filteredSorted.map((r) => [
       r.district, r.group, r.users, r.uploaders,
       r.total,
-      r.photos.total, r.photos.approved, r.photos.pending + r.photos.classified,
-      r.schematics.total, r.schematics.approved, r.schematics.pending + r.schematics.classified,
+      r.photos.total, r.photos.approved, r.photos.toClassify, r.photos.toApprove, r.photos.rejected,
+      r.schematics.total, r.schematics.approved, r.schematics.toClassify + r.schematics.toApprove, r.schematics.rejected,
     ]);
     const csv = [headers, ...rows]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
@@ -172,7 +170,7 @@ const UsersStats = () => {
       <div className="container">
         <div className="stats-header">
           <h2>Statistiques par Groupe</h2>
-          <p>Uploads agrégés par groupe (photos et schémas)</p>
+          <p>Images agrégées par groupe (photos et schémas, par image individuelle)</p>
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -262,6 +260,10 @@ const UsersStats = () => {
                 <span className="summary-value">{totals.pending}</span>
                 <span className="summary-label">En attente</span>
               </div>
+              <div className="summary-item rejected">
+                <span className="summary-value">{totals.rejected}</span>
+                <span className="summary-label">Rejetés</span>
+              </div>
             </div>
 
             <div className="stats-toolbar">
@@ -312,8 +314,14 @@ const UsersStats = () => {
                     <th onClick={() => toggleSort('photos.approved')} className="num-col">
                       Approuvées <SortIcon column="photos.approved" />
                     </th>
-                    <th className="num-col">
-                      En attente
+                    <th onClick={() => toggleSort('photos.toClassify')} className="num-col">
+                      À classer <SortIcon column="photos.toClassify" />
+                    </th>
+                    <th onClick={() => toggleSort('photos.toApprove')} className="num-col">
+                      À approuver <SortIcon column="photos.toApprove" />
+                    </th>
+                    <th onClick={() => toggleSort('photos.rejected')} className="num-col">
+                      Rejetées <SortIcon column="photos.rejected" />
                     </th>
                     <th onClick={() => toggleSort('schematics.total')} className="num-col">
                       Schémas <SortIcon column="schematics.total" />
@@ -321,22 +329,24 @@ const UsersStats = () => {
                     <th onClick={() => toggleSort('schematics.approved')} className="num-col">
                       Approuvés <SortIcon column="schematics.approved" />
                     </th>
-                    <th className="num-col">
-                      En attente
+                    <th onClick={() => toggleSort('schematics.toApprove')} className="num-col">
+                      À approuver <SortIcon column="schematics.toApprove" />
+                    </th>
+                    <th onClick={() => toggleSort('schematics.rejected')} className="num-col">
+                      Rejetés <SortIcon column="schematics.rejected" />
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="empty-row">
+                      <td colSpan={14} className="empty-row">
                         Aucun groupe trouvé
                       </td>
                     </tr>
                   ) : (
                     filteredSorted.map((r) => {
-                      const photoPending = r.photos.pending + r.photos.classified;
-                      const schemPending = r.schematics.pending + r.schematics.classified;
+                      const schemToApprove = r.schematics.toClassify + r.schematics.toApprove;
                       return (
                         <tr key={r.key}>
                           <td>{r.district}</td>
@@ -359,7 +369,13 @@ const UsersStats = () => {
                             </span>
                           </td>
                           <td className="num-col">
-                            {photoPending > 0 && <span className="pending-count">{photoPending}</span>}
+                            {r.photos.toClassify > 0 && <span className="pending-count">{r.photos.toClassify}</span>}
+                          </td>
+                          <td className="num-col">
+                            {r.photos.toApprove > 0 && <span className="pending-count">{r.photos.toApprove}</span>}
+                          </td>
+                          <td className="num-col">
+                            {r.photos.rejected > 0 && <span className="rejected-count">{r.photos.rejected}</span>}
                           </td>
                           <td className="num-col">
                             <span className={r.schematics.total === 0 ? 'zero-count' : ''}>
@@ -372,7 +388,10 @@ const UsersStats = () => {
                             </span>
                           </td>
                           <td className="num-col">
-                            {schemPending > 0 && <span className="pending-count">{schemPending}</span>}
+                            {schemToApprove > 0 && <span className="pending-count">{schemToApprove}</span>}
+                          </td>
+                          <td className="num-col">
+                            {r.schematics.rejected > 0 && <span className="rejected-count">{r.schematics.rejected}</span>}
                           </td>
                         </tr>
                       );

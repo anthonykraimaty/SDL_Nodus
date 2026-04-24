@@ -407,12 +407,36 @@ router.get('/pictures/stats', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADM
 });
 
 // GET /api/analytics/users/uploads - Per-user upload statistics (Branche/Admin)
+// Counts are per Picture (not PictureSet). Sets are logical upload groupings only.
+// Buckets per picture, mutually exclusive:
+//   - approved    : set.status = APPROVED
+//   - toClassify  : set.status in (PENDING, CLASSIFIED) AND picture.categoryId IS NULL
+//   - toApprove   : set.status = CLASSIFIED AND picture.categoryId IS NOT NULL
+//                   (schematics: set.status = PENDING AND picture.categoryId IS NOT NULL,
+//                    since schematics skip the CLASSIFIED state)
+//   - rejected    : set.status = REJECTED
+// total = approved + toClassify + toApprove  (rejected is shown separately)
+// Archived pictures are excluded from every bucket.
 router.get('/users/uploads', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
-    const [grouped, allUsers] = await Promise.all([
-      prisma.pictureSet.groupBy({
-        by: ['uploadedById', 'type', 'status'],
-        _count: { id: true },
+    // Pull all non-archived pictures with the fields we need to bucket them.
+    // This is a single query; aggregation happens in JS because grouping by a
+    // derived expression (COALESCE(picture.type, set.type), categoryId IS NULL)
+    // isn't expressible in Prisma's groupBy.
+    const [pictures, allUsers] = await Promise.all([
+      prisma.picture.findMany({
+        where: { isArchived: false },
+        select: {
+          type: true,
+          categoryId: true,
+          pictureSet: {
+            select: {
+              uploadedById: true,
+              type: true,
+              status: true,
+            },
+          },
+        },
       }),
       prisma.user.findMany({
         where: { isActive: true },
@@ -434,6 +458,7 @@ router.get('/users/uploads', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMI
       }),
     ]);
 
+    const emptyBucket = () => ({ total: 0, toClassify: 0, toApprove: 0, approved: 0, rejected: 0 });
     const makeEntry = (user) => ({
       id: user.id,
       name: user.name,
@@ -445,20 +470,44 @@ router.get('/users/uploads', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMI
       group: user.troupe?.group?.name || null,
       troupe: user.troupe?.name || null,
       total: 0,
-      photos: { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
-      schematics: { total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 },
+      photos: emptyBucket(),
+      schematics: emptyBucket(),
     });
 
     const statsByUser = new Map(allUsers.map(u => [u.id, makeEntry(u)]));
 
-    for (const row of grouped) {
-      let entry = statsByUser.get(row.uploadedById);
-      if (!entry) continue; // uploader is inactive or deleted
-      const bucket = row.type === 'SCHEMATIC' ? entry.schematics : entry.photos;
-      const statusKey = row.status.toLowerCase();
-      bucket[statusKey] = (bucket[statusKey] || 0) + row._count.id;
-      bucket.total += row._count.id;
-      entry.total += row._count.id;
+    for (const pic of pictures) {
+      const set = pic.pictureSet;
+      if (!set) continue;
+      const entry = statsByUser.get(set.uploadedById);
+      if (!entry) continue; // uploader inactive or missing
+
+      const effType = pic.type || set.type;
+      const bucket = effType === 'SCHEMATIC' ? entry.schematics : entry.photos;
+      const isClassified = pic.categoryId != null;
+
+      if (set.status === 'APPROVED') {
+        bucket.approved += 1;
+        bucket.total += 1;
+        entry.total += 1;
+      } else if (set.status === 'REJECTED') {
+        // per product rule: rejected pictures do NOT count toward total
+        bucket.rejected += 1;
+      } else if (set.status === 'CLASSIFIED') {
+        if (isClassified) bucket.toApprove += 1;
+        else bucket.toClassify += 1;
+        bucket.total += 1;
+        entry.total += 1;
+      } else if (set.status === 'PENDING') {
+        if (effType === 'SCHEMATIC' && isClassified) {
+          // schematics skip CLASSIFIED — a PENDING schematic with a category is awaiting approval
+          bucket.toApprove += 1;
+        } else {
+          bucket.toClassify += 1;
+        }
+        bucket.total += 1;
+        entry.total += 1;
+      }
     }
 
     const result = Array.from(statsByUser.values()).sort((a, b) => b.total - a.total);
