@@ -13,6 +13,7 @@ const UsersStats = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [districtFilter, setDistrictFilter] = useState('all');
+  const [groupBy, setGroupBy] = useState('troupe'); // 'troupe' | 'group' | 'district'
   const [sort, setSort] = useState({ key: 'total', dir: 'desc' });
 
   useEffect(() => {
@@ -46,19 +47,43 @@ const UsersStats = () => {
     return <span className="sort-icon active">{sort.dir === 'asc' ? '↑' : '↓'}</span>;
   };
 
-  // Aggregate per-user rows into per-group rows (key: district + group name)
+  // Aggregate per-user rows based on selected grouping
   const groupRows = useMemo(() => {
     const map = new Map();
     for (const u of users) {
-      const groupName = u.group || '—';
       const districtName = u.district || '—';
-      const key = `${districtName}||${groupName}`;
+      const groupName = u.group || '—';
+      const troupeName = u.troupe || '—';
+
+      let key;
+      let rowDistrict;
+      let rowGroup;
+      let rowTroupe;
+      if (groupBy === 'district') {
+        key = districtName;
+        rowDistrict = districtName;
+        rowGroup = '—';
+        rowTroupe = '—';
+      } else if (groupBy === 'group') {
+        key = `${districtName}||${groupName}`;
+        rowDistrict = districtName;
+        rowGroup = groupName;
+        rowTroupe = '—';
+      } else {
+        // troupe
+        key = `${districtName}||${groupName}||${troupeName}`;
+        rowDistrict = districtName;
+        rowGroup = groupName;
+        rowTroupe = troupeName;
+      }
+
       let entry = map.get(key);
       if (!entry) {
         entry = {
           key,
-          district: districtName,
-          group: groupName,
+          district: rowDistrict,
+          group: rowGroup,
+          troupe: rowTroupe,
           users: 0,
           uploaders: 0,
           total: 0,
@@ -76,7 +101,7 @@ const UsersStats = () => {
       }
     }
     return Array.from(map.values());
-  }, [users]);
+  }, [users, groupBy]);
 
   // Districts for the filter dropdown
   const districts = useMemo(() => {
@@ -91,7 +116,8 @@ const UsersStats = () => {
       if (!s) return true;
       return (
         r.group?.toLowerCase().includes(s) ||
-        r.district?.toLowerCase().includes(s)
+        r.district?.toLowerCase().includes(s) ||
+        r.troupe?.toLowerCase().includes(s)
       );
     });
 
@@ -131,35 +157,44 @@ const UsersStats = () => {
     );
   }, [filteredSorted]);
 
-  // Distinct troupe and district counts matching the active district + search filters
+  // Distinct troupe, group and district counts matching the active district + search filters
   const filteredCounts = useMemo(() => {
     const s = search.trim().toLowerCase();
     const troupeSet = new Set();
+    const groupSet = new Set();
     const districtSet = new Set();
     for (const u of users) {
       const districtName = u.district || '—';
       const groupName = u.group || '—';
+      const troupeName = u.troupe || '—';
       if (districtFilter !== 'all' && districtName !== districtFilter) continue;
-      if (s && !groupName.toLowerCase().includes(s) && !districtName.toLowerCase().includes(s)) continue;
+      if (
+        s &&
+        !groupName.toLowerCase().includes(s) &&
+        !districtName.toLowerCase().includes(s) &&
+        !troupeName.toLowerCase().includes(s)
+      ) continue;
       if (u.troupe) troupeSet.add(`${districtName}||${groupName}||${u.troupe}`);
+      if (u.group) groupSet.add(`${districtName}||${groupName}`);
       if (u.district) districtSet.add(districtName);
     }
-    return { troupes: troupeSet.size, districts: districtSet.size };
+    return { troupes: troupeSet.size, groups: groupSet.size, districts: districtSet.size };
   }, [users, districtFilter, search]);
 
   const exportCSV = () => {
     const headers = [
-      'District', 'Group', 'Users', 'Uploaders',
+      'District', 'Group', 'Troupe', 'Users', 'Uploaders',
       'Total',
       'Photos', 'Photos Approved', 'Photos To Classify', 'Photos To Approve', 'Photos Rejected',
       'Schematics', 'Schematics Approved', 'Schematics To Approve', 'Schematics Rejected',
     ];
     const rows = filteredSorted.map((r) => [
-      r.district, r.group, r.users, r.uploaders,
+      r.district, r.group, r.troupe, r.users, r.uploaders,
       r.total,
       r.photos.total, r.photos.approved, r.photos.toClassify, r.photos.toApprove, r.photos.rejected,
       r.schematics.total, r.schematics.approved, r.schematics.toClassify + r.schematics.toApprove, r.schematics.rejected,
     ]);
+    const scope = groupBy === 'district' ? 'districts' : groupBy === 'group' ? 'groups' : 'troupes';
     const csv = [headers, ...rows]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
       .join('\n');
@@ -167,7 +202,7 @@ const UsersStats = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `group_uploads_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${scope}_uploads_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -187,8 +222,8 @@ const UsersStats = () => {
     <div className="users-stats-page">
       <div className="container">
         <div className="stats-header">
-          <h2>Statistiques par Groupe</h2>
-          <p>Images agrégées par groupe (photos et schémas, par image individuelle)</p>
+          <h2>Statistiques des uploads</h2>
+          <p>Images agrégées par troupe, groupe ou district (photos et schémas, par image individuelle)</p>
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -256,7 +291,7 @@ const UsersStats = () => {
             <div className="summary-meta">
               <strong>{filteredCounts.troupes}</strong> troupes
               <span className="summary-meta-sep">·</span>
-              <strong>{filteredSorted.length}</strong> groupes
+              <strong>{filteredCounts.groups}</strong> groupes
               <span className="summary-meta-sep">·</span>
               <strong>{filteredCounts.districts}</strong> districts
             </div>
@@ -295,6 +330,17 @@ const UsersStats = () => {
             <div className="stats-toolbar">
               <select
                 className="district-filter"
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value)}
+                title="Grouper par"
+                aria-label="Grouper par"
+              >
+                <option value="troupe">Grouper par troupe</option>
+                <option value="group">Grouper par groupe</option>
+                <option value="district">Grouper par district</option>
+              </select>
+              <select
+                className="district-filter"
                 value={districtFilter}
                 onChange={(e) => setDistrictFilter(e.target.value)}
               >
@@ -306,7 +352,7 @@ const UsersStats = () => {
               <input
                 type="search"
                 className="stats-search"
-                placeholder="Rechercher groupe, district…"
+                placeholder="Rechercher troupe, groupe, district…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -324,6 +370,9 @@ const UsersStats = () => {
                     </th>
                     <th onClick={() => toggleSort('group')}>
                       Groupe <SortIcon column="group" />
+                    </th>
+                    <th onClick={() => toggleSort('troupe')}>
+                      Troupe <SortIcon column="troupe" />
                     </th>
                     <th onClick={() => toggleSort('users')} className="num-col">
                       Utilisateurs <SortIcon column="users" />
@@ -366,8 +415,8 @@ const UsersStats = () => {
                 <tbody>
                   {filteredSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="empty-row">
-                        Aucun groupe trouvé
+                      <td colSpan={15} className="empty-row">
+                        Aucun résultat trouvé
                       </td>
                     </tr>
                   ) : (
@@ -377,6 +426,7 @@ const UsersStats = () => {
                         <tr key={r.key}>
                           <td>{r.district}</td>
                           <td className="group-name-cell">{r.group}</td>
+                          <td className="troupe-name-cell">{r.troupe}</td>
                           <td className="num-col">{r.users}</td>
                           <td className="num-col">
                             <span className={r.uploaders === 0 ? 'zero-count' : ''}>

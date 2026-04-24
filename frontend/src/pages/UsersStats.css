@@ -370,6 +370,10 @@
   font-weight: 500;
 }
 
+.troupe-name-cell {
+  color: var(--text-secondary, var(--text-muted));
+}
+
 .btn-export-csv {
   padding: var(--spacing-xs) var(--spacing-md);
   background: var(--gradient-accent);

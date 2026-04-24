@@ -2,6 +2,7 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { authenticate, authorize, brancheHasDistrictAccess } from '../middleware/auth.js';
+import { logPictureAudit, PictureAuditAction } from '../utils/pictureAudit.js';
 import { upload } from '../middleware/upload.js';
 import { uploadToR2, isR2Configured, deleteFromR2 } from '../services/r2Storage.js';
 import { getSetting } from '../utils/settings.js';
@@ -1436,6 +1437,22 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     if (!canDelete) {
       return res.status(403).json({ error: 'Not authorized to delete this schematic' });
+    }
+
+    // Audit every picture before the cascade wipes them
+    for (const picture of pictureSet.pictures) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.SET_DELETED,
+        pictureId: picture.id,
+        pictureSetId: pictureSet.id,
+        uploaderId: pictureSet.uploadedById,
+        troupeId: pictureSet.troupeId,
+        actorId: user.id,
+        actorRole: user.role,
+        pictureSetStatusAtAction: pictureSet.status,
+        filePath: picture.filePath,
+        details: { schematic: true },
+      });
     }
 
     // Delete files from storage

@@ -7,6 +7,7 @@ import { upload, handleUploadError, processUpload } from '../middleware/upload.j
 import { deleteFromR2, isR2Configured, uploadMultipleToR2 } from '../services/r2Storage.js';
 import fs from 'fs/promises';
 import { getSetting } from '../utils/settings.js';
+import { logPictureAudit, PictureAuditAction } from '../utils/pictureAudit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,6 +112,18 @@ router.delete('/archive/bulk-delete', authenticate, async (req, res) => {
     // Delete files and records
     let deleted = 0;
     for (const picture of pictures) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.DELETED,
+        pictureId: picture.id,
+        pictureSetId: picture.pictureSetId,
+        uploaderId: picture.pictureSet?.uploadedById,
+        troupeId: picture.pictureSet?.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: picture.pictureSet?.status,
+        filePath: picture.filePath,
+        details: { fromArchive: true },
+      });
       try {
         if (picture.filePath.startsWith('http')) {
           await deleteFromR2(picture.filePath);
@@ -165,6 +178,19 @@ router.delete('/archive/:pictureId', authenticate, async (req, res) => {
     if (!isAdmin && !isBranche) {
       return res.status(403).json({ error: 'Only administrators and branch members can permanently delete archived pictures' });
     }
+
+    await logPictureAudit(prisma, {
+      action: PictureAuditAction.DELETED,
+      pictureId: picture.id,
+      pictureSetId: picture.pictureSetId,
+      uploaderId: picture.pictureSet?.uploadedById,
+      troupeId: picture.pictureSet?.troupeId,
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      pictureSetStatusAtAction: picture.pictureSet?.status,
+      filePath: picture.filePath,
+      details: { fromArchive: true },
+    });
 
     // Delete files
     try {
@@ -942,6 +968,38 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       });
     });
 
+    // Audit archived pictures (set-level approve path)
+    if (Array.isArray(archivePictureIds) && archivePictureIds.length > 0) {
+      for (const pid of archivePictureIds.map(Number)) {
+        await logPictureAudit(prisma, {
+          action: PictureAuditAction.ARCHIVED,
+          pictureId: pid,
+          pictureSetId: setId,
+          uploaderId: existingSet.uploadedById,
+          troupeId: existingSet.troupeId,
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          pictureSetStatusAtAction: existingSet.status,
+          details: { viaApproval: true },
+        });
+      }
+    }
+
+    // Audit excluded (hard-deleted) pictures
+    for (const picture of picturesToDelete) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.EXCLUDED_ON_APPROVE,
+        pictureId: picture.id,
+        pictureSetId: setId,
+        uploaderId: existingSet.uploadedById,
+        troupeId: existingSet.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: existingSet.status,
+        filePath: picture.filePath,
+      });
+    }
+
     // Post-commit: best-effort cleanup of excluded files. Failures here are logged
     // but do not roll back the approval — the picture rows are already gone.
     for (const picture of picturesToDelete) {
@@ -1074,6 +1132,23 @@ router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCH
       },
     });
 
+    // Only audit the split case — the single-picture approval leaves the
+    // picture in the original set and is not a disappearance.
+    if (approvedSetId !== setId) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.SPLIT_INTO_NEW_SET,
+        pictureId: picture.id,
+        pictureSetId: setId,
+        uploaderId: originalSet.uploadedById,
+        troupeId: originalSet.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: originalSet.status,
+        filePath: picture.filePath,
+        details: { newPictureSetId: approvedSetId },
+      });
+    }
+
     res.json({
       message: 'Picture approved successfully',
       pictureSet: approvedSet,
@@ -1203,6 +1278,21 @@ router.delete('/:id', authenticate, async (req, res) => {
       }
     }
 
+    // Audit every picture before the cascade wipes them
+    for (const picture of pictureSet.pictures) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.SET_DELETED,
+        pictureId: picture.id,
+        pictureSetId: pictureSet.id,
+        uploaderId: pictureSet.uploadedById,
+        troupeId: pictureSet.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: pictureSet.status,
+        filePath: picture.filePath,
+      });
+    }
+
     // Delete files from storage (B2 or local)
     for (const picture of pictureSet.pictures) {
       try {
@@ -1309,6 +1399,18 @@ router.delete('/:id/picture/:pictureId', authenticate, async (req, res) => {
       console.error(`Failed to delete file ${picture.filePath}:`, fileError);
     }
 
+    await logPictureAudit(prisma, {
+      action: PictureAuditAction.DELETED,
+      pictureId: picture.id,
+      pictureSetId: pictureSet.id,
+      uploaderId: pictureSet.uploadedById,
+      troupeId: pictureSet.troupeId,
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      pictureSetStatusAtAction: pictureSet.status,
+      filePath: picture.filePath,
+    });
+
     // Delete picture record
     await prisma.picture.delete({
       where: { id: parseInt(pictureId) },
@@ -1381,6 +1483,22 @@ router.post('/:id/picture/:pictureId/archive', authenticate, async (req, res) =>
     // If this is the last active picture, delete the picture and the entire set
     const activePictures = pictureSet.pictures.filter(p => !p.isArchived);
     if (activePictures.length <= 1) {
+      // Audit every picture in the set before the cascade wipes them.
+      for (const pic of pictureSet.pictures) {
+        await logPictureAudit(prisma, {
+          action: PictureAuditAction.SET_DELETED_ON_LAST_ARCHIVE,
+          pictureId: pic.id,
+          pictureSetId: pictureSet.id,
+          uploaderId: pictureSet.uploadedById,
+          troupeId: pictureSet.troupeId,
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          pictureSetStatusAtAction: pictureSet.status,
+          filePath: pic.filePath,
+          details: { triggeredByPictureId: parseInt(pictureId) },
+        });
+      }
+
       // Delete all picture files from storage
       for (const pic of pictureSet.pictures) {
         try {
@@ -1404,6 +1522,18 @@ router.post('/:id/picture/:pictureId/archive', authenticate, async (req, res) =>
     await prisma.picture.update({
       where: { id: parseInt(pictureId) },
       data: { isArchived: true, archivedAt: new Date() },
+    });
+
+    await logPictureAudit(prisma, {
+      action: PictureAuditAction.ARCHIVED,
+      pictureId: picture.id,
+      pictureSetId: pictureSet.id,
+      uploaderId: pictureSet.uploadedById,
+      troupeId: pictureSet.troupeId,
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      pictureSetStatusAtAction: pictureSet.status,
+      filePath: picture.filePath,
     });
 
     res.json({ message: 'Picture archived successfully' });
@@ -1459,6 +1589,18 @@ router.post('/:id/picture/:pictureId/restore', authenticate, async (req, res) =>
     await prisma.picture.update({
       where: { id: parseInt(pictureId) },
       data: { isArchived: false, archivedAt: null },
+    });
+
+    await logPictureAudit(prisma, {
+      action: PictureAuditAction.RESTORED,
+      pictureId: picture.id,
+      pictureSetId: pictureSet.id,
+      uploaderId: pictureSet.uploadedById,
+      troupeId: pictureSet.troupeId,
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      pictureSetStatusAtAction: pictureSet.status,
+      filePath: picture.filePath,
     });
 
     res.json({ message: 'Picture restored successfully' });
@@ -1650,6 +1792,22 @@ router.delete('/individual/bulk-delete', authenticate, authorize('ADMIN'), async
       } else {
         deletablePictures.push(picture);
       }
+    }
+
+    // Audit before deletion
+    for (const picture of deletablePictures) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.DELETED,
+        pictureId: picture.id,
+        pictureSetId: picture.pictureSetId,
+        uploaderId: picture.pictureSet?.uploadedById,
+        troupeId: picture.pictureSet?.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: picture.pictureSet?.status,
+        filePath: picture.filePath,
+        details: { bulk: true },
+      });
     }
 
     // Delete files from storage
@@ -2131,6 +2289,18 @@ router.delete('/individual/:pictureId', authenticate, authorize('ADMIN'), async 
         pictureSetId: picture.pictureSetId,
       });
     }
+
+    await logPictureAudit(prisma, {
+      action: PictureAuditAction.DELETED,
+      pictureId: picture.id,
+      pictureSetId: picture.pictureSetId,
+      uploaderId: picture.pictureSet?.uploadedById,
+      troupeId: picture.pictureSet?.troupeId,
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      pictureSetStatusAtAction: picture.pictureSet?.status,
+      filePath: picture.filePath,
+    });
 
     // Delete file from storage
     try {

@@ -49,4 +49,13 @@ jobs:
             # Show status
             docker ps
 
+            # Kick off thumbnail backfill in the background (idempotent).
+            # Safe to run on every deploy — existing thumbs are skipped via a
+            # HEAD check, so this is a no-op once all pictures are covered.
+            echo "Starting thumbnail backfill (background)..."
+            mkdir -p logs
+            docker compose exec -dT backend \
+              sh -c "node scripts/backfillThumbnails.js >> /tmp/backfill-thumbnails.log 2>&1" \
+              || echo "(backfill kickoff failed — run manually: docker compose exec backend node scripts/backfillThumbnails.js)"
+
             echo "Deployment completed successfully!"

@@ -24,6 +24,7 @@ import AdminGroups from './pages/AdminGroups';
 import AdminTroupes from './pages/AdminTroupes';
 import AdminPatrouilles from './pages/AdminPatrouilles';
 import AdminPictures from './pages/AdminPictures';
+import AdminAudit from './pages/AdminAudit';
 import ProfileSettings from './pages/ProfileSettings';
 import SchematicUpload from './pages/SchematicUpload';
 import SchematicReview from './pages/SchematicReview';
@@ -239,6 +240,7 @@ function App() {
             <Route path="troupes" element={<AdminTroupes />} />
             <Route path="patrouilles" element={<AdminPatrouilles />} />
             <Route path="pictures" element={<AdminPictures />} />
+            <Route path="audit" element={<AdminAudit />} />
           </Route>
         </Routes>
       </AuthProvider>

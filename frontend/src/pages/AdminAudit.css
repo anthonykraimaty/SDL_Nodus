@@ -1,0 +1,379 @@
+.admin-audit {
+  padding: 24px 0 64px;
+}
+
+.admin-audit .container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.admin-audit .page-header {
+  margin-bottom: 20px;
+}
+
+.admin-audit .page-header h2 {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+}
+
+.admin-audit .header-description {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.admin-audit .error-message {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  border: 1px solid #fca5a5;
+}
+
+/* Filters */
+.audit-filters {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.filter-field span {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.filter-field-small {
+  max-width: 140px;
+}
+
+.filter-field input,
+.filter-field select {
+  padding: 7px 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.filter-field input:focus,
+.filter-field select:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+/* Action chips */
+.action-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.chips-label {
+  font-size: 0.85rem;
+  color: #4b5563;
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+.chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  border-color: #9ca3af;
+}
+
+.chip.active {
+  background: #1f2937;
+  color: #fff;
+  border-color: #1f2937;
+}
+
+.chip.bad.active {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.chip.warn.active {
+  background: #b45309;
+  border-color: #b45309;
+}
+
+.chip.ok.active {
+  background: #047857;
+  border-color: #047857;
+}
+
+.chip.info.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+/* Filter actions */
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-apply,
+.btn-reset {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-apply {
+  background: #2563eb;
+  color: #fff;
+}
+
+.btn-apply:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-apply:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-reset {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.btn-reset:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.result-count {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* Table */
+.audit-table-container {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.audit-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.audit-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.audit-table tbody tr:hover {
+  background: #fafbff;
+}
+
+.audit-table tbody tr.row-open {
+  background: #f3f4f6;
+}
+
+.audit-table .empty-row {
+  text-align: center;
+  color: #9ca3af;
+  padding: 28px 12px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.mono.wrap {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.muted {
+  color: #9ca3af;
+  font-size: 0.82rem;
+}
+
+.two-line {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Action badge */
+.action-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.action-badge.bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.action-badge.warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.action-badge.ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.action-badge.info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+/* Status pill */
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e5e7eb;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-pill.status-pending {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status-pill.status-classified {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-pill.status-approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-pill.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Expand button */
+.btn-expand {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.btn-expand:hover {
+  background: #f3f4f6;
+}
+
+/* Detail row */
+.detail-row td {
+  background: #fafbff;
+  padding: 14px 20px !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.detail-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail-grid .detail-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-grid dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.detail-grid dd {
+  margin: 0;
+  color: #1f2937;
+  min-width: 0;
+}

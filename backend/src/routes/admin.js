@@ -903,4 +903,54 @@ router.get('/audit/approvals', authenticate, authorize('ADMIN'), async (req, res
   }
 });
 
+// GET /api/admin/audit/picture-lifecycle
+// Query picture lifecycle audits. Supports filters: uploaderId, troupeId,
+// pictureId, pictureSetId, action, actorId, from, to.
+router.get('/audit/picture-lifecycle', authenticate, authorize('ADMIN'), async (req, res) => {
+  try {
+    const {
+      uploaderId,
+      troupeId,
+      pictureId,
+      pictureSetId,
+      action,
+      actorId,
+      from,
+      to,
+      limit = 200,
+    } = req.query;
+
+    const take = Math.min(parseInt(limit) || 200, 1000);
+    const where = {};
+
+    if (uploaderId) where.uploaderId = parseInt(uploaderId);
+    if (troupeId) where.troupeId = parseInt(troupeId);
+    if (pictureId) where.pictureId = parseInt(pictureId);
+    if (pictureSetId) where.pictureSetId = parseInt(pictureSetId);
+    if (actorId) where.actorId = parseInt(actorId);
+    if (action) {
+      where.action = action.includes(',') ? { in: action.split(',') } : action;
+    }
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) where.createdAt.lte = new Date(to);
+    }
+
+    const audits = await prisma.pictureAudit.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        actor: { select: { id: true, name: true, email: true, role: true } },
+      },
+    });
+
+    res.json({ audits, total: audits.length });
+  } catch (error) {
+    console.error('Failed to load picture lifecycle audit:', error);
+    res.status(500).json({ error: 'Failed to load picture lifecycle audit' });
+  }
+});
+
 export default router;

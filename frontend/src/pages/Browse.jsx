@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_URL, getImageUrl } from '../config/api';
+import { API_URL, getImageUrl, getThumbnailUrl } from '../config/api';
 import SEO from '../components/SEO';
 import './Browse.css';
 
@@ -238,9 +238,14 @@ const Browse = () => {
                                 {category.thumbnailPictures.slice(0, 4).map((pic, idx) => (
                                   <div key={pic.id} className="thumbnail-cell">
                                     <img
-                                      src={getImageUrl(pic.filePath)}
+                                      src={getThumbnailUrl(pic.filePath)}
                                       alt={`${category.name} - aperçu ${idx + 1}`}
                                       loading="lazy"
+                                      decoding="async"
+                                      onError={(e) => {
+                                        const full = getImageUrl(pic.filePath);
+                                        if (e.currentTarget.src !== full) e.currentTarget.src = full;
+                                      }}
                                     />
                                   </div>
                                 ))}
@@ -294,9 +299,14 @@ const Browse = () => {
                                 {category.thumbnailPictures.slice(0, 4).map((pic, idx) => (
                                   <div key={pic.id} className="thumbnail-cell">
                                     <img
-                                      src={getImageUrl(pic.filePath)}
+                                      src={getThumbnailUrl(pic.filePath)}
                                       alt={`${category.name} - aperçu ${idx + 1}`}
                                       loading="lazy"
+                                      decoding="async"
+                                      onError={(e) => {
+                                        const full = getImageUrl(pic.filePath);
+                                        if (e.currentTarget.src !== full) e.currentTarget.src = full;
+                                      }}
                                     />
                                   </div>
                                 ))}

@@ -85,6 +85,14 @@ const AdminLayout = () => {
             <span className="nav-text">Pictures</span>
           </Link>
 
+          <Link
+            to="/admin/audit"
+            className={`admin-nav-link ${isActive('/admin/audit') ? 'active' : ''}`}
+          >
+            <span className="nav-icon">📜</span>
+            <span className="nav-text">Audit Log</span>
+          </Link>
+
           <div className="nav-separator"></div>
           <div className="nav-section-title">Data Management</div>
 

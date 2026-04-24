@@ -113,6 +113,7 @@ model User {
   rejectedPictureSets    PictureSet[]           @relation("PictureSetRejecter")
   classifiedPictureSets  PictureSet[]           @relation("PictureSetClassifier")
   pictureEdits           PictureEdit[]          @relation("PictureEditor")
+  pictureAudits          PictureAudit[]         @relation("PictureAuditActor")
   createdDesignGroups    DesignGroup[]          // Design groups created by this user
   districtAccess         UserDistrictAccess[]
   isActive               Boolean                @default(true)
@@ -244,6 +245,7 @@ model PictureSet {
   pictures      Picture[]
   tags          Tag[]
   edits         PictureEdit[] @relation("PictureEditSet")
+  audits        PictureAudit[] @relation("PictureAuditSet")
 
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -298,6 +300,7 @@ model Picture {
 
   // Edit audit trail
   edits         PictureEdit[]
+  audits        PictureAudit[]
 
   @@index([pictureSetId])
   @@index([displayOrder])
@@ -314,6 +317,37 @@ model SystemSetting {
   value     String   // stored as string (JSON/boolean/number); parsed at read time
   updatedAt DateTime @updatedAt
   updatedById Int?
+}
+
+// Audit log for picture lifecycle actions (archive, restore, delete, split, etc.)
+// Captures "who did what" so that disappearances can be traced even after the
+// Picture/PictureSet row is gone. pictureId/pictureSetId are nullable and set
+// to null on cascade; uploaderId/troupeId/filePath are snapshot fields that
+// survive row deletion.
+model PictureAudit {
+  id                       Int            @id @default(autoincrement())
+  action                   String         // ARCHIVED | RESTORED | DELETED | EXCLUDED_ON_APPROVE | SPLIT_INTO_NEW_SET | SET_DELETED_ON_LAST_ARCHIVE
+  pictureId                Int?
+  picture                  Picture?       @relation(fields: [pictureId], references: [id], onDelete: SetNull)
+  pictureSetId             Int?
+  pictureSet               PictureSet?    @relation("PictureAuditSet", fields: [pictureSetId], references: [id], onDelete: SetNull)
+  uploaderId               Int?           // Original owner (snapshot)
+  troupeId                 Int?           // Owner's troupe (snapshot)
+  actorId                  Int?
+  actor                    User?          @relation("PictureAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorRole                UserRole?
+  pictureSetStatusAtAction PictureStatus?
+  filePath                 String?        // Snapshot — useful when row is gone
+  details                  String?        // Free-form JSON string (rejectionReason, newPictureSetId, etc.)
+  createdAt                DateTime       @default(now())
+
+  @@index([pictureId])
+  @@index([pictureSetId])
+  @@index([uploaderId])
+  @@index([troupeId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 // Audit log for picture edits (crop, magic background, rotate, blur, etc.)

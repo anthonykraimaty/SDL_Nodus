@@ -19,6 +19,9 @@ RUN npx prisma generate
 # Copy source code
 COPY src ./src
 
+# Copy maintenance scripts (e.g. thumbnail backfill) — run via `docker compose exec`
+COPY scripts ./scripts
+
 # Expose port
 EXPOSE 3001
 
