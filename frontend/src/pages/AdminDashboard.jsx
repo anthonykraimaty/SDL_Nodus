@@ -2,7 +2,26 @@ import { useState, useEffect, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, getImageUrl } from '../config/api';
+import Icon from '../components/Icon';
 import './AdminDashboard.css';
+
+// Animated digit reveal for hero metric — plays once per mount
+const AnimatedNumber = ({ value }) => {
+  const str = String(value ?? 0);
+  return (
+    <span aria-label={str}>
+      {str.split('').map((ch, i) => (
+        <span
+          key={i}
+          className="hero-metric__digit"
+          style={{ animationDelay: `${i * 50}ms` }}
+        >
+          {ch}
+        </span>
+      ))}
+    </span>
+  );
+};
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -363,57 +382,88 @@ const AdminDashboard = () => {
     <div className="admin-dashboard">
       <div className="admin-container">
         <div className="dashboard-header">
-          <h1>Admin Dashboard</h1>
-          <p>Welcome back, {user?.name}! Manage your Nodus platform from here.</p>
+          <h1>Nodus · Registre</h1>
+          <p>
+            {user?.name}<br />
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
 
+        {/* Hero Metric — the single most actionable number */}
+        {(() => {
+          const pending = (pictureStats.pending || 0) + (pictureStats.classified || 0) + (schematicPending || 0);
+          return (
+            <div className="hero-metric">
+              <div className="hero-metric__value">
+                <AnimatedNumber value={pending} />
+              </div>
+              <div>
+                <div className="hero-metric__label">
+                  {pending === 1 ? 'soumission en attente' : 'soumissions en attente'}
+                </div>
+                <Link to="/review" className="hero-metric__cta">
+                  <Icon name="arrowRight" size={14} /> Ouvrir la file
+                </Link>
+              </div>
+              <div className="hero-metric__aside">
+                <div><strong>{pictureStats.pending + pictureStats.classified}</strong> photos</div>
+                <div><strong>{schematicPending}</strong> schémas</div>
+                <div style={{ marginTop: '0.75rem', opacity: 0.8 }}>
+                  {pictureStats.approved} approuvés · {schematicSummary?.totalWinners ?? 0} gagnants
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Picture Stats Section */}
-        <div className="section-header">
-          <h2>Pictures Overview</h2>
+        <div className="section-header" data-chapter="I">
+          <h2>Vue d'ensemble — Photos</h2>
+          <span className="section-subtitle">{pictureStats.total} total</span>
         </div>
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon total">🖼️</div>
+            <div className="stat-icon total"><Icon name="photo" /></div>
             <div className="stat-content">
               <h3>{pictureStats.total}</h3>
-              <p>Total Pictures</p>
-              <span className="stat-detail">All submissions</span>
+              <p>Total</p>
+              <span className="stat-detail">toutes soumissions</span>
             </div>
           </div>
 
           <Link to="/review" className="stat-card clickable pending-card">
-            <div className="stat-icon pending">⏳</div>
+            <div className="stat-icon pending"><Icon name="hourglass" /></div>
             <div className="stat-content">
               <h3>{pictureStats.pending + pictureStats.classified}</h3>
-              <p>Under Review</p>
-              <span className="stat-detail">{pictureStats.pending} pending, {pictureStats.classified} classified</span>
+              <p>À valider</p>
+              <span className="stat-detail">{pictureStats.pending} pending · {pictureStats.classified} classified</span>
             </div>
           </Link>
 
           <div className="stat-card approved-card">
-            <div className="stat-icon approved">✅</div>
+            <div className="stat-icon approved"><Icon name="check" /></div>
             <div className="stat-content">
               <h3>{pictureStats.approved}</h3>
-              <p>Approved</p>
-              <span className="stat-detail">Publicly visible</span>
+              <p>Approuvés</p>
+              <span className="stat-detail">visibles publiquement</span>
             </div>
           </div>
 
           <div className="stat-card rejected-card">
-            <div className="stat-icon rejected">❌</div>
+            <div className="stat-icon rejected"><Icon name="cross" /></div>
             <div className="stat-content">
               <h3>{pictureStats.rejected}</h3>
-              <p>Rejected</p>
-              <span className="stat-detail">Not approved</span>
+              <p>Rejetés</p>
+              <span className="stat-detail">non approuvés</span>
             </div>
           </div>
         </div>
 
         {/* Category Chart Section */}
         <div className="chart-section">
-          <div className="section-header">
-            <h2>Pictures by Category</h2>
-            <span className="section-subtitle">Top 10 categories by approved pictures</span>
+          <div className="section-header" data-chapter="II">
+            <h2>Photos par catégorie</h2>
+            <span className="section-subtitle">Top 10 — approuvés</span>
           </div>
           <div className="category-chart">
             {categoryStats.length === 0 ? (
@@ -438,60 +488,60 @@ const AdminDashboard = () => {
         </div>
 
         {/* Schematics Progress Section */}
-        <div className="section-header">
-          <h2>Schematics Progress</h2>
-          <span className="section-subtitle">Patrouille completion across all schematic sets</span>
+        <div className="section-header" data-chapter="III">
+          <h2>Progression — Schémas</h2>
+          <span className="section-subtitle">
+            {schematicSummary?.totalPatrouilles ?? 0} patrouilles
+          </span>
         </div>
         <div className="stats-grid">
           <Link to="/schematics" className="stat-card clickable">
-            <div className="stat-icon total">📐</div>
+            <div className="stat-icon total"><Icon name="schematic" /></div>
             <div className="stat-content">
               <h3>{schematicSummary?.overallCompletion ?? 0}%</h3>
-              <p>Overall Completion</p>
+              <p>Progression globale</p>
               <span className="stat-detail">
-                {schematicSummary?.totalPatrouilles ?? 0} patrouilles tracked
+                {schematicSummary?.totalPatrouilles ?? 0} patrouilles suivies
               </span>
             </div>
           </Link>
 
           <Link to="/schematics" className="stat-card clickable approved-card">
-            <div className="stat-icon approved">🏆</div>
+            <div className="stat-icon approved"><Icon name="trophy" /></div>
             <div className="stat-content">
               <h3>{schematicSummary?.totalWinners ?? 0}</h3>
-              <p>Winners</p>
-              <span className="stat-detail">Completed all sets</span>
+              <p>Gagnants</p>
+              <span className="stat-detail">sets complets</span>
             </div>
           </Link>
 
           <Link to="/schematics" className="stat-card clickable">
-            <div className="stat-icon total">🖼️</div>
+            <div className="stat-icon total"><Icon name="folder" /></div>
             <div className="stat-content">
               <h3>{schematicSummary?.totalPictureCount ?? 0}</h3>
-              <p>Approved Schematics</p>
+              <p>Schémas approuvés</p>
               <span className="stat-detail">
-                {schematicSummary?.totalGroups ?? 0} groups, {schematicSummary?.totalDistricts ?? 0} districts
+                {schematicSummary?.totalGroups ?? 0} groupes · {schematicSummary?.totalDistricts ?? 0} districts
               </span>
             </div>
           </Link>
 
           <Link to="/schematics/review" className={`stat-card clickable ${schematicPending > 0 ? 'pending-card' : ''}`}>
-            <div className="stat-icon pending">📋</div>
+            <div className="stat-icon pending"><Icon name="clipboard" /></div>
             <div className="stat-content">
               <h3>{schematicPending}</h3>
-              <p>Pending Review</p>
+              <p>À valider</p>
               <span className="stat-detail">
-                {schematicPending > 0 ? 'Click to validate' : 'All reviewed'}
+                {schematicPending > 0 ? 'cliquer pour valider' : 'tout est à jour'}
               </span>
             </div>
           </Link>
         </div>
 
         {/* Audit Section */}
-        <div className="section-header">
+        <div className="section-header" data-chapter="IV">
           <h2>Audit</h2>
-          <span className="section-subtitle">
-            Approbations récentes — qui a approuvé et qui a édité
-          </span>
+          <span className="section-subtitle">approbations récentes</span>
         </div>
         <div className="audit-toolbar">
           <div className="filter-tabs">
@@ -668,34 +718,37 @@ const AdminDashboard = () => {
         </div>
 
         {/* Users Stats Section */}
-        <div className="section-header">
-          <h2>Users Overview</h2>
+        <div className="section-header" data-chapter="V">
+          <h2>Utilisateurs</h2>
+          <span className="section-subtitle">
+            {userStats?.total || 0} total · {userStats?.active || 0} actifs
+          </span>
         </div>
         <div className="stats-grid">
           <Link to="/admin/users" className="stat-card clickable">
-            <div className="stat-icon users">👥</div>
+            <div className="stat-icon users"><Icon name="users" /></div>
             <div className="stat-content">
               <h3>{userStats?.total || 0}</h3>
-              <p>Total Users</p>
-              <span className="stat-detail">{userStats?.active || 0} active</span>
+              <p>Total</p>
+              <span className="stat-detail">{userStats?.active || 0} actifs</span>
             </div>
           </Link>
 
           <Link to="/admin/users?role=CHEF_TROUPE" className="stat-card clickable">
-            <div className="stat-icon ct">🏕️</div>
+            <div className="stat-icon ct"><Icon name="scout" /></div>
             <div className="stat-content">
               <h3>{userStats?.byRole?.CHEF_TROUPE || 0}</h3>
-              <p>Chef Troupes</p>
-              <span className="stat-detail">Troupe leaders</span>
+              <p>Chefs Troupe</p>
+              <span className="stat-detail">responsables</span>
             </div>
           </Link>
 
           <Link to="/admin/users?role=BRANCHE_ECLAIREURS" className="stat-card clickable">
-            <div className="stat-icon branche">🔐</div>
+            <div className="stat-icon branche"><Icon name="key" /></div>
             <div className="stat-content">
               <h3>{userStats?.byRole?.BRANCHE_ECLAIREURS || 0}</h3>
-              <p>Branche Members</p>
-              <span className="stat-detail">District access control</span>
+              <p>Branche</p>
+              <span className="stat-detail">accès par district</span>
             </div>
           </Link>
 
@@ -703,11 +756,11 @@ const AdminDashboard = () => {
             className={`stat-card clickable ${userStats?.neverLoggedIn?.length > 0 ? 'warning-card' : ''}`}
             onClick={() => setShowNeverLoggedIn(!showNeverLoggedIn)}
           >
-            <div className="stat-icon never-logged">⚠️</div>
+            <div className="stat-icon never-logged"><Icon name="warning" /></div>
             <div className="stat-content">
               <h3>{userStats?.neverLoggedIn?.length || 0}</h3>
-              <p>Never Logged In</p>
-              <span className="stat-detail">Click to {showNeverLoggedIn ? 'hide' : 'show'} details</span>
+              <p>Jamais connectés</p>
+              <span className="stat-detail">{showNeverLoggedIn ? 'masquer' : 'afficher'} la liste</span>
             </div>
           </div>
         </div>
@@ -715,9 +768,9 @@ const AdminDashboard = () => {
         {/* Never Logged In Table */}
         {showNeverLoggedIn && userStats?.neverLoggedIn?.length > 0 && (
           <div className="data-table-section">
-            <div className="section-header">
-              <h2>Users Who Never Logged In</h2>
-              <span className="section-subtitle">{userStats.neverLoggedIn.length} users have never signed in</span>
+            <div className="section-header" data-chapter="V·a">
+              <h2>Jamais connectés</h2>
+              <span className="section-subtitle">{userStats.neverLoggedIn.length} utilisateur{userStats.neverLoggedIn.length > 1 ? 's' : ''}</span>
             </div>
             <div className="data-table-wrapper">
               <table className="data-table">
@@ -768,19 +821,16 @@ const AdminDashboard = () => {
         <div className="data-table-section">
           <div
             className="section-header collapsible"
+            data-chapter="VI"
             onClick={() => setTroupeSectionOpen(o => !o)}
-            style={{ cursor: 'pointer', userSelect: 'none' }}
           >
             <h2>
-              <span style={{ display: 'inline-block', width: '1em' }}>
-                {troupeSectionOpen ? '▾' : '▸'}
-              </span>{' '}
-              Troupe Statistics
+              {troupeSectionOpen ? '▾' : '▸'} Statistiques par troupe
             </h2>
             <span className="section-subtitle">
-              {troupeStats.length} troupes total
+              {troupeStats.length} troupes
               {zeroUploadTroupes > 0 && (
-                <> &mdash; <strong className="warning-text">{zeroUploadTroupes} with zero uploads</strong></>
+                <> · <strong className="warning-text">{zeroUploadTroupes} sans upload</strong></>
               )}
             </span>
           </div>
@@ -792,19 +842,19 @@ const AdminDashboard = () => {
                 className={`filter-tab ${troupeFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setTroupeFilter('all')}
               >
-                All ({troupeStats.length})
+                Toutes · {troupeStats.length}
               </button>
               <button
                 className={`filter-tab warning ${troupeFilter === 'zero' ? 'active' : ''}`}
                 onClick={() => setTroupeFilter('zero')}
               >
-                Zero Uploads ({zeroUploadTroupes})
+                0 upload · {zeroUploadTroupes}
               </button>
               <button
                 className={`filter-tab ${troupeFilter === 'active' ? 'active' : ''}`}
                 onClick={() => setTroupeFilter('active')}
               >
-                Active ({troupeStats.length - zeroUploadTroupes})
+                Actives · {troupeStats.length - zeroUploadTroupes}
               </button>
             </div>
             <select
@@ -812,7 +862,7 @@ const AdminDashboard = () => {
               value={troupeDistrictFilter}
               onChange={(e) => setTroupeDistrictFilter(e.target.value)}
             >
-              <option value="all">All Districts</option>
+              <option value="all">Tous les districts</option>
               {troupeDistricts.map(d => (
                 <option key={d} value={d}>{d}</option>
               ))}
@@ -899,9 +949,9 @@ const AdminDashboard = () => {
 
         {/* Troupe Date Comparison */}
         <div className="data-table-section">
-          <div className="section-header">
-            <h2>Upload Comparison</h2>
-            <span className="section-subtitle">Compare which troupes had zero uploads at two points in time</span>
+          <div className="section-header" data-chapter="VII">
+            <h2>Comparaison temporelle</h2>
+            <span className="section-subtitle">troupes à 0 entre deux dates</span>
           </div>
 
           <div className="comparison-controls">
@@ -1018,45 +1068,57 @@ const AdminDashboard = () => {
 
         {/* Quick Actions */}
         <div className="quick-actions">
-          <h2>Quick Actions</h2>
+          <div className="section-header" data-chapter="VIII">
+            <h2>Raccourcis</h2>
+          </div>
           <div className="actions-grid">
             <Link to="/admin/users" className="action-card">
-              <span className="action-icon">👥</span>
-              <h3>Manage Users</h3>
-              <p>Create, edit, and manage user accounts</p>
+              <span className="action-icon"><Icon name="users" size={22} /></span>
+              <div>
+                <h3>Utilisateurs</h3>
+                <p>créer, éditer, gérer les comptes</p>
+              </div>
             </Link>
 
             <Link to="/admin/roles" className="action-card">
-              <span className="action-icon">🔐</span>
-              <h3>District Access</h3>
-              <p>Assign districts to Branche members</p>
+              <span className="action-icon"><Icon name="key" size={22} /></span>
+              <div>
+                <h3>Accès District</h3>
+                <p>assigner les districts aux Branche</p>
+              </div>
             </Link>
 
             <Link to="/admin/categories" className="action-card">
-              <span className="action-icon">📁</span>
-              <h3>Categories</h3>
-              <p>Manage categories and monthly scheduling</p>
+              <span className="action-icon"><Icon name="folder" size={22} /></span>
+              <div>
+                <h3>Catégories</h3>
+                <p>catégories et planning mensuel</p>
+              </div>
             </Link>
 
             <Link to="/admin/organizations" className="action-card">
-              <span className="action-icon">🏢</span>
-              <h3>Organizations</h3>
-              <p>Manage districts, groups, and troupes</p>
+              <span className="action-icon"><Icon name="office" size={22} /></span>
+              <div>
+                <h3>Organisation</h3>
+                <p>districts, groupes, troupes</p>
+              </div>
             </Link>
 
             <Link to="/admin/pictures" className="action-card">
-              <span className="action-icon">🖼️</span>
-              <h3>Pictures</h3>
-              <p>View and delete picture sets</p>
+              <span className="action-icon"><Icon name="photo" size={22} /></span>
+              <div>
+                <h3>Photos</h3>
+                <p>consulter et supprimer les sets</p>
+              </div>
             </Link>
           </div>
         </div>
 
         {/* Maintenance Section */}
         <div className="maintenance-section">
-          <div className="section-header">
+          <div className="section-header" data-chapter="IX">
             <h2>Maintenance</h2>
-            <span className="section-subtitle">Database maintenance tools</span>
+            <span className="section-subtitle">outils de base de données</span>
           </div>
           <div className="maintenance-card">
             <div className="maintenance-item">
