@@ -136,6 +136,35 @@
   border-bottom: 1px solid var(--border);
 }
 
+.staged-group-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  padding: 6px 10px 6px 12px;
+  background: rgba(212, 165, 116, 0.12);
+  border: 1px solid rgba(212, 165, 116, 0.4);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.staged-group-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.staged-group-clear:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .bulk-header {
   display: flex;
   justify-content: space-between;

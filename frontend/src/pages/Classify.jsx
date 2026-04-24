@@ -332,6 +332,8 @@ const Classify = () => {
     }
 
     // Handle design group creation/assignment after classification
+    let groupError = null;
+    let groupCreated = false;
     if (allPictureIds.length >= 2) {
       try {
         if (bulkClassification.createNewGroup && bulkClassification.newGroupName) {
@@ -340,13 +342,15 @@ const Classify = () => {
             name: bulkClassification.newGroupName,
             pictureIds: allPictureIds,
           });
+          groupCreated = true;
         } else if (bulkClassification.designGroupId) {
           // Add pictures to existing design group
           await designGroupService.addPictures(bulkClassification.designGroupId, allPictureIds);
+          groupCreated = true;
         }
       } catch (err) {
         console.error('Failed to create/assign design group:', err);
-        // Don't fail the whole operation if group creation fails
+        groupError = err.message || 'Failed to create design group';
       }
     }
 
@@ -354,6 +358,13 @@ const Classify = () => {
 
     if (failCount > 0) {
       addToast(`Classification complete: ${successCount} sets classified, ${failCount} failed`, 'warning');
+    } else if (groupError) {
+      addToast(
+        `Classified ${successCount} picture set(s), but group creation failed: ${groupError}`,
+        'warning'
+      );
+    } else if (groupCreated) {
+      addToast(`Classified ${successCount} picture set(s) and created the group!`);
     } else {
       addToast(`Successfully classified ${successCount} picture set(s)!`);
     }
@@ -451,6 +462,25 @@ const Classify = () => {
                     disabled={bulkClassifying}
                     createOnly={true}
                   />
+                  {bulkClassification.createNewGroup && bulkClassification.newGroupName && (
+                    <div className="staged-group-pill">
+                      <span>
+                        Groupe « <strong>{bulkClassification.newGroupName}</strong> » sera créé au moment de classifier
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setBulkClassification(prev => ({
+                          ...prev,
+                          createNewGroup: false,
+                          newGroupName: '',
+                        }))}
+                        className="staged-group-clear"
+                        title="Retirer le groupe prévu"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="bulk-controls">

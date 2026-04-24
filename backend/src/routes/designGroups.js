@@ -96,6 +96,24 @@ const canUserAccessPictures = async (userId, userRole, pictureIds) => {
     return { allowed: true, pictures };
   }
 
+  // Chef Troupe can group pictures within their own troupe
+  if (userRole === 'CHEF_TROUPE') {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { troupeId: true },
+    });
+    if (!user?.troupeId) {
+      return { allowed: false, error: 'No troupe assigned to your account', status: 403 };
+    }
+    const allInTroupe = pictures.every(
+      (pic) => pic.pictureSet?.troupeId === user.troupeId
+    );
+    if (!allInTroupe) {
+      return { allowed: false, error: 'You can only group pictures from your own troupe', status: 403 };
+    }
+    return { allowed: true, pictures };
+  }
+
   return { allowed: false, error: 'Insufficient permissions', status: 403 };
 };
 
@@ -262,7 +280,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 });
 
 // POST /api/design-groups - Create new design group
-router.post('/', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.post('/', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN', 'CHEF_TROUPE'), async (req, res) => {
   try {
     const { name, pictureIds, primaryPictureId } = req.body;
 
@@ -382,7 +400,7 @@ router.put('/:id', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async
 });
 
 // POST /api/design-groups/:id/pictures - Add pictures to group
-router.post('/:id/pictures', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
+router.post('/:id/pictures', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN', 'CHEF_TROUPE'), async (req, res) => {
   try {
     const { id } = req.params;
     const { pictureIds } = req.body;
