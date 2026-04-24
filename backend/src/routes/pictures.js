@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, authorize, canModifyPicture, optionalAuth } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth, brancheHasDistrictAccess } from '../middleware/auth.js';
 import { upload, handleUploadError, processUpload } from '../middleware/upload.js';
 import { deleteFromR2, isR2Configured, uploadMultipleToR2 } from '../services/r2Storage.js';
 import fs from 'fs/promises';
@@ -762,75 +762,108 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
     if (!(await getSetting('photoApprovalEnabled'))) {
       return res.status(403).json({ error: 'Photo approval is currently disabled by an administrator' });
     }
+    const setId = parseInt(req.params.id);
     const { isHighlight, excludedPictureIds, archivePictureIds } = req.body;
 
-    // Archive unclassified pictures (e.g., when approving a partially-classified set)
-    if (archivePictureIds && archivePictureIds.length > 0) {
-      await prisma.picture.updateMany({
-        where: {
-          id: { in: archivePictureIds },
-          pictureSetId: parseInt(req.params.id),
-        },
-        data: { isArchived: true },
-      });
-    }
-
-    // If there are excluded pictures, delete them first
-    if (excludedPictureIds && excludedPictureIds.length > 0) {
-      // Get the pictures to delete
-      const picturesToDelete = await prisma.picture.findMany({
-        where: {
-          id: { in: excludedPictureIds },
-          pictureSetId: parseInt(req.params.id),
-        },
-      });
-
-      // Delete from R2 if configured
-      if (isR2Configured()) {
-        for (const picture of picturesToDelete) {
-          try {
-            await deleteFromR2(picture.filePath);
-          } catch (err) {
-            console.error('Failed to delete from R2:', err);
-          }
-        }
-      } else {
-        // Delete local files
-        for (const picture of picturesToDelete) {
-          try {
-            await fs.unlink(picture.filePath);
-          } catch (err) {
-            console.error('Failed to delete local file:', err);
-          }
-        }
-      }
-
-      // Delete the picture records from database
-      await prisma.picture.deleteMany({
-        where: {
-          id: { in: excludedPictureIds },
-          pictureSetId: parseInt(req.params.id),
-        },
-      });
-    }
-
-    const pictureSet = await prisma.pictureSet.update({
-      where: { id: parseInt(req.params.id) },
-      data: {
-        status: 'APPROVED',
-        approvedById: req.user.id,
-        approvedAt: new Date(),
-        isHighlight: isHighlight || false,
-      },
+    // Load set with district info for access check + status guard
+    const existingSet = await prisma.pictureSet.findUnique({
+      where: { id: setId },
       include: {
-        approvedBy: { select: { id: true, name: true } },
-        pictures: {
-          where: { isArchived: false },
-          orderBy: { displayOrder: 'asc' },
-          include: { category: true },
-        },
+        troupe: { include: { group: { include: { district: true } } } },
       },
     });
+    if (!existingSet) {
+      return res.status(404).json({ error: 'Picture set not found' });
+    }
+
+    // Status guard: only PENDING or CLASSIFIED sets can be approved
+    if (!['PENDING', 'CLASSIFIED'].includes(existingSet.status)) {
+      return res.status(400).json({
+        error: `Cannot approve a picture set with status ${existingSet.status}`,
+      });
+    }
+
+    // District access check (BRANCHE only; ADMIN short-circuits to true)
+    if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const districtId = existingSet.troupe?.group?.district?.id;
+      const ok = await brancheHasDistrictAccess(req.user, districtId);
+      if (!ok) {
+        return res.status(403).json({
+          error: 'You do not have access to approve pictures from this district',
+        });
+      }
+    }
+
+    // Resolve excluded pictures up front (constrain to this set) so we know
+    // which files to delete AFTER the DB transaction commits successfully.
+    let picturesToDelete = [];
+    if (Array.isArray(excludedPictureIds) && excludedPictureIds.length > 0) {
+      picturesToDelete = await prisma.picture.findMany({
+        where: {
+          id: { in: excludedPictureIds.map(Number) },
+          pictureSetId: setId,
+        },
+      });
+    }
+
+    // Atomic DB mutation: archive, exclude-delete, and approve in a single transaction
+    const pictureSet = await prisma.$transaction(async (tx) => {
+      if (Array.isArray(archivePictureIds) && archivePictureIds.length > 0) {
+        await tx.picture.updateMany({
+          where: {
+            id: { in: archivePictureIds.map(Number) },
+            pictureSetId: setId,
+          },
+          data: { isArchived: true, archivedAt: new Date() },
+        });
+      }
+
+      if (picturesToDelete.length > 0) {
+        await tx.picture.deleteMany({
+          where: {
+            id: { in: picturesToDelete.map((p) => p.id) },
+            pictureSetId: setId,
+          },
+        });
+      }
+
+      return tx.pictureSet.update({
+        where: { id: setId },
+        data: {
+          status: 'APPROVED',
+          approvedById: req.user.id,
+          approvedAt: new Date(),
+          // Clear any prior rejection state if the set was previously REJECTED
+          // (defensive — status guard above currently forbids this path).
+          rejectedById: null,
+          rejectedAt: null,
+          rejectionReason: null,
+          isHighlight: isHighlight || false,
+        },
+        include: {
+          approvedBy: { select: { id: true, name: true } },
+          pictures: {
+            where: { isArchived: false },
+            orderBy: { displayOrder: 'asc' },
+            include: { category: true },
+          },
+        },
+      });
+    });
+
+    // Post-commit: best-effort cleanup of excluded files. Failures here are logged
+    // but do not roll back the approval — the picture rows are already gone.
+    for (const picture of picturesToDelete) {
+      try {
+        if (picture.filePath.startsWith('http')) {
+          await deleteFromR2(picture.filePath);
+        } else {
+          await fs.unlink(picture.filePath).catch(() => {});
+        }
+      } catch (err) {
+        console.error('Failed to delete excluded picture file:', picture.filePath, err);
+      }
+    }
 
     res.json({
       message: 'Picture set approved successfully',
@@ -846,15 +879,18 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
 // Moves the picture to a new approved set, leaving the rest in the original set
 router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
+    if (!(await getSetting('photoApprovalEnabled'))) {
+      return res.status(403).json({ error: 'Photo approval is currently disabled by an administrator' });
+    }
     const setId = parseInt(req.params.setId);
     const pictureId = parseInt(req.params.pictureId);
 
-    // Get the original set with all its data
+    // Get the original set with all its data + district info
     const originalSet = await prisma.pictureSet.findUnique({
       where: { id: setId },
       include: {
         pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
-        troupe: true,
+        troupe: { include: { group: { include: { district: true } } } },
       },
     });
 
@@ -862,65 +898,85 @@ router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCH
       return res.status(404).json({ error: 'Picture set not found' });
     }
 
+    // Status guard: only PENDING or CLASSIFIED sets can be approved
+    if (!['PENDING', 'CLASSIFIED'].includes(originalSet.status)) {
+      return res.status(400).json({
+        error: `Cannot approve a picture set with status ${originalSet.status}`,
+      });
+    }
+
+    // District access check
+    if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const districtId = originalSet.troupe?.group?.district?.id;
+      const ok = await brancheHasDistrictAccess(req.user, districtId);
+      if (!ok) {
+        return res.status(403).json({
+          error: 'You do not have access to approve pictures from this district',
+        });
+      }
+    }
+
     const picture = originalSet.pictures.find(p => p.id === pictureId);
     if (!picture) {
       return res.status(404).json({ error: 'Picture not found in this set' });
     }
 
-    // If this is the only picture in the set, just approve the whole set
-    if (originalSet.pictures.length === 1) {
-      const pictureSet = await prisma.pictureSet.update({
-        where: { id: setId },
+    // Single transaction guarantees: either all writes succeed (the new approved set
+    // exists AND the picture has been moved into it), or nothing happens.
+    const approvedSetId = await prisma.$transaction(async (tx) => {
+      // If this is the only picture in the set, just approve the whole set
+      if (originalSet.pictures.length === 1) {
+        await tx.pictureSet.update({
+          where: { id: setId },
+          data: {
+            status: 'APPROVED',
+            approvedById: req.user.id,
+            approvedAt: new Date(),
+            rejectedById: null,
+            rejectedAt: null,
+            rejectionReason: null,
+          },
+        });
+        return setId;
+      }
+
+      const newSet = await tx.pictureSet.create({
         data: {
+          title: originalSet.title,
+          description: originalSet.description,
+          type: originalSet.type,
           status: 'APPROVED',
+          uploadedById: originalSet.uploadedById,
+          troupeId: originalSet.troupeId,
+          patrouilleId: originalSet.patrouilleId,
+          categoryId: originalSet.categoryId,
+          subCategoryId: originalSet.subCategoryId,
+          schematicCategoryId: originalSet.schematicCategoryId,
+          classifiedById: originalSet.classifiedById,
+          classifiedAt: originalSet.classifiedAt,
           approvedById: req.user.id,
           approvedAt: new Date(),
-        },
-        include: {
-          approvedBy: { select: { id: true, name: true } },
-          pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' }, include: { category: true } },
+          location: originalSet.location,
+          latitude: originalSet.latitude,
+          longitude: originalSet.longitude,
+          woodCount: originalSet.woodCount,
         },
       });
-      return res.json({ message: 'Picture approved successfully', pictureSet });
-    }
 
-    // Create a new approved set for this single picture
-    const newSet = await prisma.pictureSet.create({
-      data: {
-        title: originalSet.title,
-        description: originalSet.description,
-        type: originalSet.type,
-        status: 'APPROVED',
-        uploadedById: originalSet.uploadedById,
-        troupeId: originalSet.troupeId,
-        patrouilleId: originalSet.patrouilleId,
-        categoryId: originalSet.categoryId,
-        subCategoryId: originalSet.subCategoryId,
-        schematicCategoryId: originalSet.schematicCategoryId,
-        classifiedById: originalSet.classifiedById,
-        classifiedAt: originalSet.classifiedAt,
-        approvedById: req.user.id,
-        approvedAt: new Date(),
-        location: originalSet.location,
-        latitude: originalSet.latitude,
-        longitude: originalSet.longitude,
-        woodCount: originalSet.woodCount,
-      },
+      await tx.picture.update({
+        where: { id: pictureId },
+        data: {
+          pictureSetId: newSet.id,
+          displayOrder: 0,
+          type: picture.type || originalSet.type,
+        },
+      });
+
+      return newSet.id;
     });
 
-    // Move the picture to the new set, ensuring type is set
-    await prisma.picture.update({
-      where: { id: pictureId },
-      data: {
-        pictureSetId: newSet.id,
-        displayOrder: 0,
-        type: picture.type || originalSet.type,
-      },
-    });
-
-    // Return the new approved set
     const approvedSet = await prisma.pictureSet.findUnique({
-      where: { id: newSet.id },
+      where: { id: approvedSetId },
       include: {
         approvedBy: { select: { id: true, name: true } },
         pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' }, include: { category: true } },
@@ -940,21 +996,52 @@ router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCH
 // POST /api/pictures/:id/reject - Reject picture set (branche only)
 router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'), async (req, res) => {
   try {
+    const setId = parseInt(req.params.id);
     const { rejectionReason } = req.body;
 
     if (!rejectionReason) {
       return res.status(400).json({ error: 'Rejection reason is required' });
     }
 
+    const existingSet = await prisma.pictureSet.findUnique({
+      where: { id: setId },
+      include: { troupe: { include: { group: { include: { district: true } } } } },
+    });
+    if (!existingSet) {
+      return res.status(404).json({ error: 'Picture set not found' });
+    }
+
+    // Status guard: only PENDING or CLASSIFIED sets can be rejected
+    if (!['PENDING', 'CLASSIFIED'].includes(existingSet.status)) {
+      return res.status(400).json({
+        error: `Cannot reject a picture set with status ${existingSet.status}`,
+      });
+    }
+
+    // District access check
+    if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const districtId = existingSet.troupe?.group?.district?.id;
+      const ok = await brancheHasDistrictAccess(req.user, districtId);
+      if (!ok) {
+        return res.status(403).json({
+          error: 'You do not have access to reject pictures from this district',
+        });
+      }
+    }
+
     const pictureSet = await prisma.pictureSet.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: setId },
       data: {
         status: 'REJECTED',
-        approvedById: req.user.id,
-        approvedAt: new Date(),
+        rejectedById: req.user.id,
+        rejectedAt: new Date(),
         rejectionReason,
+        // Clear any stale approver state if this set was somehow flipped back
+        approvedById: null,
+        approvedAt: null,
       },
       include: {
+        rejectedBy: { select: { id: true, name: true } },
         pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
       },
     });

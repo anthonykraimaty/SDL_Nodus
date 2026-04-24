@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { API_URL, getImageUrl } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -23,10 +23,23 @@ const CategoryView = () => {
   const [pictures, setPictures] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedPictureIndex, setSelectedPictureIndex] = useState(null);
   const [publicViewDisabled, setPublicViewDisabled] = useState(false);
+
+  // Pagination state
+  const PAGE_SIZE = 30;
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const loadMoreRef = useRef(null);
+  const activeFiltersRef = useRef({});
+  // Guards against the IntersectionObserver firing twice for the same page
+  // while an in-flight load hasn't yet flipped `loadingMore` to true.
+  const loadInFlightRef = useRef(false);
+  const pageRef = useRef(1);
 
   // Grouped view state
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
@@ -77,7 +90,8 @@ const CategoryView = () => {
   }, [canReview]);
 
   useEffect(() => {
-    loadCategoryPictures();
+    activeFiltersRef.current = {};
+    loadCategoryPictures({ reset: true });
   }, [categoryId, typeFilter, sortBy, sortOrder, viewMode]);
 
   // Auto-open previewer when pictureId is in the URL (shared link)
@@ -90,20 +104,29 @@ const CategoryView = () => {
     }
   }, [pictureId, pictures, loading]);
 
-  const loadCategoryPictures = async (filters = {}) => {
+  const loadCategoryPictures = async ({ reset = false, nextPage, filters } = {}) => {
+    // Prevent concurrent loads (observer can fire repeatedly before React flushes state)
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     try {
-      setLoading(true);
+      const pageToLoad = reset ? 1 : (nextPage ?? pageRef.current + 1);
+      if (reset) setLoading(true); else setLoadingMore(true);
+
+      if (reset && filters) {
+        activeFiltersRef.current = filters;
+      }
+      const effectiveFilters = activeFiltersRef.current || {};
 
       // Build query params from filter state
       const params = new URLSearchParams();
 
       if (typeFilter) params.append('type', typeFilter);
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
-      if (filters.woodCountMin) params.append('woodCountMin', filters.woodCountMin);
-      if (filters.woodCountMax) params.append('woodCountMax', filters.woodCountMax);
-      if (filters.dateDoneMonth) params.append('dateDoneMonth', filters.dateDoneMonth);
-      if (filters.dateDoneYear) params.append('dateDoneYear', filters.dateDoneYear);
+      if (effectiveFilters.dateFrom) params.append('dateFrom', effectiveFilters.dateFrom);
+      if (effectiveFilters.dateTo) params.append('dateTo', effectiveFilters.dateTo);
+      if (effectiveFilters.woodCountMin) params.append('woodCountMin', effectiveFilters.woodCountMin);
+      if (effectiveFilters.woodCountMax) params.append('woodCountMax', effectiveFilters.woodCountMax);
+      if (effectiveFilters.dateDoneMonth) params.append('dateDoneMonth', effectiveFilters.dateDoneMonth);
+      if (effectiveFilters.dateDoneYear) params.append('dateDoneYear', effectiveFilters.dateDoneYear);
       if (sortBy) params.append('sortBy', sortBy);
       if (sortOrder) params.append('sortOrder', sortOrder);
 
@@ -112,8 +135,10 @@ const CategoryView = () => {
         params.append('grouped', 'true');
       }
 
-      const queryString = params.toString();
-      const url = `${API_URL}/api/categories/${categoryId}/pictures${queryString ? `?${queryString}` : ''}`;
+      params.append('page', String(pageToLoad));
+      params.append('limit', String(PAGE_SIZE));
+
+      const url = `${API_URL}/api/categories/${categoryId}/pictures?${params.toString()}`;
 
       const response = await fetch(url);
 
@@ -124,19 +149,58 @@ const CategoryView = () => {
       const data = await response.json();
       setCategory(data.category);
       setPublicViewDisabled(!!data.disabled);
+      setHasMore(!!data.hasMore);
+      setTotal(data.total || 0);
+      pageRef.current = pageToLoad;
+      setPage(pageToLoad);
 
       // Handle grouped vs flat response
       if (data.grouped) {
-        setDesignGroups(data.designGroups || []);
-        setUngroupedPictures(data.ungroupedPictures || []);
-        // Combine all pictures for total count and previewer
-        const allPics = [
-          ...(data.designGroups || []).flatMap(g => g.pictures || []),
-          ...(data.ungroupedPictures || []),
+        const newGroups = data.designGroups || [];
+        const newUngrouped = data.ungroupedPictures || [];
+        const newPagePics = [
+          ...newGroups.flatMap(g => g.pictures || []),
+          ...newUngrouped,
         ];
-        setPictures(allPics);
+
+        if (reset) {
+          setDesignGroups(newGroups);
+          setUngroupedPictures(newUngrouped);
+          setPictures(newPagePics);
+        } else {
+          // Merge groups: append new pictures into existing groups, add new groups
+          setDesignGroups(prev => {
+            const byId = new Map(prev.map(g => [g.id, { ...g, pictures: [...(g.pictures || [])] }]));
+            for (const g of newGroups) {
+              if (byId.has(g.id)) {
+                const existing = byId.get(g.id);
+                const seen = new Set(existing.pictures.map(p => p.id));
+                existing.pictures.push(...(g.pictures || []).filter(p => !seen.has(p.id)));
+              } else {
+                byId.set(g.id, g);
+              }
+            }
+            return Array.from(byId.values());
+          });
+          setUngroupedPictures(prev => {
+            const seen = new Set(prev.map(p => p.id));
+            return [...prev, ...newUngrouped.filter(p => !seen.has(p.id))];
+          });
+          setPictures(prev => {
+            const seen = new Set(prev.map(p => p.id));
+            return [...prev, ...newPagePics.filter(p => !seen.has(p.id))];
+          });
+        }
       } else {
-        setPictures(data.pictures || []);
+        const newPics = data.pictures || [];
+        if (reset) {
+          setPictures(newPics);
+        } else {
+          setPictures(prev => {
+            const seen = new Set(prev.map(p => p.id));
+            return [...prev, ...newPics.filter(p => !seen.has(p.id))];
+          });
+        }
         setDesignGroups([]);
         setUngroupedPictures([]);
       }
@@ -145,8 +209,29 @@ const CategoryView = () => {
       setError(err.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      loadInFlightRef.current = false;
     }
   };
+
+  // Infinite scroll: observe sentinel at grid bottom.
+  // `page` is intentionally NOT in the deps — the observer reads pageRef to
+  // decide which page to load, and loadInFlightRef prevents double-fires. This
+  // avoids rebuilding the observer on every page tick (which was racy).
+  useEffect(() => {
+    if (!hasMore || loading || loadingMore) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadCategoryPictures();
+      }
+    }, { rootMargin: '400px' });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, viewMode, typeFilter, sortBy, sortOrder]);
 
   const handlePictureClick = (index) => {
     setSelectedPictureIndex(index);
@@ -165,7 +250,10 @@ const CategoryView = () => {
   }, [navigate, categoryId]);
 
   const handleApplyFilters = () => {
-    loadCategoryPictures({ dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear });
+    loadCategoryPictures({
+      reset: true,
+      filters: { dateFrom, dateTo, woodCountMin, woodCountMax, dateDoneMonth, dateDoneYear },
+    });
   };
 
   const handleClearFilters = () => {
@@ -175,7 +263,7 @@ const CategoryView = () => {
     setWoodCountMax('');
     setDateDoneMonth('');
     setDateDoneYear('');
-    loadCategoryPictures({});
+    loadCategoryPictures({ reset: true, filters: {} });
   };
 
   const handleTypeFilter = (type) => {
@@ -889,6 +977,24 @@ const CategoryView = () => {
               </article>
             ))}
           </section>
+        )}
+
+        {/* Infinite scroll sentinel + manual load more */}
+        {pictures.length > 0 && (
+          <div ref={loadMoreRef} className="load-more-container">
+            {loadingMore && <p className="load-more-status">Chargement...</p>}
+            {!loadingMore && hasMore && (
+              <button
+                className="btn-primary"
+                onClick={() => loadCategoryPictures()}
+              >
+                Charger plus ({total - pictures.length} restantes)
+              </button>
+            )}
+            {!hasMore && total > 0 && (
+              <p className="load-more-status">Toutes les photos sont chargées ({total})</p>
+            )}
+          </div>
         )}
       </div>
 

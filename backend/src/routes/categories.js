@@ -626,8 +626,13 @@ router.get('/:id/pictures', async (req, res) => {
     const { id } = req.params;
     const {
       districtId, groupId, dateFrom, dateTo, woodCountMin, woodCountMax, type,
-      dateDoneMonth, dateDoneYear, sortBy, sortOrder, grouped
+      dateDoneMonth, dateDoneYear, sortBy, sortOrder, grouped,
+      page, limit
     } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 30));
+    const skip = (pageNum - 1) * limitNum;
 
     // Check if category exists
     const category = await prisma.category.findUnique({
@@ -651,6 +656,10 @@ router.get('/:id/pictures', async (req, res) => {
         grouped: false,
         disabled: true,
         message: 'Public viewing is temporarily disabled',
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        hasMore: false,
       });
     }
 
@@ -741,6 +750,9 @@ router.get('/:id/pictures', async (req, res) => {
         break;
     }
 
+    // Count total matching pictures (for hasMore / pagination UI)
+    const total = await prisma.picture.count({ where: pictureWhere });
+
     // Get pictures that belong to this category (via Picture.categoryId)
     const pictures = await prisma.picture.findMany({
       where: pictureWhere,
@@ -782,7 +794,11 @@ router.get('/:id/pictures', async (req, res) => {
         },
       },
       orderBy: orderByClause,
+      skip,
+      take: limitNum,
     });
+
+    const hasMore = skip + pictures.length < total;
 
     // Transform to expected format
     const transformedPictures = pictures.map(pic => ({
@@ -832,10 +848,21 @@ router.get('/:id/pictures', async (req, res) => {
         designGroups,
         ungroupedPictures,
         totalPictures: transformedPictures.length,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        hasMore,
       });
     }
 
-    res.json({ category, pictures: transformedPictures });
+    res.json({
+      category,
+      pictures: transformedPictures,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      hasMore,
+    });
   } catch (error) {
     console.error('Get category pictures error:', error);
     res.status(500).json({ error: 'Failed to fetch category pictures' });

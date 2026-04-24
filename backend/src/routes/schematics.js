@@ -1,7 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, brancheHasDistrictAccess } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
 import { uploadToR2, isR2Configured, deleteFromR2 } from '../services/r2Storage.js';
 import { getSetting } from '../utils/settings.js';
@@ -1161,6 +1161,7 @@ router.post(
         include: {
           category: true,
           patrouille: true,
+          troupe: { include: { group: { include: { district: true } } } },
         },
       });
 
@@ -1176,42 +1177,60 @@ router.post(
         return res.status(400).json({ error: 'Schematic is not pending review' });
       }
 
-      // Update picture set
-      const updatedPictureSet = await prisma.pictureSet.update({
-        where: { id: parseInt(id) },
-        data: {
-          status: 'APPROVED',
-          approvedById: user.id,
-          approvedAt: new Date(),
-        },
-        include: {
-          category: true,
-          patrouille: true,
-        },
-      });
+      // District access check (BRANCHE only; ADMIN short-circuits to true)
+      if (user.role === 'BRANCHE_ECLAIREURS') {
+        const districtId = pictureSet.troupe?.group?.district?.id;
+        const ok = await brancheHasDistrictAccess(user, districtId);
+        if (!ok) {
+          return res.status(403).json({
+            error: 'You do not have access to approve schematics from this district',
+          });
+        }
+      }
 
-      // Update progress record
-      if (pictureSet.patrouilleId && pictureSet.categoryId) {
-        await prisma.categoryProgress.upsert({
-          where: {
-            patrouilleId_categoryId: {
-              patrouilleId: pictureSet.patrouilleId,
-              categoryId: pictureSet.categoryId,
-            },
-          },
-          update: {
+      // Atomic: set status + progress upsert in one transaction
+      const updatedPictureSet = await prisma.$transaction(async (tx) => {
+        const updated = await tx.pictureSet.update({
+          where: { id: parseInt(id) },
+          data: {
             status: 'APPROVED',
-            completedAt: new Date(),
+            approvedById: user.id,
+            approvedAt: new Date(),
+            rejectedById: null,
+            rejectedAt: null,
+            rejectionReason: null,
           },
-          create: {
-            patrouilleId: pictureSet.patrouilleId,
-            categoryId: pictureSet.categoryId,
-            status: 'APPROVED',
-            pictureSetId: pictureSet.id,
-            completedAt: new Date(),
+          include: {
+            category: true,
+            patrouille: true,
           },
         });
-      }
+
+        if (pictureSet.patrouilleId && pictureSet.categoryId) {
+          await tx.categoryProgress.upsert({
+            where: {
+              patrouilleId_categoryId: {
+                patrouilleId: pictureSet.patrouilleId,
+                categoryId: pictureSet.categoryId,
+              },
+            },
+            update: {
+              status: 'APPROVED',
+              pictureSetId: pictureSet.id,
+              completedAt: new Date(),
+            },
+            create: {
+              patrouilleId: pictureSet.patrouilleId,
+              categoryId: pictureSet.categoryId,
+              status: 'APPROVED',
+              pictureSetId: pictureSet.id,
+              completedAt: new Date(),
+            },
+          });
+        }
+
+        return updated;
+      });
 
       // Check completion
       const totalItems = await prisma.categorySetItem.count();
@@ -1301,6 +1320,7 @@ router.post(
         include: {
           category: true,
           patrouille: true,
+          troupe: { include: { group: { include: { district: true } } } },
         },
       });
 
@@ -1316,41 +1336,57 @@ router.post(
         return res.status(400).json({ error: 'Schematic is not pending review' });
       }
 
-      // Update picture set
-      const updatedPictureSet = await prisma.pictureSet.update({
-        where: { id: parseInt(id) },
-        data: {
-          status: 'REJECTED',
-          rejectionReason: reason,
-          approvedById: user.id,
-          approvedAt: new Date(),
-        },
-        include: {
-          category: true,
-          patrouille: true,
-        },
-      });
+      // District access check (BRANCHE only; ADMIN short-circuits to true)
+      if (user.role === 'BRANCHE_ECLAIREURS') {
+        const districtId = pictureSet.troupe?.group?.district?.id;
+        const ok = await brancheHasDistrictAccess(user, districtId);
+        if (!ok) {
+          return res.status(403).json({
+            error: 'You do not have access to reject schematics from this district',
+          });
+        }
+      }
 
-      // Update progress record
-      if (pictureSet.patrouilleId && pictureSet.categoryId) {
-        await prisma.categoryProgress.upsert({
-          where: {
-            patrouilleId_categoryId: {
-              patrouilleId: pictureSet.patrouilleId,
-              categoryId: pictureSet.categoryId,
-            },
-          },
-          update: {
+      // Atomic: status update + progress upsert
+      const updatedPictureSet = await prisma.$transaction(async (tx) => {
+        const updated = await tx.pictureSet.update({
+          where: { id: parseInt(id) },
+          data: {
             status: 'REJECTED',
-            pictureSetId: null, // Clear the link so they can re-upload
+            rejectionReason: reason,
+            rejectedById: user.id,
+            rejectedAt: new Date(),
+            approvedById: null,
+            approvedAt: null,
           },
-          create: {
-            patrouilleId: pictureSet.patrouilleId,
-            categoryId: pictureSet.categoryId,
-            status: 'REJECTED',
+          include: {
+            category: true,
+            patrouille: true,
           },
         });
-      }
+
+        if (pictureSet.patrouilleId && pictureSet.categoryId) {
+          await tx.categoryProgress.upsert({
+            where: {
+              patrouilleId_categoryId: {
+                patrouilleId: pictureSet.patrouilleId,
+                categoryId: pictureSet.categoryId,
+              },
+            },
+            update: {
+              status: 'REJECTED',
+              pictureSetId: null, // Clear the link so they can re-upload
+            },
+            create: {
+              patrouilleId: pictureSet.patrouilleId,
+              categoryId: pictureSet.categoryId,
+              status: 'REJECTED',
+            },
+          });
+        }
+
+        return updated;
+      });
 
       // Add schematicCategory for frontend compat
       const setItem = pictureSet.categoryId ? await prisma.categorySetItem.findFirst({

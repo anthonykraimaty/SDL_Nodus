@@ -198,6 +198,11 @@ const Archive = () => {
                     <span>
                       Archived {picture.archivedAt ? new Date(picture.archivedAt).toLocaleDateString() : ''}
                     </span>
+                    {picture.archivedAt && (Date.now() - new Date(picture.archivedAt).getTime()) > 90 * 24 * 60 * 60 * 1000 && (
+                      <span className="archive-retention-hint">
+                        Past 3-month retention — eligible for cleanup
+                      </span>
+                    )}
                   </div>
                   {canManage && (
                     <div className="archive-card-actions">

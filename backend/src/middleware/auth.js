@@ -65,49 +65,20 @@ export const authorize = (...roles) => {
   };
 };
 
-// Middleware to check if user can modify a picture
-export const canModifyPicture = async (req, res, next) => {
-  try {
-    const pictureId = parseInt(req.params.id);
+// Returns true if a BRANCHE_ECLAIREURS user has explicit access to a given district.
+// ADMINs are allowed everywhere. Deny-by-default: a BRANCHE with no district
+// assignments can see/modify nothing.
+export const brancheHasDistrictAccess = async (user, districtId) => {
+  if (!user) return false;
+  if (user.role === 'ADMIN') return true;
+  if (user.role !== 'BRANCHE_ECLAIREURS') return false;
+  if (!districtId) return false;
 
-    const picture = await prisma.picture.findUnique({
-      where: { id: pictureId },
-    });
-
-    if (!picture) {
-      return res.status(404).json({ error: 'Picture not found' });
-    }
-
-    // Admins can modify anything
-    if (req.user.role === 'ADMIN') {
-      req.picture = picture;
-      return next();
-    }
-
-    // Branche members can modify any picture for classification/approval
-    if (req.user.role === 'BRANCHE_ECLAIREURS') {
-      req.picture = picture;
-      return next();
-    }
-
-    // Chef troupe can only modify their own pending/classified pictures
-    if (req.user.role === 'CHEF_TROUPE') {
-      if (picture.uploadedById !== req.user.id) {
-        return res.status(403).json({ error: 'You can only modify your own pictures' });
-      }
-
-      if (!['PENDING', 'CLASSIFIED'].includes(picture.status)) {
-        return res.status(403).json({ error: 'Cannot modify approved or rejected pictures' });
-      }
-
-      req.picture = picture;
-      return next();
-    }
-
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  } catch (error) {
-    return res.status(500).json({ error: 'Error checking permissions' });
-  }
+  const access = await prisma.userDistrictAccess.findFirst({
+    where: { userId: user.id, districtId },
+    select: { id: true },
+  });
+  return !!access;
 };
 
 // Optional authentication (for public endpoints that behave differently when authenticated)

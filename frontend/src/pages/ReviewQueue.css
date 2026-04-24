@@ -1016,23 +1016,34 @@
 
 .review-image-preview__actions {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
   width: 100%;
 }
 
-.review-image-preview__actions .btn-approve {
+.review-image-preview__actions .btn-approve,
+.review-image-preview__actions .btn-reject {
   padding: 10px 32px;
   font-size: 0.95rem;
   font-weight: 600;
   border: none;
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;
-  background: var(--success, #4caf50);
   color: white;
   transition: all 0.2s ease;
 }
 
-.review-image-preview__actions .btn-approve:hover {
+.review-image-preview__actions .btn-approve {
+  background: var(--success, #4caf50);
+}
+
+.review-image-preview__actions .btn-reject {
+  background: var(--error, #f44336);
+}
+
+.review-image-preview__actions .btn-approve:hover,
+.review-image-preview__actions .btn-reject:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
 }

@@ -1235,3 +1235,18 @@
   font-size: 0.8rem;
   color: var(--accent, #d4a574);
 }
+
+/* Load more / infinite scroll */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem;
+  min-height: 4rem;
+}
+
+.load-more-status {
+  color: var(--text-muted, #888);
+  font-size: 0.95rem;
+  margin: 0;
+}

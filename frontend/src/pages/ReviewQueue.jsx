@@ -180,6 +180,28 @@ const ReviewQueue = () => {
     }
   };
 
+  const handleRejectSinglePicture = async (picture) => {
+    try {
+      const set = picture._set;
+      if (!set) return;
+
+      if (!window.confirm('Move this picture to the archive? It will be removed from the set and kept in the archive where you can restore or delete it.')) {
+        return;
+      }
+
+      setError('');
+      await pictureService.archivePicture(set.id, picture.id);
+
+      addToast('Picture moved to archive', 'success');
+      setSelectedImage(null);
+      setModalEditing(false);
+      await loadData();
+    } catch (err) {
+      console.error('Single picture rejection error:', err);
+      addToast(err.message || 'Failed to archive picture', 'error');
+    }
+  };
+
   const startModalEdit = () => {
     if (!selectedImage) return;
     setEditCategoryId(selectedImage.categoryId?.toString() || selectedImage.category?.id?.toString() || '');
@@ -685,6 +707,12 @@ const ReviewQueue = () => {
                   title={!approvalEnabled ? 'Approbation désactivée par un administrateur' : undefined}
                 >
                   Approve This Picture
+                </button>
+                <button
+                  className="btn-reject"
+                  onClick={() => handleRejectSinglePicture(selectedImage)}
+                >
+                  Reject This Picture
                 </button>
               </div>
             </div>

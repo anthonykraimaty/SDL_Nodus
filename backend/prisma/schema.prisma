@@ -110,6 +110,7 @@ model User {
   troupe                 Troupe?                @relation(fields: [troupeId], references: [id], onDelete: SetNull)
   uploadedPictureSets    PictureSet[]           @relation("PictureSetUploader")
   approvedPictureSets    PictureSet[]           @relation("PictureSetApprover")
+  rejectedPictureSets    PictureSet[]           @relation("PictureSetRejecter")
   classifiedPictureSets  PictureSet[]           @relation("PictureSetClassifier")
   pictureEdits           PictureEdit[]          @relation("PictureEditor")
   createdDesignGroups    DesignGroup[]          // Design groups created by this user
@@ -224,6 +225,9 @@ model PictureSet {
   approvedBy     User?        @relation("PictureSetApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   approvedAt     DateTime?
 
+  rejectedById   Int?
+  rejectedBy     User?        @relation("PictureSetRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt     DateTime?
   rejectionReason String?
 
   // Metadata
@@ -239,6 +243,7 @@ model PictureSet {
   // Pictures in this set
   pictures      Picture[]
   tags          Tag[]
+  edits         PictureEdit[] @relation("PictureEditSet")
 
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -254,6 +259,7 @@ model PictureSet {
   @@index([type])
   @@index([isHighlight])
   @@index([uploadedAt])
+  @@index([rejectedById])
 }
 
 // Individual Picture in a set
@@ -315,7 +321,8 @@ model PictureEdit {
   id                     Int         @id @default(autoincrement())
   pictureId              Int
   picture                Picture     @relation(fields: [pictureId], references: [id], onDelete: Cascade)
-  pictureSetId           Int         // Denormalized for easier audit queries
+  pictureSetId           Int
+  pictureSet             PictureSet  @relation("PictureEditSet", fields: [pictureSetId], references: [id], onDelete: Cascade)
   editedById             Int
   editedBy               User        @relation("PictureEditor", fields: [editedById], references: [id], onDelete: Cascade)
   editedAt               DateTime    @default(now())
