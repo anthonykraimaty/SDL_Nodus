@@ -737,3 +737,90 @@
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
+
+/* Batch classify (per-picture classification after multi-file upload) */
+.batch-classify-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  padding: var(--spacing-md);
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.batch-counter {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.batch-classify-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.batch-classify-item {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.batch-classify-item.saved {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.06);
+}
+
+.batch-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--bg-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.batch-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.batch-controls {
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.batch-controls select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.batch-row-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.batch-row-actions .btn-submit {
+  flex: 1;
+}
+
+.btn-submit.small {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.85rem;
+}

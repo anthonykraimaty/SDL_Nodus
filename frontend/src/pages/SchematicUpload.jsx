@@ -40,8 +40,12 @@ const SchematicUpload = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
-  // Upload result - the created PictureSet
+  // Upload result - the created PictureSet (single-set flow)
   const [uploadedPictureSet, setUploadedPictureSet] = useState(null);
+
+  // Per-picture classification flow: list of { id, filePath, categoryId, saving, saved }
+  const [batchSets, setBatchSets] = useState([]);
+  const [batchMode, setBatchMode] = useState(false); // true when >1 file + no batch category
 
   // Classify loading
   const [classifyLoading, setClassifyLoading] = useState(false);
@@ -200,35 +204,69 @@ const SchematicUpload = () => {
         throw new Error('Please select a patrouille');
       }
 
-      const uploadData = new FormData();
+      // Per-picture classification: if multiple files AND no batch category,
+      // upload each file as its own PictureSet so each can be classified separately.
+      const useBatchClassify = !formData.categoryId && files.length > 1;
 
-      files.forEach((file) => {
-        uploadData.append('pictures', file);
-      });
+      if (useBatchClassify) {
+        const created = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const fd = new FormData();
+          fd.append('pictures', file);
+          fd.append('patrouilleId', formData.patrouilleId);
 
-      uploadData.append('patrouilleId', formData.patrouilleId);
+          const r = await schematicService.uploadWithProgress(
+            fd,
+            (p) => {
+              // Aggregate: count the current file's percent against the whole batch
+              const overall = Math.round(((i + p.percent / 100) / files.length) * 100);
+              setUploadProgress({ percent: overall, loaded: i + 1, total: files.length });
+            },
+            abortControllerRef.current.signal
+          );
+          created.push(r.pictureSet);
+        }
 
-      // Category is optional - if selected, include it
-      if (formData.categoryId) {
-        uploadData.append('categoryId', formData.categoryId);
-      }
-
-      const result = await schematicService.uploadWithProgress(
-        uploadData,
-        (progress) => {
-          setUploadProgress(progress);
-        },
-        abortControllerRef.current.signal
-      );
-
-      setUploadedPictureSet(result.pictureSet);
-
-      // If category was already selected, go straight to success
-      if (formData.categoryId) {
-        setStep('success');
+        setBatchSets(
+          created.map((s) => ({
+            id: s.id,
+            filePath: s.pictures?.[0]?.filePath || null,
+            pictureId: s.pictures?.[0]?.id || null,
+            categoryId: '',
+            saving: false,
+            saved: false,
+          }))
+        );
+        setBatchMode(true);
+        setStep('batchClassify');
       } else {
-        // Show classify step
-        setStep('classify');
+        const uploadData = new FormData();
+        files.forEach((file) => {
+          uploadData.append('pictures', file);
+        });
+        uploadData.append('patrouilleId', formData.patrouilleId);
+        if (formData.categoryId) {
+          uploadData.append('categoryId', formData.categoryId);
+        }
+
+        const result = await schematicService.uploadWithProgress(
+          uploadData,
+          (progress) => {
+            setUploadProgress(progress);
+          },
+          abortControllerRef.current.signal
+        );
+
+        setUploadedPictureSet(result.pictureSet);
+
+        // If category was already selected, go straight to success
+        if (formData.categoryId) {
+          setStep('success');
+        } else {
+          // Show classify step
+          setStep('classify');
+        }
       }
     } catch (err) {
       if (err.message !== 'Upload cancelled') {
@@ -299,6 +337,61 @@ const SchematicUpload = () => {
 
   const handleSkipClassify = () => {
     setStep('success');
+  };
+
+  const updateBatchCategory = (setId, categoryId) => {
+    setBatchSets((prev) =>
+      prev.map((b) => (b.id === setId ? { ...b, categoryId } : b))
+    );
+  };
+
+  const saveBatchRow = async (setId) => {
+    const row = batchSets.find((b) => b.id === setId);
+    if (!row || !row.categoryId || row.saved) return;
+    setBatchSets((prev) => prev.map((b) => (b.id === setId ? { ...b, saving: true } : b)));
+    try {
+      await schematicService.classify(setId, parseInt(row.categoryId));
+      setBatchSets((prev) =>
+        prev.map((b) => (b.id === setId ? { ...b, saving: false, saved: true } : b))
+      );
+    } catch (err) {
+      setBatchSets((prev) => prev.map((b) => (b.id === setId ? { ...b, saving: false } : b)));
+      setError(err.message || 'Failed to classify schematic');
+    }
+  };
+
+  const saveAllBatch = async () => {
+    setClassifyLoading(true);
+    setError('');
+    try {
+      for (const row of batchSets) {
+        if (!row.categoryId || row.saved) continue;
+        await schematicService.classify(row.id, parseInt(row.categoryId));
+      }
+      setBatchSets((prev) =>
+        prev.map((b) => (b.categoryId ? { ...b, saved: true, saving: false } : b))
+      );
+    } catch (err) {
+      setError(err.message || 'Failed to classify some schematics');
+    } finally {
+      setClassifyLoading(false);
+    }
+  };
+
+  const deleteBatchRow = async (setId) => {
+    try {
+      await schematicService.delete(setId);
+      setBatchSets((prev) => prev.filter((b) => b.id !== setId));
+    } catch (err) {
+      setError(err.message || 'Failed to delete schematic');
+    }
+  };
+
+  const finishBatch = () => {
+    setBatchSets([]);
+    setBatchMode(false);
+    setStep('success');
+    loadUnclassified();
   };
 
   const handleNewUpload = () => {
@@ -566,6 +659,119 @@ const SchematicUpload = () => {
     );
   }
 
+  // Per-picture classification step (after batch upload without category)
+  if (step === 'batchClassify') {
+    const allCategoryOptions = categories.flatMap((set) =>
+      set.items.map((item) => ({
+        id: item.id,
+        label: `${set.setName} — ${item.itemName}`,
+      }))
+    );
+    const remaining = batchSets.filter((b) => !b.saved).length;
+    const readyToSave = batchSets.filter((b) => !b.saved && b.categoryId).length;
+
+    return (
+      <div className="schematic-upload-page">
+        <div className="container">
+          <div className="upload-container">
+            <div className="upload-header">
+              <h2>Classifier chaque schéma</h2>
+              <p>
+                Choisissez la catégorie pour chacune des {batchSets.length} images
+                uploadées. Les schémas non classifiés resteront dans « Schémas à
+                classifier » sur cette page.
+              </p>
+            </div>
+
+            <div className="upload-form">
+              {error && <div className="error-message">{error}</div>}
+
+              <div className="batch-classify-toolbar">
+                <span className="batch-counter">
+                  {remaining} restant{remaining !== 1 ? 's' : ''} — {readyToSave} prêt{readyToSave !== 1 ? 's' : ''} à sauvegarder
+                </span>
+                <button
+                  type="button"
+                  className="btn-submit primary"
+                  onClick={saveAllBatch}
+                  disabled={classifyLoading || readyToSave === 0}
+                >
+                  {classifyLoading ? 'Sauvegarde…' : `Sauvegarder tout (${readyToSave})`}
+                </button>
+                <button
+                  type="button"
+                  className="btn-submit secondary"
+                  onClick={finishBatch}
+                >
+                  Terminer
+                </button>
+              </div>
+
+              <div className="batch-classify-grid">
+                {batchSets.map((row) => {
+                  const isPdf = row.filePath?.toLowerCase().endsWith('.pdf');
+                  return (
+                    <div
+                      key={row.id}
+                      className={`batch-classify-item ${row.saved ? 'saved' : ''}`}
+                    >
+                      <div className="batch-thumb">
+                        {isPdf ? (
+                          <div className="pdf-preview-thumb">
+                            <span className="pdf-icon">PDF</span>
+                          </div>
+                        ) : (
+                          <img src={getImageUrl(row.filePath)} alt="Schematic" />
+                        )}
+                      </div>
+                      <div className="batch-controls">
+                        <select
+                          value={row.categoryId}
+                          onChange={(e) => updateBatchCategory(row.id, e.target.value)}
+                          disabled={row.saved}
+                        >
+                          <option value="">— Choisir une catégorie —</option>
+                          {allCategoryOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="batch-row-actions">
+                          <button
+                            type="button"
+                            className="btn-submit primary small"
+                            onClick={() => saveBatchRow(row.id)}
+                            disabled={!row.categoryId || row.saving || row.saved}
+                          >
+                            {row.saved
+                              ? '✓ Classifié'
+                              : row.saving
+                              ? 'Sauvegarde…'
+                              : 'Sauvegarder'}
+                          </button>
+                          {!row.saved && (
+                            <button
+                              type="button"
+                              className="btn-submit secondary small"
+                              onClick={() => deleteBatchRow(row.id)}
+                            >
+                              Supprimer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Upload step (default)
   return (
     <div className="schematic-upload-page">
@@ -618,7 +824,12 @@ const SchematicUpload = () => {
 
             {/* Category Selection (Optional) */}
             <div className="form-group">
-              <label>Schematic Category <span className="optional-tag">(optional - can classify later)</span></label>
+              <label>
+                Schematic Category{' '}
+                <span className="optional-tag">
+                  (optional — laissez vide pour classifier chaque image séparément après l'upload)
+                </span>
+              </label>
               <div className="category-accordion">
                 {categories.map((set) => {
                   const setProgress = progress?.sets?.find(
