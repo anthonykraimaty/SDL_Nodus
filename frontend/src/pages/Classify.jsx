@@ -20,6 +20,7 @@ const Classify = () => {
   const [pictureSets, setPictureSets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedPicture, setSelectedPicture] = useState(null);
   const [classificationData, setClassificationData] = useState({});
@@ -44,9 +45,9 @@ const Classify = () => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async ({ background = false } = {}) => {
     try {
-      setLoading(true);
+      if (background) setRefreshing(true); else setLoading(true);
       // Load sets with unclassified pictures (PENDING or CLASSIFIED status)
       const [pictureSetsData, categoriesData] = await Promise.all([
         pictureService.getAll({ status: 'PENDING,CLASSIFIED', type: 'INSTALLATION_PHOTO', classificationFilter: 'unclassified', limit: 1000 }),
@@ -63,22 +64,30 @@ const Classify = () => {
       // Filter out categories where uploads are disabled
       setCategories(categoriesData.filter(cat => !cat.isUploadDisabled).sort((a, b) => a.name.localeCompare(b.name)));
 
-      // Initialize classification data for each picture
-      const initialData = {};
-      setsWithUnclassified.forEach(set => {
-        set.pictures?.forEach(pic => {
-          initialData[pic.id] = {
-            categoryId: '',
-            takenAt: '',
-          };
+      // Initialize classification data for each picture (preserve existing entries
+      // so in-flight edits survive a background refresh).
+      setClassificationData((prev) => {
+        const next = { ...prev };
+        const keepIds = new Set();
+        setsWithUnclassified.forEach((set) => {
+          set.pictures?.forEach((pic) => {
+            keepIds.add(pic.id);
+            if (!next[pic.id]) {
+              next[pic.id] = { categoryId: '', takenAt: '' };
+            }
+          });
         });
+        // Drop entries for pictures that are no longer present
+        for (const id of Object.keys(next)) {
+          if (!keepIds.has(parseInt(id))) delete next[id];
+        }
+        return next;
       });
-      setClassificationData(initialData);
     } catch (err) {
       console.error('Failed to load data:', err);
       setError('Failed to load pictures');
     } finally {
-      setLoading(false);
+      if (background) setRefreshing(false); else setLoading(false);
     }
   };
 
@@ -146,8 +155,8 @@ const Classify = () => {
         }],
       });
 
-      // Reload data after classification
-      await loadData();
+      // Refresh in background so the page doesn't blank out
+      await loadData({ background: true });
       addToast('Picture classified successfully!');
     } catch (err) {
       console.error('Classification error:', err);
@@ -163,7 +172,7 @@ const Classify = () => {
       } else {
         setViewingGroupIndex(prev => prev >= viewingGroup.pictures.length - 1 ? Math.max(0, prev - 1) : prev);
       }
-      await loadData();
+      await loadData({ background: true });
     } catch (err) {
       console.error('Failed to remove from group:', err);
     }
@@ -369,9 +378,9 @@ const Classify = () => {
       addToast(`Successfully classified ${successCount} picture set(s)!`);
     }
 
-    // Clear selections and reload
+    // Clear selections and refresh data in background (no full-page spinner)
     clearAllSelections();
-    await loadData();
+    await loadData({ background: true });
   };
 
   if (loading) {
@@ -401,6 +410,8 @@ const Classify = () => {
           <p>Add categories and dates to your uploaded pictures</p>
           <Link to="/archive" className="btn-archive-link">View Archive</Link>
         </div>
+
+        {refreshing && <div className="refresh-bar" aria-hidden="true" />}
 
         {error && (
           <div className="error-message">
@@ -442,9 +453,12 @@ const Classify = () => {
                   <span className="bulk-icon">✅</span>
                   <span className="bulk-count">{selectedPictures.size} picture(s) selected</span>
                 </div>
-                <button onClick={clearAllSelections} className="btn-clear-selection">
-                  Clear Selection
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {refreshing && <span className="refresh-indicator">Actualisation…</span>}
+                  <button onClick={clearAllSelections} className="btn-clear-selection">
+                    Clear Selection
+                  </button>
+                </div>
               </div>
               {/* Design Group Picker - on its own row above controls */}
               {canManageGroups && selectedPictures.size >= 2 && (

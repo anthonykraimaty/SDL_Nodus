@@ -136,6 +136,45 @@
   border-bottom: 1px solid var(--border);
 }
 
+.refresh-indicator {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.85;
+  animation: refresh-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes refresh-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.refresh-bar {
+  position: relative;
+  height: 2px;
+  margin: 8px 0 16px;
+  background: rgba(121, 85, 72, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.refresh-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 30%;
+  background: var(--accent, #d4a574);
+  border-radius: 2px;
+  animation: refresh-slide 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes refresh-slide {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
 .staged-group-pill {
   display: inline-flex;
   align-items: center;
