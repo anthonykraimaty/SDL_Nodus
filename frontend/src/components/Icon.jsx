@@ -122,7 +122,7 @@ const paths = {
   ),
 };
 
-const Icon = ({ name, size = 20, strokeWidth = 1.5, className = '', style, title }) => {
+const Icon = ({ name, size = 22, strokeWidth = 1.75, className = '', style, title }) => {
   const content = paths[name];
   if (!content) return null;
   return (

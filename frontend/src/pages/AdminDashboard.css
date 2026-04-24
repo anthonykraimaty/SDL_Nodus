@@ -259,24 +259,44 @@
 
 .stat-icon {
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 2.6rem;
+  height: 2.6rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 0;
-  background: transparent;
-  color: var(--ink-2);
+  background: var(--paper-1);
+  border: 1px solid var(--rule);
+  color: var(--ink-1);
   font-size: 0;
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
+  transition: all 0.15s ease;
 }
 
 .stat-icon .nodus-icon {
-  stroke: var(--ink-2);
+  stroke: var(--ink-1);
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.75;
+}
+
+.stat-card:hover .stat-icon {
+  background: var(--ink-1);
+  border-color: var(--ink-1);
 }
 
 .stat-card:hover .stat-icon .nodus-icon {
-  stroke: var(--ink-1);
+  stroke: var(--paper-0);
+}
+
+.stat-card.pending-card .stat-icon,
+.stat-card.warning-card .stat-icon {
+  border-color: var(--accent-dark, #b8935a);
+}
+
+.stat-card.pending-card .stat-icon .nodus-icon,
+.stat-card.warning-card .stat-icon .nodus-icon {
+  stroke: var(--accent-dark, #b8935a);
 }
 
 /* Kill emoji color classes — icons now carry their own stroke */
@@ -455,17 +475,34 @@
 
 .action-card .action-icon {
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 2.6rem;
+  height: 2.6rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink-2);
+  color: var(--ink-1);
+  background: var(--paper-1);
+  border: 1px solid var(--rule);
   margin: 0.15rem 0 0 0;
   font-size: 0;
+  transition: all 0.15s ease;
 }
 
-.action-card:hover .action-icon { color: var(--ink-1); }
+.action-card .action-icon .nodus-icon {
+  stroke: var(--ink-1);
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.75;
+}
+
+.action-card:hover .action-icon {
+  background: var(--ink-1);
+  border-color: var(--ink-1);
+}
+
+.action-card:hover .action-icon .nodus-icon {
+  stroke: var(--paper-0);
+}
 
 .action-card h3 {
   font-family: var(--font-display);
