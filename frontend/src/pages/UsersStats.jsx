@@ -3,13 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { analyticsService } from '../services/api';
 import './UsersStats.css';
 
+const emptyBucket = () => ({ total: 0, pending: 0, classified: 0, approved: 0, rejected: 0 });
+
 const UsersStats = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
+  const [districtFilter, setDistrictFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'total', dir: 'desc' });
 
   useEffect(() => {
@@ -22,7 +24,7 @@ const UsersStats = () => {
       const data = await analyticsService.getUsersUploads();
       setUsers(data.users || []);
     } catch (err) {
-      setError(err.message || 'Failed to load user upload statistics');
+      setError(err.message || 'Failed to load upload statistics');
     } finally {
       setLoading(false);
     }
@@ -43,17 +45,52 @@ const UsersStats = () => {
     return <span className="sort-icon active">{sort.dir === 'asc' ? '↑' : '↓'}</span>;
   };
 
+  // Aggregate per-user rows into per-group rows (key: district + group name)
+  const groupRows = useMemo(() => {
+    const map = new Map();
+    for (const u of users) {
+      const groupName = u.group || '—';
+      const districtName = u.district || '—';
+      const key = `${districtName}||${groupName}`;
+      let entry = map.get(key);
+      if (!entry) {
+        entry = {
+          key,
+          district: districtName,
+          group: groupName,
+          users: 0,
+          uploaders: 0,
+          total: 0,
+          photos: emptyBucket(),
+          schematics: emptyBucket(),
+        };
+        map.set(key, entry);
+      }
+      entry.users += 1;
+      if (u.total > 0) entry.uploaders += 1;
+      entry.total += u.total;
+      for (const status of ['total', 'pending', 'classified', 'approved', 'rejected']) {
+        entry.photos[status] += u.photos?.[status] || 0;
+        entry.schematics[status] += u.schematics?.[status] || 0;
+      }
+    }
+    return Array.from(map.values());
+  }, [users]);
+
+  // Districts for the filter dropdown
+  const districts = useMemo(() => {
+    return Array.from(new Set(groupRows.map(r => r.district).filter(d => d && d !== '—')))
+      .sort((a, b) => a.localeCompare(b));
+  }, [groupRows]);
+
   const filteredSorted = useMemo(() => {
     const s = search.trim().toLowerCase();
-    const filtered = users.filter((u) => {
-      if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+    const filtered = groupRows.filter((r) => {
+      if (districtFilter !== 'all' && r.district !== districtFilter) return false;
       if (!s) return true;
       return (
-        u.name?.toLowerCase().includes(s) ||
-        u.email?.toLowerCase().includes(s) ||
-        u.troupe?.toLowerCase().includes(s) ||
-        u.group?.toLowerCase().includes(s) ||
-        u.district?.toLowerCase().includes(s)
+        r.group?.toLowerCase().includes(s) ||
+        r.district?.toLowerCase().includes(s)
       );
     });
 
@@ -68,19 +105,19 @@ const UsersStats = () => {
       if (av > bv) return sort.dir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [users, search, roleFilter, sort]);
+  }, [groupRows, districtFilter, search, sort]);
 
   const totals = useMemo(() => {
     return filteredSorted.reduce(
-      (acc, u) => {
-        acc.total += u.total;
-        acc.photos += u.photos.total;
-        acc.schematics += u.schematics.total;
-        acc.approved += u.photos.approved + u.schematics.approved;
-        acc.pending += u.photos.pending + u.photos.classified + u.schematics.pending + u.schematics.classified;
-        if (u.total === 0) acc.zeroUploads += 1;
-        if (u.photos.total === 0) acc.zeroPhotos += 1;
-        if (u.schematics.total === 0) acc.zeroSchematics += 1;
+      (acc, r) => {
+        acc.total += r.total;
+        acc.photos += r.photos.total;
+        acc.schematics += r.schematics.total;
+        acc.approved += r.photos.approved + r.schematics.approved;
+        acc.pending += r.photos.pending + r.photos.classified + r.schematics.pending + r.schematics.classified;
+        if (r.total === 0) acc.zeroUploads += 1;
+        if (r.photos.total === 0) acc.zeroPhotos += 1;
+        if (r.schematics.total === 0) acc.zeroSchematics += 1;
         return acc;
       },
       { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
@@ -89,15 +126,15 @@ const UsersStats = () => {
 
   const exportCSV = () => {
     const headers = [
-      'Name', 'Email', 'Role', 'District', 'Group', 'Troupe',
+      'District', 'Group', 'Users', 'Uploaders',
       'Total', 'Photos', 'Photos Approved', 'Photos Pending',
       'Schematics', 'Schematics Approved', 'Schematics Pending',
     ];
-    const rows = filteredSorted.map((u) => [
-      u.name, u.email, u.role, u.district || '', u.group || '', u.troupe || '',
-      u.total,
-      u.photos.total, u.photos.approved, u.photos.pending + u.photos.classified,
-      u.schematics.total, u.schematics.approved, u.schematics.pending + u.schematics.classified,
+    const rows = filteredSorted.map((r) => [
+      r.district, r.group, r.users, r.uploaders,
+      r.total,
+      r.photos.total, r.photos.approved, r.photos.pending + r.photos.classified,
+      r.schematics.total, r.schematics.approved, r.schematics.pending + r.schematics.classified,
     ]);
     const csv = [headers, ...rows]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
@@ -106,7 +143,7 @@ const UsersStats = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `users_uploads_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `group_uploads_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -116,7 +153,7 @@ const UsersStats = () => {
       <div className="container">
         <div className="error-page">
           <h2>Access Denied</h2>
-          <p>Only Branche members and Admins can view user statistics.</p>
+          <p>Only Branche members and Admins can view statistics.</p>
         </div>
       </div>
     );
@@ -126,8 +163,8 @@ const UsersStats = () => {
     <div className="users-stats-page">
       <div className="container">
         <div className="stats-header">
-          <h2>Statistiques Utilisateurs</h2>
-          <p>Uploads par utilisateur (photos et schémas)</p>
+          <h2>Statistiques par Groupe</h2>
+          <p>Uploads agrégés par groupe (photos et schémas)</p>
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -159,7 +196,7 @@ const UsersStats = () => {
             <div className="summary-bar">
               <div className="summary-item">
                 <span className="summary-value">{filteredSorted.length}</span>
-                <span className="summary-label">Utilisateurs</span>
+                <span className="summary-label">Groupes</span>
               </div>
               <div className="summary-item">
                 <span className="summary-value">{totals.total}</span>
@@ -184,36 +221,20 @@ const UsersStats = () => {
             </div>
 
             <div className="stats-toolbar">
-              <div className="filter-tabs">
-                <button
-                  className={`filter-tab ${roleFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setRoleFilter('all')}
-                >
-                  Tous
-                </button>
-                <button
-                  className={`filter-tab ${roleFilter === 'CHEF_TROUPE' ? 'active' : ''}`}
-                  onClick={() => setRoleFilter('CHEF_TROUPE')}
-                >
-                  Chefs Troupe
-                </button>
-                <button
-                  className={`filter-tab ${roleFilter === 'BRANCHE_ECLAIREURS' ? 'active' : ''}`}
-                  onClick={() => setRoleFilter('BRANCHE_ECLAIREURS')}
-                >
-                  Branche
-                </button>
-                <button
-                  className={`filter-tab ${roleFilter === 'ADMIN' ? 'active' : ''}`}
-                  onClick={() => setRoleFilter('ADMIN')}
-                >
-                  Admin
-                </button>
-              </div>
+              <select
+                className="district-filter"
+                value={districtFilter}
+                onChange={(e) => setDistrictFilter(e.target.value)}
+              >
+                <option value="all">Tous les districts</option>
+                {districts.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
               <input
                 type="search"
                 className="stats-search"
-                placeholder="Rechercher nom, email, troupe…"
+                placeholder="Rechercher groupe, district…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -226,14 +247,17 @@ const UsersStats = () => {
               <table className="users-stats-table">
                 <thead>
                   <tr>
-                    <th onClick={() => toggleSort('name')}>
-                      Nom <SortIcon column="name" />
+                    <th onClick={() => toggleSort('district')}>
+                      District <SortIcon column="district" />
                     </th>
-                    <th onClick={() => toggleSort('role')}>
-                      Rôle <SortIcon column="role" />
+                    <th onClick={() => toggleSort('group')}>
+                      Groupe <SortIcon column="group" />
                     </th>
-                    <th onClick={() => toggleSort('troupe')}>
-                      Troupe <SortIcon column="troupe" />
+                    <th onClick={() => toggleSort('users')} className="num-col">
+                      Utilisateurs <SortIcon column="users" />
+                    </th>
+                    <th onClick={() => toggleSort('uploaders')} className="num-col">
+                      Uploaders <SortIcon column="uploaders" />
                     </th>
                     <th onClick={() => toggleSort('total')} className="num-col">
                       Total <SortIcon column="total" />
@@ -261,59 +285,46 @@ const UsersStats = () => {
                 <tbody>
                   {filteredSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="empty-row">
-                        Aucun utilisateur trouvé
+                      <td colSpan={11} className="empty-row">
+                        Aucun groupe trouvé
                       </td>
                     </tr>
                   ) : (
-                    filteredSorted.map((u) => {
-                      const photoPending = u.photos.pending + u.photos.classified;
-                      const schemPending = u.schematics.pending + u.schematics.classified;
+                    filteredSorted.map((r) => {
+                      const photoPending = r.photos.pending + r.photos.classified;
+                      const schemPending = r.schematics.pending + r.schematics.classified;
                       return (
-                        <tr key={u.id}>
-                          <td>
-                            <div className="user-cell">
-                              <span className="user-name">{u.name}</span>
-                              <span className="user-email">{u.email}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`role-badge role-${u.role.toLowerCase()}`}>
-                              {u.role.replace('_', ' ')}
+                        <tr key={r.key}>
+                          <td>{r.district}</td>
+                          <td className="group-name-cell">{r.group}</td>
+                          <td className="num-col">{r.users}</td>
+                          <td className="num-col">
+                            <span className={r.uploaders === 0 ? 'zero-count' : ''}>
+                              {r.uploaders}
                             </span>
                           </td>
-                          <td>
-                            {u.troupe ? (
-                              <div className="troupe-cell">
-                                <span>{u.troupe}</span>
-                                {u.group && <span className="troupe-sub">{u.group}</span>}
-                              </div>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                          <td className="num-col total-col">{u.total}</td>
+                          <td className="num-col total-col">{r.total}</td>
                           <td className="num-col">
-                            <span className={u.photos.total === 0 ? 'zero-count' : ''}>
-                              {u.photos.total}
+                            <span className={r.photos.total === 0 ? 'zero-count' : ''}>
+                              {r.photos.total}
                             </span>
                           </td>
                           <td className="num-col">
-                            <span className={u.photos.approved > 0 ? 'approved-count' : ''}>
-                              {u.photos.approved}
+                            <span className={r.photos.approved > 0 ? 'approved-count' : ''}>
+                              {r.photos.approved}
                             </span>
                           </td>
                           <td className="num-col">
                             {photoPending > 0 && <span className="pending-count">{photoPending}</span>}
                           </td>
                           <td className="num-col">
-                            <span className={u.schematics.total === 0 ? 'zero-count' : ''}>
-                              {u.schematics.total}
+                            <span className={r.schematics.total === 0 ? 'zero-count' : ''}>
+                              {r.schematics.total}
                             </span>
                           </td>
                           <td className="num-col">
-                            <span className={u.schematics.approved > 0 ? 'approved-count' : ''}>
-                              {u.schematics.approved}
+                            <span className={r.schematics.approved > 0 ? 'approved-count' : ''}>
+                              {r.schematics.approved}
                             </span>
                           </td>
                           <td className="num-col">

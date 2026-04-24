@@ -164,6 +164,26 @@
   border-color: var(--primary-dark);
 }
 
+.district-filter {
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.district-filter:focus {
+  outline: none;
+  border-color: var(--primary-dark);
+}
+
+.group-name-cell {
+  font-weight: 500;
+}
+
 .btn-export-csv {
   padding: var(--spacing-xs) var(--spacing-md);
   background: var(--gradient-accent);
