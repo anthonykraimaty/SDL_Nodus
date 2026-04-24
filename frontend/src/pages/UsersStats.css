@@ -16,6 +16,120 @@
   color: var(--text-muted);
 }
 
+.approval-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.approval-kpi-row--three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.approval-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--color-accent, #f39c12);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.approval-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  border-color: rgba(243, 156, 18, 0.6);
+}
+
+.approval-card--classify {
+  border-left-color: #f39c12;
+}
+
+.approval-card--classify:hover {
+  border-color: rgba(243, 156, 18, 0.6);
+}
+
+.approval-card--photos {
+  border-left-color: #3498db;
+}
+
+.approval-card--photos:hover {
+  border-color: rgba(52, 152, 219, 0.6);
+}
+
+.approval-card--schematics {
+  border-left-color: #9b59b6;
+}
+
+.approval-card--schematics:hover {
+  border-color: rgba(155, 89, 182, 0.6);
+}
+
+.approval-icon {
+  font-size: 2.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.approval-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.approval-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.approval-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.approval-sublabel {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+@media (max-width: 960px) {
+  .approval-kpi-row--three {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .approval-kpi-row,
+  .approval-kpi-row--three {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-card {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  .approval-value {
+    font-size: 2rem;
+  }
+
+  .approval-icon {
+    font-size: 2.25rem;
+  }
+}
+
 .zero-uploads-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

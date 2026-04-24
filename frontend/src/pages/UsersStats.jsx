@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { analyticsService } from '../services/api';
 import './UsersStats.css';
@@ -114,13 +115,20 @@ const UsersStats = () => {
         acc.photos += r.photos.total;
         acc.schematics += r.schematics.total;
         acc.approved += r.photos.approved + r.schematics.approved;
+        // Photos have two pre-approval states:
+        //   - PENDING     → needs classification (chef or branche)
+        //   - CLASSIFIED  → needs approval decision (branche only)
+        // Schematics skip classify — they're uploaded PENDING with a category, then approved.
+        acc.photosToClassify += r.photos.pending;
+        acc.photosToApprove += r.photos.classified;
+        acc.schematicsToApprove += r.schematics.pending + r.schematics.classified;
         acc.pending += r.photos.pending + r.photos.classified + r.schematics.pending + r.schematics.classified;
         if (r.total === 0) acc.zeroUploads += 1;
         if (r.photos.total === 0) acc.zeroPhotos += 1;
         if (r.schematics.total === 0) acc.zeroSchematics += 1;
         return acc;
       },
-      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
+      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, photosToClassify: 0, photosToApprove: 0, schematicsToApprove: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
     );
   }, [filteredSorted]);
 
@@ -175,6 +183,42 @@ const UsersStats = () => {
           </div>
         ) : (
           <>
+            <div className="approval-kpi-row approval-kpi-row--three">
+              <Link to="/classify" className="approval-card approval-card--classify">
+                <div className="approval-icon" aria-hidden="true">🏷️</div>
+                <div className="approval-body">
+                  <div className="approval-value">{totals.photosToClassify}</div>
+                  <div className="approval-label">Photos à classer</div>
+                  <div className="approval-sublabel">
+                    {districtFilter === 'all' ? 'Tous districts' : districtFilter}
+                    {totals.photosToClassify > 0 && ' — ouvrir'}
+                  </div>
+                </div>
+              </Link>
+              <Link to="/review" className="approval-card approval-card--photos">
+                <div className="approval-icon" aria-hidden="true">📷</div>
+                <div className="approval-body">
+                  <div className="approval-value">{totals.photosToApprove}</div>
+                  <div className="approval-label">Photos à approuver</div>
+                  <div className="approval-sublabel">
+                    {districtFilter === 'all' ? 'Tous districts' : districtFilter}
+                    {totals.photosToApprove > 0 && ' — ouvrir la file'}
+                  </div>
+                </div>
+              </Link>
+              <Link to="/schematics/review" className="approval-card approval-card--schematics">
+                <div className="approval-icon" aria-hidden="true">📐</div>
+                <div className="approval-body">
+                  <div className="approval-value">{totals.schematicsToApprove}</div>
+                  <div className="approval-label">Schémas à approuver</div>
+                  <div className="approval-sublabel">
+                    {districtFilter === 'all' ? 'Tous districts' : districtFilter}
+                    {totals.schematicsToApprove > 0 && ' — ouvrir la file'}
+                  </div>
+                </div>
+              </Link>
+            </div>
+
             <div className="zero-uploads-row">
               <div className="zero-card">
                 <div className="zero-value">{totals.zeroUploads}</div>
