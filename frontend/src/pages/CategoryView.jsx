@@ -78,9 +78,14 @@ const CategoryView = () => {
   const [existingGroups, setExistingGroups] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [groupActionLoading, setGroupActionLoading] = useState(false);
+  const [showBulkArchive, setShowBulkArchive] = useState(false);
+  const [bulkArchiveLoading, setBulkArchiveLoading] = useState(false);
 
   // Check if user can approve/reject
   const canReview = user && (user.role === 'BRANCHE_ECLAIREURS' || user.role === 'ADMIN');
+  // Bulk selection / archive is BRANCHE_ECLAIREURS and ADMIN (admin is a superset of branche).
+  // Explicitly excludes CHEF_TROUPE and unauthenticated users.
+  const canBulkManage = user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN';
 
   // Load all categories for the edit dropdown (only for authorized users)
   useEffect(() => {
@@ -331,6 +336,9 @@ const CategoryView = () => {
 
   const togglePictureSelection = (pictureId, e) => {
     e.stopPropagation();
+    // Hover-click on a thumbnail outside selection mode auto-enters it
+    // so branche users don't have to toggle the mode first.
+    if (!selectionMode) setSelectionMode(true);
     setSelectedPictures(prev => {
       const next = new Set(prev);
       if (next.has(pictureId)) {
@@ -340,6 +348,38 @@ const CategoryView = () => {
       }
       return next;
     });
+  };
+
+  const handleBulkArchiveConfirm = async () => {
+    const picsToArchive = pictures.filter(p => selectedPictures.has(p.id));
+    if (picsToArchive.length === 0) {
+      setError('Aucune photo sélectionnée');
+      return;
+    }
+    setBulkArchiveLoading(true);
+    let archived = 0;
+    const failures = [];
+    for (const pic of picsToArchive) {
+      const setId = pic.pictureSet?.id;
+      if (!setId) {
+        failures.push(pic.id);
+        continue;
+      }
+      try {
+        await pictureService.archivePicture(setId, pic.id);
+        archived++;
+      } catch (err) {
+        console.error(`Failed to archive picture ${pic.id}:`, err);
+        failures.push(pic.id);
+      }
+    }
+    setBulkArchiveLoading(false);
+    setShowBulkArchive(false);
+    setSelectedPictures(new Set());
+    setSelectionMode(false);
+    if (archived > 0) setSuccess(`${archived} photo(s) archivée(s)`);
+    if (failures.length > 0) setError(`${failures.length} photo(s) n'ont pas pu être archivées`);
+    reloadPictures();
   };
 
   const handleCreateGroupClick = () => {
@@ -588,8 +628,8 @@ const CategoryView = () => {
             </button>
           </div>
 
-          {/* Selection Mode Toggle */}
-          {canReview && (
+          {/* Selection Mode Toggle (BRANCHE / ADMIN only) */}
+          {canBulkManage && (
             <button
               className={`btn-selection-mode ${selectionMode ? 'active' : ''}`}
               onClick={toggleSelectionMode}
@@ -780,8 +820,8 @@ const CategoryView = () => {
           </div>
         )}
 
-        {/* Bulk Actions Bar */}
-        {selectionMode && selectedPictures.size > 0 && (
+        {/* Bulk Actions Bar (BRANCHE / ADMIN only) */}
+        {canBulkManage && selectionMode && selectedPictures.size > 0 && (
           <div className="bulk-actions-bar">
             <span className="bulk-count">{selectedPictures.size} photo(s) sélectionnée(s)</span>
             <div className="bulk-buttons">
@@ -805,6 +845,13 @@ const CategoryView = () => {
                 disabled={groupActionLoading}
               >
                 Retirer des Groupes
+              </button>
+              <button
+                className="btn-bulk-archive"
+                onClick={() => setShowBulkArchive(true)}
+                disabled={bulkArchiveLoading || groupActionLoading}
+              >
+                Archiver
               </button>
               <button
                 className="btn-bulk-clear"
@@ -845,10 +892,11 @@ const CategoryView = () => {
             {ungroupedPictures.map((picture) => {
               // Find the index in the full pictures array for the previewer
               const pictureIndex = pictures.findIndex(p => p.id === picture.id);
+              const isSelected = selectedPictures.has(picture.id);
               return (
                 <article
                   key={picture.id}
-                  className={`picture-thumbnail ${selectionMode && selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                  className={`picture-thumbnail ${isSelected ? 'selected' : ''}`}
                   onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(pictureIndex)}
                   role="button"
                   tabIndex={0}
@@ -862,13 +910,14 @@ const CategoryView = () => {
                       loading="lazy"
                     />
 
-                    {/* Selection checkbox */}
-                    {selectionMode && (
+                    {/* Selection checkbox (BRANCHE / ADMIN — hover-reveal when not in selection mode) */}
+                    {canBulkManage && (
                       <div
-                        className={`picture-selection-badge ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                        className={`picture-selection-badge ${isSelected ? 'selected' : ''} ${selectionMode ? 'mode-active' : 'hover-reveal'}`}
                         onClick={(e) => togglePictureSelection(picture.id, e)}
+                        title={isSelected ? 'Désélectionner' : 'Sélectionner'}
                       >
-                        {selectedPictures.has(picture.id) ? '✓' : ''}
+                        {isSelected ? '✓' : ''}
                       </div>
                     )}
 
@@ -915,10 +964,12 @@ const CategoryView = () => {
             aria-label={`Photos de ${category?.name}`}
             style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${200 + thumbnailSize * 3}px, 1fr))` }}
           >
-            {pictures.map((picture, index) => (
+            {pictures.map((picture, index) => {
+              const isSelected = selectedPictures.has(picture.id);
+              return (
               <article
                 key={picture.id}
-                className={`picture-thumbnail ${selectionMode && selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                className={`picture-thumbnail ${isSelected ? 'selected' : ''}`}
                 onClick={() => selectionMode ? togglePictureSelection(picture.id, { stopPropagation: () => {} }) : handlePictureClick(index)}
                 role="button"
                 tabIndex={0}
@@ -932,13 +983,14 @@ const CategoryView = () => {
                     loading="lazy"
                   />
 
-                  {/* Selection checkbox */}
-                  {selectionMode && (
+                  {/* Selection checkbox (BRANCHE / ADMIN — hover-reveal when not in selection mode) */}
+                  {canBulkManage && (
                     <div
-                      className={`picture-selection-badge ${selectedPictures.has(picture.id) ? 'selected' : ''}`}
+                      className={`picture-selection-badge ${isSelected ? 'selected' : ''} ${selectionMode ? 'mode-active' : 'hover-reveal'}`}
                       onClick={(e) => togglePictureSelection(picture.id, e)}
+                      title={isSelected ? 'Désélectionner' : 'Sélectionner'}
                     >
-                      {selectedPictures.has(picture.id) ? '✓' : ''}
+                      {isSelected ? '✓' : ''}
                     </div>
                   )}
 
@@ -975,7 +1027,8 @@ const CategoryView = () => {
                   </figcaption>
                 </figure>
               </article>
-            ))}
+              );
+            })}
           </section>
         )}
 
@@ -1079,6 +1132,41 @@ const CategoryView = () => {
             {groupActionLoading ? 'Création...' : 'Créer Groupe'}
           </button>
           <button onClick={() => setShowCreateGroup(false)} className="secondary" disabled={groupActionLoading}>
+            Annuler
+          </button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* Bulk Archive Confirmation Modal */}
+      <Modal
+        isOpen={showBulkArchive}
+        onClose={() => !bulkArchiveLoading && setShowBulkArchive(false)}
+        title="Archiver la sélection"
+        size="small"
+      >
+        <Modal.Body>
+          <div className="bulk-archive-modal">
+            <p>
+              Archiver <strong>{selectedPictures.size}</strong> photo(s) ?
+            </p>
+            <p className="bulk-archive-note">
+              Les photos archivées ne seront plus visibles publiquement. Vous pouvez les restaurer depuis les archives.
+            </p>
+          </div>
+        </Modal.Body>
+        <Modal.Actions>
+          <button
+            onClick={handleBulkArchiveConfirm}
+            className="primary"
+            disabled={bulkArchiveLoading}
+          >
+            {bulkArchiveLoading ? 'Archivage...' : 'Archiver'}
+          </button>
+          <button
+            onClick={() => setShowBulkArchive(false)}
+            className="secondary"
+            disabled={bulkArchiveLoading}
+          >
             Annuler
           </button>
         </Modal.Actions>

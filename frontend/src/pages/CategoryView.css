@@ -890,6 +890,29 @@
   transform: scale(1.1);
 }
 
+/* Hover-reveal mode: badge hidden until thumbnail hovered (or until selected) */
+.picture-selection-badge.hover-reveal {
+  opacity: 0;
+}
+
+.picture-thumbnail:hover .picture-selection-badge.hover-reveal,
+.picture-selection-badge.hover-reveal.selected,
+.picture-selection-badge.hover-reveal:focus-visible {
+  opacity: 1;
+}
+
+/* Selection mode on: always visible */
+.picture-selection-badge.mode-active {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  /* Touch devices: always show so users can tap */
+  .picture-selection-badge.hover-reveal {
+    opacity: 1;
+  }
+}
+
 /* Selected thumbnail styling */
 .picture-thumbnail.selected {
   border-color: var(--success, #4CAF50);
@@ -1055,6 +1078,7 @@
 
 .btn-bulk-group,
 .btn-bulk-ungroup,
+.btn-bulk-archive,
 .btn-bulk-clear {
   padding: var(--spacing-sm, 0.5rem) var(--spacing-lg, 1.5rem);
   border-radius: var(--radius-md, 8px);
@@ -1096,11 +1120,34 @@
   color: var(--text-primary);
 }
 
+.btn-bulk-archive {
+  background: #e65100;
+  color: white;
+}
+
+.btn-bulk-archive:hover:not(:disabled) {
+  background: #bf360c;
+  transform: translateY(-1px);
+}
+
 .btn-bulk-group:disabled,
-.btn-bulk-ungroup:disabled {
+.btn-bulk-ungroup:disabled,
+.btn-bulk-archive:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.bulk-archive-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+}
+
+.bulk-archive-note {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
 }
 
 /* Create Group Modal */
