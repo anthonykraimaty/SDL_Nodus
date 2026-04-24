@@ -182,14 +182,22 @@ const UsersStats = () => {
   }, [users, districtFilter, search]);
 
   const exportCSV = () => {
+    const showGroup = groupBy !== 'district';
+    const showTroupe = groupBy === 'troupe';
     const headers = [
-      'District', 'Group', 'Troupe', 'Users', 'Uploaders',
+      'District',
+      ...(showGroup ? ['Group'] : []),
+      ...(showTroupe ? ['Troupe'] : []),
+      'Users', 'Uploaders',
       'Total',
       'Photos', 'Photos Approved', 'Photos To Classify', 'Photos To Approve', 'Photos Rejected',
       'Schematics', 'Schematics Approved', 'Schematics To Approve', 'Schematics Rejected',
     ];
     const rows = filteredSorted.map((r) => [
-      r.district, r.group, r.troupe, r.users, r.uploaders,
+      r.district,
+      ...(showGroup ? [r.group] : []),
+      ...(showTroupe ? [r.troupe] : []),
+      r.users, r.uploaders,
       r.total,
       r.photos.total, r.photos.approved, r.photos.toClassify, r.photos.toApprove, r.photos.rejected,
       r.schematics.total, r.schematics.approved, r.schematics.toClassify + r.schematics.toApprove, r.schematics.rejected,
@@ -368,12 +376,16 @@ const UsersStats = () => {
                     <th onClick={() => toggleSort('district')}>
                       District <SortIcon column="district" />
                     </th>
-                    <th onClick={() => toggleSort('group')}>
-                      Groupe <SortIcon column="group" />
-                    </th>
-                    <th onClick={() => toggleSort('troupe')}>
-                      Troupe <SortIcon column="troupe" />
-                    </th>
+                    {groupBy !== 'district' && (
+                      <th onClick={() => toggleSort('group')}>
+                        Groupe <SortIcon column="group" />
+                      </th>
+                    )}
+                    {groupBy === 'troupe' && (
+                      <th onClick={() => toggleSort('troupe')}>
+                        Troupe <SortIcon column="troupe" />
+                      </th>
+                    )}
                     <th onClick={() => toggleSort('users')} className="num-col">
                       Utilisateurs <SortIcon column="users" />
                     </th>
@@ -415,7 +427,7 @@ const UsersStats = () => {
                 <tbody>
                   {filteredSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={15} className="empty-row">
+                      <td colSpan={13 + (groupBy !== 'district' ? 1 : 0) + (groupBy === 'troupe' ? 1 : 0)} className="empty-row">
                         Aucun résultat trouvé
                       </td>
                     </tr>
@@ -425,8 +437,12 @@ const UsersStats = () => {
                       return (
                         <tr key={r.key}>
                           <td>{r.district}</td>
-                          <td className="group-name-cell">{r.group}</td>
-                          <td className="troupe-name-cell">{r.troupe}</td>
+                          {groupBy !== 'district' && (
+                            <td className="group-name-cell">{r.group}</td>
+                          )}
+                          {groupBy === 'troupe' && (
+                            <td className="troupe-name-cell">{r.troupe}</td>
+                          )}
                           <td className="num-col">{r.users}</td>
                           <td className="num-col">
                             <span className={r.uploaders === 0 ? 'zero-count' : ''}>

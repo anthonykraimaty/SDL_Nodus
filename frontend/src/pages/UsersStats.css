@@ -398,9 +398,13 @@
 }
 
 .users-stats-table {
-  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+}
+
+.users-stats-table tbody td {
+  white-space: nowrap;
 }
 
 .users-stats-table thead th {
