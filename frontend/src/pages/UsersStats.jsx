@@ -114,6 +114,8 @@ const UsersStats = () => {
         acc.total += r.total;
         acc.photos += r.photos.total;
         acc.schematics += r.schematics.total;
+        acc.photosApproved += r.photos.approved;
+        acc.schematicsApproved += r.schematics.approved;
         acc.approved += r.photos.approved + r.schematics.approved;
         acc.photosToClassify += r.photos.toClassify;
         acc.photosToApprove += r.photos.toApprove;
@@ -125,9 +127,25 @@ const UsersStats = () => {
         if (r.schematics.total === 0) acc.zeroSchematics += 1;
         return acc;
       },
-      { total: 0, photos: 0, schematics: 0, approved: 0, pending: 0, rejected: 0, photosToClassify: 0, photosToApprove: 0, schematicsToApprove: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
+      { total: 0, photos: 0, schematics: 0, approved: 0, photosApproved: 0, schematicsApproved: 0, pending: 0, rejected: 0, photosToClassify: 0, photosToApprove: 0, schematicsToApprove: 0, zeroUploads: 0, zeroPhotos: 0, zeroSchematics: 0 }
     );
   }, [filteredSorted]);
+
+  // Distinct troupe and district counts matching the active district + search filters
+  const filteredCounts = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    const troupeSet = new Set();
+    const districtSet = new Set();
+    for (const u of users) {
+      const districtName = u.district || '—';
+      const groupName = u.group || '—';
+      if (districtFilter !== 'all' && districtName !== districtFilter) continue;
+      if (s && !groupName.toLowerCase().includes(s) && !districtName.toLowerCase().includes(s)) continue;
+      if (u.troupe) troupeSet.add(`${districtName}||${groupName}||${u.troupe}`);
+      if (u.district) districtSet.add(districtName);
+    }
+    return { troupes: troupeSet.size, districts: districtSet.size };
+  }, [users, districtFilter, search]);
 
   const exportCSV = () => {
     const headers = [
@@ -235,34 +253,42 @@ const UsersStats = () => {
               </div>
             </div>
 
-            <div className="summary-bar">
-              <div className="summary-item">
-                <span className="summary-value">{filteredSorted.length}</span>
-                <span className="summary-label">Groupes</span>
+            <div className="summary-meta">
+              <strong>{filteredCounts.troupes}</strong> troupes
+              <span className="summary-meta-sep">·</span>
+              <strong>{filteredSorted.length}</strong> groupes
+              <span className="summary-meta-sep">·</span>
+              <strong>{filteredCounts.districts}</strong> districts
+            </div>
+
+            <div className="summary-kpi-row">
+              <div className="kpi-card kpi-card--total">
+                <div className="kpi-icon" aria-hidden="true">📤</div>
+                <div className="kpi-body">
+                  <div className="kpi-value">{totals.total}</div>
+                  <div className="kpi-label">Total uploads</div>
+                </div>
               </div>
-              <div className="summary-item">
-                <span className="summary-value">{totals.total}</span>
-                <span className="summary-label">Total uploads</span>
+              <div className="kpi-card kpi-card--photos-approved">
+                <div className="kpi-icon" aria-hidden="true">📷</div>
+                <div className="kpi-body">
+                  <div className="kpi-value">{totals.photosApproved}</div>
+                  <div className="kpi-label">Photos approuvées</div>
+                </div>
               </div>
-              <div className="summary-item">
-                <span className="summary-value">{totals.photos}</span>
-                <span className="summary-label">Photos</span>
+              <div className="kpi-card kpi-card--schematics-approved">
+                <div className="kpi-icon" aria-hidden="true">📐</div>
+                <div className="kpi-body">
+                  <div className="kpi-value">{totals.schematicsApproved}</div>
+                  <div className="kpi-label">Schémas approuvés</div>
+                </div>
               </div>
-              <div className="summary-item">
-                <span className="summary-value">{totals.schematics}</span>
-                <span className="summary-label">Schémas</span>
-              </div>
-              <div className="summary-item approved">
-                <span className="summary-value">{totals.approved}</span>
-                <span className="summary-label">Approuvés</span>
-              </div>
-              <div className="summary-item pending">
-                <span className="summary-value">{totals.pending}</span>
-                <span className="summary-label">En attente</span>
-              </div>
-              <div className="summary-item rejected">
-                <span className="summary-value">{totals.rejected}</span>
-                <span className="summary-label">Rejetés</span>
+              <div className="kpi-card kpi-card--rejected">
+                <div className="kpi-icon" aria-hidden="true">❌</div>
+                <div className="kpi-body">
+                  <div className="kpi-value">{totals.rejected}</div>
+                  <div className="kpi-label">Rejetés</div>
+                </div>
               </div>
             </div>
 
