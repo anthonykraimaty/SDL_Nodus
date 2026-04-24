@@ -48,7 +48,8 @@ const DesignGroupPicker = ({
   };
 
   const handleCreateGroup = () => {
-    if (disabled || !newGroupName.trim()) return;
+    if (disabled) return;
+    // Name is optional per the placeholder label — pass empty string for unnamed groups.
     onCreateGroup(newGroupName.trim());
     setNewGroupName('');
     setShowCreateNew(false);

@@ -336,10 +336,10 @@ const Classify = () => {
     let groupCreated = false;
     if (allPictureIds.length >= 2) {
       try {
-        if (bulkClassification.createNewGroup && bulkClassification.newGroupName) {
-          // Create a new design group with these pictures
+        if (bulkClassification.createNewGroup) {
+          // Create a new design group with these pictures (name is optional)
           await designGroupService.create({
-            name: bulkClassification.newGroupName,
+            name: bulkClassification.newGroupName || null,
             pictureIds: allPictureIds,
           });
           groupCreated = true;
@@ -462,10 +462,14 @@ const Classify = () => {
                     disabled={bulkClassifying}
                     createOnly={true}
                   />
-                  {bulkClassification.createNewGroup && bulkClassification.newGroupName && (
+                  {bulkClassification.createNewGroup && (
                     <div className="staged-group-pill">
                       <span>
-                        Groupe « <strong>{bulkClassification.newGroupName}</strong> » sera créé au moment de classifier
+                        {bulkClassification.newGroupName ? (
+                          <>Groupe « <strong>{bulkClassification.newGroupName}</strong> » sera créé au moment de classifier</>
+                        ) : (
+                          <>Un groupe (sans nom) sera créé au moment de classifier</>
+                        )}
                       </span>
                       <button
                         type="button"
