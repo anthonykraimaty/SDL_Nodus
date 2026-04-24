@@ -291,6 +291,15 @@ const Dashboard = () => {
                   <p>{schematicStats.pending} pending approval</p>
                 </div>
               </Link>
+              {user?.role === 'ADMIN' && (
+                <Link to="/admin/dashboard#audit" className="action-card audit-action">
+                  <div className="action-icon">🔍</div>
+                  <div className="action-content">
+                    <h3>Audit des approbations</h3>
+                    <p>Who approved what, and edits after approval</p>
+                  </div>
+                </Link>
+              )}
             </div>
           </>
         )}

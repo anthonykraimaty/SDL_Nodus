@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, getImageUrl } from '../config/api';
 import Icon from '../components/Icon';
@@ -75,6 +75,8 @@ const AdminDashboard = () => {
   const [typeSyncResult, setTypeSyncResult] = useState(null);
   const [debugData, setDebugData] = useState(null);
 
+  const location = useLocation();
+
   useEffect(() => {
     loadAllStats();
   }, []);
@@ -82,6 +84,18 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadAudit();
   }, [auditOthersOnly, auditType]);
+
+  // Scroll to #audit when the URL has that hash. Re-runs once the audit data
+  // loads so the element has its real height before we compute the offset.
+  useEffect(() => {
+    if (location.hash !== '#audit') return;
+    const el = document.getElementById('audit');
+    if (!el) return;
+    // next frame → layout is settled
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, auditLoading]);
 
   const loadAudit = async () => {
     try {
@@ -539,7 +553,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Audit Section */}
-        <div className="section-header" data-chapter="IV">
+        <div id="audit" className="section-header" data-chapter="IV">
           <h2>Audit</h2>
           <span className="section-subtitle">approbations récentes</span>
         </div>
