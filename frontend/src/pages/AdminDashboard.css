@@ -257,7 +257,7 @@
   background: var(--accent-dark, #b8935a);
 }
 
-.stat-icon {
+.admin-dashboard .stat-icon {
   flex-shrink: 0;
   width: 2.6rem;
   height: 2.6rem;
@@ -273,29 +273,29 @@
   transition: all 0.15s ease;
 }
 
-.stat-icon .nodus-icon {
+.admin-dashboard .stat-icon .nodus-icon {
   stroke: var(--ink-1);
   width: 26px;
   height: 26px;
   stroke-width: 1.75;
 }
 
-.stat-card:hover .stat-icon {
+.admin-dashboard .stat-card:hover .stat-icon {
   background: var(--ink-1);
   border-color: var(--ink-1);
 }
 
-.stat-card:hover .stat-icon .nodus-icon {
+.admin-dashboard .stat-card:hover .stat-icon .nodus-icon {
   stroke: var(--paper-0);
 }
 
-.stat-card.pending-card .stat-icon,
-.stat-card.warning-card .stat-icon {
+.admin-dashboard .stat-card.pending-card .stat-icon,
+.admin-dashboard .stat-card.warning-card .stat-icon {
   border-color: var(--accent-dark, #b8935a);
 }
 
-.stat-card.pending-card .stat-icon .nodus-icon,
-.stat-card.warning-card .stat-icon .nodus-icon {
+.admin-dashboard .stat-card.pending-card .stat-icon .nodus-icon,
+.admin-dashboard .stat-card.warning-card .stat-icon .nodus-icon {
   stroke: var(--accent-dark, #b8935a);
 }
 
@@ -473,7 +473,7 @@
   border-right-color: var(--rule-dim);
 }
 
-.action-card .action-icon {
+.admin-dashboard .action-card .action-icon {
   flex-shrink: 0;
   width: 2.6rem;
   height: 2.6rem;
@@ -488,19 +488,19 @@
   transition: all 0.15s ease;
 }
 
-.action-card .action-icon .nodus-icon {
+.admin-dashboard .action-card .action-icon .nodus-icon {
   stroke: var(--ink-1);
   width: 26px;
   height: 26px;
   stroke-width: 1.75;
 }
 
-.action-card:hover .action-icon {
+.admin-dashboard .action-card:hover .action-icon {
   background: var(--ink-1);
   border-color: var(--ink-1);
 }
 
-.action-card:hover .action-icon .nodus-icon {
+.admin-dashboard .action-card:hover .action-icon .nodus-icon {
   stroke: var(--paper-0);
 }
 
