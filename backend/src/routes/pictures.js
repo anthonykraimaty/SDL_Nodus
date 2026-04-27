@@ -722,8 +722,11 @@ router.put('/:id/classify', authenticate, async (req, res) => {
 
     const { categoryId, subCategoryId, description, location, latitude, longitude, tags, woodCount } = req.body;
 
+    // Schematics keep status=PENDING through classify so the schematic review
+    // queue (which filters status='PENDING') can find them. Installation
+    // photos transition to CLASSIFIED as before.
     const updateData = {
-      status: 'CLASSIFIED',
+      status: pictureSet.type === 'SCHEMATIC' ? 'PENDING' : 'CLASSIFIED',
       classifiedById: req.user.id,
       classifiedAt: new Date(),
     };
@@ -753,6 +756,50 @@ router.put('/:id/classify', authenticate, async (req, res) => {
         pictures: { where: { isArchived: false }, orderBy: { displayOrder: 'asc' } },
       },
     });
+
+    // For schematics, mirror the schematic-classify flow: keep CategoryProgress
+    // in sync so /progress endpoints reflect the SUBMITTED state. Only do this
+    // when the category is part of a CategorySet (winner-track schematics).
+    if (
+      updatedPictureSet.type === 'SCHEMATIC' &&
+      updatedPictureSet.patrouilleId &&
+      updatedPictureSet.categoryId
+    ) {
+      const setItem = await prisma.categorySetItem.findFirst({
+        where: { categoryId: updatedPictureSet.categoryId },
+        select: { id: true },
+      });
+      if (setItem) {
+        const existingApproved = await prisma.categoryProgress.findFirst({
+          where: {
+            patrouilleId: updatedPictureSet.patrouilleId,
+            categoryId: updatedPictureSet.categoryId,
+            status: 'APPROVED',
+          },
+          select: { id: true },
+        });
+        if (!existingApproved) {
+          await prisma.categoryProgress.upsert({
+            where: {
+              patrouilleId_categoryId: {
+                patrouilleId: updatedPictureSet.patrouilleId,
+                categoryId: updatedPictureSet.categoryId,
+              },
+            },
+            update: {
+              status: 'SUBMITTED',
+              pictureSetId: updatedPictureSet.id,
+            },
+            create: {
+              patrouilleId: updatedPictureSet.patrouilleId,
+              categoryId: updatedPictureSet.categoryId,
+              status: 'SUBMITTED',
+              pictureSetId: updatedPictureSet.id,
+            },
+          });
+        }
+      }
+    }
 
     res.json({
       message: 'Picture set classified successfully',
@@ -829,12 +876,15 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
     });
     const allClassified = allPictures.every(p => p.categoryId !== null);
 
-    // Only transition to CLASSIFIED when all pictures are classified
+    // Only transition to CLASSIFIED when all pictures are classified.
+    // Schematics are excluded from this transition: they must stay PENDING
+    // so the schematic review queue (status='PENDING' filter) can find them.
     const pictureSetUpdateData = {
       classifiedById: req.user.id,
       classifiedAt: new Date(),
     };
-    if (allClassified) {
+    const effectiveSetType = type || pictureSet.type;
+    if (allClassified && effectiveSetType !== 'SCHEMATIC') {
       pictureSetUpdateData.status = 'CLASSIFIED';
     }
 
