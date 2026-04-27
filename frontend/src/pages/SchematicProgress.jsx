@@ -340,60 +340,114 @@ const SchematicProgress = () => {
     setExpandedCompletionPatrouilles((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Re-shape completions data into hierarchy view (district > group > troupe > patrouille > [categories])
-  const buildHierarchyView = (data) => {
-    if (!data || !data.sets) return [];
-    const districts = {};
+  // Derive: which patrouilles fully completed each set, and which sets each
+  // patrouille fully completed. A set is "fully completed" when the patrouille
+  // has at least one APPROVED completion for every item in that set.
+  const buildSetCompletions = (data) => {
+    if (!data || !data.sets) return { setToPatrouilles: {}, patrouilleToSets: {} };
+    const setToPatrouilles = {};
+    const patrouilleToSets = {};
+
     for (const set of data.sets) {
+      const totalItems = set.items.length;
+      // patrouilleId -> { count, info }
+      const tally = {};
       for (const item of set.items) {
+        const seen = new Set();
         for (const c of item.completions) {
-          const dKey = c.districtName || '—';
-          const gKey = c.groupName || '—';
-          const tKey = c.troupeName || '—';
-          const pKey = c.patrouilleId;
-          if (!districts[dKey]) districts[dKey] = { name: dKey, groups: {} };
-          if (!districts[dKey].groups[gKey]) districts[dKey].groups[gKey] = { name: gKey, troupes: {} };
-          if (!districts[dKey].groups[gKey].troupes[tKey]) districts[dKey].groups[gKey].troupes[tKey] = { name: tKey, patrouilles: {} };
-          const trEntry = districts[dKey].groups[gKey].troupes[tKey];
-          if (!trEntry.patrouilles[pKey]) {
-            trEntry.patrouilles[pKey] = {
-              id: pKey,
-              name: c.patrouilleName,
-              totem: c.totem,
-              completions: [],
+          if (seen.has(c.patrouilleId)) continue; // dedupe per item
+          seen.add(c.patrouilleId);
+          if (!tally[c.patrouilleId]) {
+            tally[c.patrouilleId] = {
+              count: 0,
+              info: {
+                patrouilleId: c.patrouilleId,
+                patrouilleName: c.patrouilleName,
+                totem: c.totem,
+                troupeName: c.troupeName,
+                groupName: c.groupName,
+                districtName: c.districtName,
+              },
             };
           }
-          trEntry.patrouilles[pKey].completions.push({
-            setName: set.setName,
-            setOrder: set.displayOrder,
-            itemName: item.itemName,
-            categoryId: item.categoryId,
-            completedAt: c.completedAt,
-          });
+          tally[c.patrouilleId].count += 1;
         }
       }
+      const completers = Object.values(tally)
+        .filter((t) => t.count === totalItems && totalItems > 0)
+        .map((t) => t.info)
+        .sort(
+          (a, b) =>
+            (a.districtName || '').localeCompare(b.districtName || '') ||
+            (a.groupName || '').localeCompare(b.groupName || '') ||
+            (a.troupeName || '').localeCompare(b.troupeName || '') ||
+            (a.patrouilleName || '').localeCompare(b.patrouilleName || '')
+        );
+
+      setToPatrouilles[set.setName] = {
+        setName: set.setName,
+        displayOrder: set.displayOrder,
+        totalItems,
+        patrouilles: completers,
+      };
+
+      for (const c of completers) {
+        if (!patrouilleToSets[c.patrouilleId]) {
+          patrouilleToSets[c.patrouilleId] = { info: c, sets: [] };
+        }
+        patrouilleToSets[c.patrouilleId].sets.push({
+          setName: set.setName,
+          displayOrder: set.displayOrder,
+          totalItems,
+        });
+      }
+    }
+
+    for (const p of Object.values(patrouilleToSets)) {
+      p.sets.sort((a, b) => a.displayOrder - b.displayOrder);
+    }
+
+    return { setToPatrouilles, patrouilleToSets };
+  };
+
+  // Hierarchy view from patrouilleToSets: District > (Group — Troupe) > Patrouille
+  const buildHierarchyFromSets = (patrouilleToSets) => {
+    const districts = {};
+    for (const entry of Object.values(patrouilleToSets)) {
+      const c = entry.info;
+      const dKey = c.districtName || '—';
+      const groupName = c.groupName || '—';
+      const troupeName = c.troupeName || '—';
+      const gtKey = `${groupName}::${troupeName}`;
+      if (!districts[dKey]) districts[dKey] = { name: dKey, groupTroupes: {} };
+      if (!districts[dKey].groupTroupes[gtKey]) {
+        districts[dKey].groupTroupes[gtKey] = {
+          key: gtKey,
+          groupName,
+          troupeName,
+          patrouilles: [],
+        };
+      }
+      districts[dKey].groupTroupes[gtKey].patrouilles.push({
+        id: c.patrouilleId,
+        name: c.patrouilleName,
+        totem: c.totem,
+        completedSets: entry.sets,
+      });
     }
     return Object.values(districts)
       .map((d) => ({
         name: d.name,
-        groups: Object.values(d.groups)
-          .map((g) => ({
-            name: g.name,
-            troupes: Object.values(g.troupes)
-              .map((t) => ({
-                name: t.name,
-                patrouilles: Object.values(t.patrouilles)
-                  .map((p) => ({
-                    ...p,
-                    completions: p.completions.sort(
-                      (a, b) => a.setOrder - b.setOrder || a.itemName.localeCompare(b.itemName)
-                    ),
-                  }))
-                  .sort((a, b) => a.name.localeCompare(b.name)),
-              }))
-              .sort((a, b) => a.name.localeCompare(b.name)),
+        groupTroupes: Object.values(d.groupTroupes)
+          .map((gt) => ({
+            ...gt,
+            patrouilles: gt.patrouilles.sort((a, b) => (a.name || '').localeCompare(b.name || '')),
           }))
-          .sort((a, b) => a.name.localeCompare(b.name)),
+          .sort(
+            (a, b) =>
+              a.groupName.localeCompare(b.groupName) ||
+              a.troupeName.localeCompare(b.troupeName)
+          ),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   };
@@ -758,7 +812,7 @@ const SchematicProgress = () => {
                       className={completionsGroupBy === 'hierarchy' ? 'active' : ''}
                       onClick={() => setCompletionsGroupBy('hierarchy')}
                     >
-                      By District / Group / Troupe / Patrouille
+                      By District / Group — Troupe / Patrouille
                     </button>
                   </div>
                 </div>
@@ -767,7 +821,7 @@ const SchematicProgress = () => {
                   <input
                     type="text"
                     className="completions-search"
-                    placeholder="Filter by category, patrouille, troupe, group, district..."
+                    placeholder="Filter by set, patrouille, troupe, group, district..."
                     value={completionsSearch}
                     onChange={(e) => setCompletionsSearch(e.target.value)}
                   />
@@ -788,27 +842,24 @@ const SchematicProgress = () => {
                 ) : completionsData && completionsData.sets ? (
                   (() => {
                     const q = completionsSearch.trim().toLowerCase();
-                    const matchHier = (c) => !q || [
+                    const { setToPatrouilles, patrouilleToSets } = buildSetCompletions(completionsData);
+                    const matchPat = (c) => !q || [
                       c.patrouilleName, c.totem, c.troupeName, c.groupName, c.districtName,
                     ].some((v) => v && v.toLowerCase().includes(q));
 
                     if (completionsGroupBy === 'category') {
-                      const matchCategory = (item, set) => !q || [
-                        item.itemName, set.setName,
-                      ].some((v) => v && v.toLowerCase().includes(q));
+                      const matchSetName = (setName) => !q || (setName || '').toLowerCase().includes(q);
+                      const filteredSets = Object.values(setToPatrouilles)
+                        .map((s) => {
+                          const setHit = matchSetName(s.setName);
+                          const list = setHit ? s.patrouilles : s.patrouilles.filter(matchPat);
+                          return { ...s, filteredPatrouilles: list };
+                        })
+                        .sort((a, b) => a.displayOrder - b.displayOrder);
 
-                      const filteredSets = completionsData.sets.map((s) => ({
-                        ...s,
-                        items: s.items.map((it) => {
-                          const categoryHit = matchCategory(it, s);
-                          const filtered = categoryHit ? it.completions : it.completions.filter(matchHier);
-                          return { ...it, filteredCompletions: filtered };
-                        }),
-                      }));
-                      const totalShown = filteredSets.reduce(
-                        (acc, s) => acc + s.items.reduce((a, i) => a + i.filteredCompletions.length, 0),
-                        0
-                      );
+                      const totalShown = filteredSets.reduce((a, s) => a + s.filteredPatrouilles.length, 0);
+                      const visibleSets = q ? filteredSets.filter((s) => s.filteredPatrouilles.length > 0) : filteredSets;
+
                       return (
                         <>
                           {q && (
@@ -817,9 +868,11 @@ const SchematicProgress = () => {
                             </div>
                           )}
                           <div className="completions-accordion">
-                            {filteredSets.map((set) => {
-                              const setShown = set.items.reduce((a, i) => a + i.filteredCompletions.length, 0);
-                              if (q && setShown === 0) return null;
+                            {visibleSets.length === 0 && (
+                              <div className="empty-state-inline">No fully-completed sets yet.</div>
+                            )}
+                            {visibleSets.map((set) => {
+                              const list = q ? set.filteredPatrouilles : set.patrouilles;
                               const isOpen = q ? true : !!expandedCompletionSets[set.setName];
                               return (
                                 <div key={set.setName} className="completions-set">
@@ -827,60 +880,35 @@ const SchematicProgress = () => {
                                     type="button"
                                     className={`completions-set-header ${isOpen ? 'expanded' : ''}`}
                                     onClick={() => toggleCompletionSet(set.setName)}
+                                    disabled={list.length === 0}
                                   >
                                     <span className="set-name">{set.setName}</span>
                                     <span className="set-total">
-                                      {q ? `${setShown} shown` : `${set.totalCompletions} completion${set.totalCompletions !== 1 ? 's' : ''}`}
+                                      {list.length} patrouille{list.length !== 1 ? 's' : ''} · all {set.totalItems} item{set.totalItems !== 1 ? 's' : ''}
                                     </span>
-                                    <span className="expand-icon">{isOpen ? '▼' : '▶'}</span>
+                                    {list.length > 0 && (
+                                      <span className="expand-icon">{isOpen ? '▼' : '▶'}</span>
+                                    )}
                                   </button>
-                                  {isOpen && (
-                                    <div className="completions-items">
-                                      {set.items.map((item) => {
-                                        const itemKey = `${set.setName}::${item.id}`;
-                                        const list = q ? item.filteredCompletions : item.completions;
-                                        if (q && list.length === 0) return null;
-                                        const itemOpen = q ? true : !!expandedCompletionItems[itemKey];
-                                        return (
-                                          <div key={itemKey} className="completions-item">
-                                            <button
-                                              type="button"
-                                              className={`completions-item-header ${itemOpen ? 'expanded' : ''} ${list.length === 0 ? 'empty' : ''}`}
-                                              onClick={() => toggleCompletionItem(itemKey)}
-                                              disabled={list.length === 0}
-                                            >
-                                              <span className="item-name">{item.itemName}</span>
-                                              <span className="item-count">
-                                                {list.length} patrouille{list.length !== 1 ? 's' : ''}
-                                              </span>
-                                              {list.length > 0 && (
-                                                <span className="expand-icon">{itemOpen ? '▼' : '▶'}</span>
-                                              )}
-                                            </button>
-                                            {itemOpen && list.length > 0 && (
-                                              <ul className="completions-list">
-                                                {list.map((c) => (
-                                                  <li
-                                                    key={`${itemKey}-${c.patrouilleId}`}
-                                                    className="completion-row"
-                                                    onClick={() => handlePatrouilleClick(c.patrouilleId)}
-                                                    title="Open patrouille progress"
-                                                  >
-                                                    <span className="completion-patrouille">
-                                                      {c.patrouilleName}
-                                                      {c.totem && <span className="completion-totem"> · {c.totem}</span>}
-                                                    </span>
-                                                    <span className="completion-hierarchy">
-                                                      {[c.districtName, c.groupName, c.troupeName].filter(Boolean).join(' › ')}
-                                                    </span>
-                                                  </li>
-                                                ))}
-                                              </ul>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
+                                  {isOpen && list.length > 0 && (
+                                    <ul className="completions-list">
+                                      {list.map((c) => (
+                                        <li
+                                          key={`${set.setName}-${c.patrouilleId}`}
+                                          className="completion-row"
+                                          onClick={() => handlePatrouilleClick(c.patrouilleId)}
+                                          title="Open patrouille progress"
+                                        >
+                                          <span className="completion-patrouille">
+                                            {c.patrouilleName}
+                                            {c.totem && <span className="completion-totem"> · {c.totem}</span>}
+                                          </span>
+                                          <span className="completion-hierarchy">
+                                            {[c.districtName, c.groupName, c.troupeName].filter(Boolean).join(' › ')}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
                                   )}
                                 </div>
                               );
@@ -890,49 +918,44 @@ const SchematicProgress = () => {
                       );
                     }
 
-                    // By hierarchy
-                    const hier = buildHierarchyView(completionsData);
-                    const matchCat = (cat) => !q || [cat.setName, cat.itemName].some(
-                      (v) => v && v.toLowerCase().includes(q)
-                    );
+                    // By hierarchy: only patrouilles who fully completed ≥1 set
+                    const hier = buildHierarchyFromSets(patrouilleToSets);
+                    const matchSet = (s) => !q || (s.setName || '').toLowerCase().includes(q);
                     const filterPat = (p, ctx) => {
                       if (!q) return p;
                       const ctxHit = [ctx.district, ctx.group, ctx.troupe, p.name, p.totem]
                         .some((v) => v && v.toLowerCase().includes(q));
-                      const cats = ctxHit ? p.completions : p.completions.filter(matchCat);
-                      return { ...p, filteredCompletions: cats };
+                      const sets = ctxHit ? p.completedSets : p.completedSets.filter(matchSet);
+                      return { ...p, filteredSets: sets };
                     };
 
                     const filteredHier = hier.map((d) => ({
                       ...d,
-                      groups: d.groups.map((g) => ({
-                        ...g,
-                        troupes: g.troupes.map((t) => ({
-                          ...t,
-                          patrouilles: t.patrouilles
-                            .map((p) => filterPat(p, { district: d.name, group: g.name, troupe: t.name }))
-                            .filter((p) => !q || (p.filteredCompletions && p.filteredCompletions.length > 0)),
-                        })).filter((t) => t.patrouilles.length > 0),
-                      })).filter((g) => g.troupes.length > 0),
-                    })).filter((d) => d.groups.length > 0);
+                      groupTroupes: d.groupTroupes.map((gt) => ({
+                        ...gt,
+                        patrouilles: gt.patrouilles
+                          .map((p) => filterPat(p, { district: d.name, group: gt.groupName, troupe: gt.troupeName }))
+                          .filter((p) => !q || (p.filteredSets && p.filteredSets.length > 0)),
+                      })).filter((gt) => gt.patrouilles.length > 0),
+                    })).filter((d) => d.groupTroupes.length > 0);
 
                     const totalShownH = filteredHier.reduce(
-                      (a, d) => a + d.groups.reduce(
-                        (b, g) => b + g.troupes.reduce(
-                          (c, t) => c + t.patrouilles.reduce(
-                            (e, p) => e + (q ? p.filteredCompletions.length : p.completions.length), 0), 0), 0), 0
+                      (a, d) => a + d.groupTroupes.reduce(
+                        (b, gt) => b + gt.patrouilles.length, 0), 0
                     );
 
                     return (
                       <>
                         {q && (
                           <div className="completions-result-count">
-                            {totalShownH} match{totalShownH !== 1 ? 'es' : ''}
+                            {totalShownH} patrouille{totalShownH !== 1 ? 's' : ''}
                           </div>
                         )}
                         <div className="completions-hierarchy">
                           {filteredHier.length === 0 && (
-                            <div className="empty-state-inline">No completions match your filter.</div>
+                            <div className="empty-state-inline">
+                              {q ? 'No matches.' : 'No patrouilles have fully completed a set yet.'}
+                            </div>
                           )}
                           {filteredHier.map((d) => {
                             const dKey = d.name;
@@ -947,8 +970,8 @@ const SchematicProgress = () => {
                                   <span className="expand-icon">{dOpen ? '▼' : '▶'}</span>
                                   <span className="district-name">{d.name}</span>
                                 </button>
-                                {dOpen && d.groups.map((g) => {
-                                  const gKey = `${dKey}::${g.name}`;
+                                {dOpen && d.groupTroupes.map((gt) => {
+                                  const gKey = `${dKey}::${gt.key}`;
                                   const gOpen = q ? true : !!expandedCompletionGroups[gKey];
                                   return (
                                     <div key={gKey} className="completions-group">
@@ -958,72 +981,61 @@ const SchematicProgress = () => {
                                         onClick={() => toggleCompletionGroup(gKey)}
                                       >
                                         <span className="expand-icon">{gOpen ? '▼' : '▶'}</span>
-                                        <span className="group-name">{g.name}</span>
+                                        <span className="group-name">
+                                          {gt.groupName} — {gt.troupeName}
+                                        </span>
+                                        <span className="patrouille-count">
+                                          {gt.patrouilles.length} patrouille{gt.patrouilles.length !== 1 ? 's' : ''}
+                                        </span>
                                       </button>
-                                      {gOpen && g.troupes.map((t) => {
-                                        const tKey = `${gKey}::${t.name}`;
-                                        const tOpen = q ? true : !!expandedCompletionTroupes[tKey];
+                                      {gOpen && gt.patrouilles.map((p) => {
+                                        const pKey = `${gKey}::${p.id}`;
+                                        const pOpen = q ? true : !!expandedCompletionPatrouilles[pKey];
+                                        const sets = q ? p.filteredSets : p.completedSets;
                                         return (
-                                          <div key={tKey} className="completions-troupe">
-                                            <button
-                                              type="button"
-                                              className={`completions-troupe-header ${tOpen ? 'expanded' : ''}`}
-                                              onClick={() => toggleCompletionTroupe(tKey)}
+                                          <div key={pKey} className="completions-patrouille">
+                                            <div
+                                              className={`completions-patrouille-header ${pOpen ? 'expanded' : ''}`}
+                                              onClick={() => toggleCompletionPatrouille(pKey)}
+                                              role="button"
+                                              tabIndex={0}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                  e.preventDefault();
+                                                  toggleCompletionPatrouille(pKey);
+                                                }
+                                              }}
                                             >
-                                              <span className="expand-icon">{tOpen ? '▼' : '▶'}</span>
-                                              <span className="troupe-name">{t.name}</span>
-                                            </button>
-                                            {tOpen && t.patrouilles.map((p) => {
-                                              const pKey = `${tKey}::${p.id}`;
-                                              const pOpen = q ? true : !!expandedCompletionPatrouilles[pKey];
-                                              const cats = q ? p.filteredCompletions : p.completions;
-                                              return (
-                                                <div key={pKey} className="completions-patrouille">
-                                                  <div
-                                                    className={`completions-patrouille-header ${pOpen ? 'expanded' : ''}`}
-                                                    onClick={() => toggleCompletionPatrouille(pKey)}
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        toggleCompletionPatrouille(pKey);
-                                                      }
-                                                    }}
-                                                  >
-                                                    <span className="expand-icon">{pOpen ? '▼' : '▶'}</span>
-                                                    <span className="patrouille-name">
-                                                      {p.name}
-                                                      {p.totem && <span className="completion-totem"> · {p.totem}</span>}
-                                                    </span>
-                                                    <span className="patrouille-count">
-                                                      {cats.length} categor{cats.length !== 1 ? 'ies' : 'y'}
-                                                    </span>
-                                                    <button
-                                                      type="button"
-                                                      className="btn-open-patrouille"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handlePatrouilleClick(p.id);
-                                                      }}
-                                                      title="Open patrouille progress"
-                                                    >
-                                                      View
-                                                    </button>
-                                                  </div>
-                                                  {pOpen && (
-                                                    <ul className="completions-category-list">
-                                                      {cats.map((c) => (
-                                                        <li key={`${pKey}-${c.categoryId}`} className="completion-category-row">
-                                                          <span className="cat-set">{c.setName}</span>
-                                                          <span className="cat-item">{c.itemName}</span>
-                                                        </li>
-                                                      ))}
-                                                    </ul>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
+                                              <span className="expand-icon">{pOpen ? '▼' : '▶'}</span>
+                                              <span className="patrouille-name">
+                                                {p.name}
+                                                {p.totem && <span className="completion-totem"> · {p.totem}</span>}
+                                              </span>
+                                              <span className="patrouille-count">
+                                                {sets.length} set{sets.length !== 1 ? 's' : ''}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                className="btn-open-patrouille"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handlePatrouilleClick(p.id);
+                                                }}
+                                                title="Open patrouille progress"
+                                              >
+                                                View
+                                              </button>
+                                            </div>
+                                            {pOpen && (
+                                              <ul className="completions-category-list">
+                                                {sets.map((s) => (
+                                                  <li key={`${pKey}-${s.setName}`} className="completion-category-row">
+                                                    <span className="cat-set">{s.setName}</span>
+                                                    <span className="cat-item">all {s.totalItems} item{s.totalItems !== 1 ? 's' : ''}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
                                           </div>
                                         );
                                       })}
