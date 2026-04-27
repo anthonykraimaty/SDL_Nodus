@@ -582,6 +582,119 @@ router.get(
   }
 );
 
+// GET /api/schematics/progress/completions - Per-item completion list (Branche/Admin)
+// Returns each set/item with the patrouilles that have APPROVED that item,
+// including their troupe / group / district hierarchy.
+router.get(
+  '/progress/completions',
+  authenticate,
+  authorize('BRANCHE_ECLAIREURS', 'ADMIN'),
+  async (req, res) => {
+    try {
+      const setItems = await prisma.categorySetItem.findMany({
+        include: {
+          categorySet: { select: { id: true, name: true, displayOrder: true } },
+          category: { select: { id: true, name: true } },
+        },
+        orderBy: [
+          { categorySet: { displayOrder: 'asc' } },
+          { displayOrder: 'asc' },
+        ],
+      });
+
+      const categoryIds = setItems.map((si) => si.categoryId);
+
+      const approved = categoryIds.length === 0 ? [] : await prisma.categoryProgress.findMany({
+        where: { status: 'APPROVED', categoryId: { in: categoryIds } },
+        select: {
+          categoryId: true,
+          completedAt: true,
+          patrouille: {
+            select: {
+              id: true,
+              name: true,
+              totem: true,
+              troupe: {
+                select: {
+                  id: true,
+                  name: true,
+                  group: {
+                    select: {
+                      id: true,
+                      name: true,
+                      district: { select: { id: true, name: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // categoryId -> [completion]
+      const byCategory = {};
+      for (const row of approved) {
+        const p = row.patrouille;
+        const completion = {
+          patrouilleId: p.id,
+          patrouilleName: p.name,
+          totem: p.totem,
+          troupeName: p.troupe?.name || null,
+          groupName: p.troupe?.group?.name || null,
+          districtName: p.troupe?.group?.district?.name || null,
+          completedAt: row.completedAt,
+        };
+        if (!byCategory[row.categoryId]) byCategory[row.categoryId] = [];
+        byCategory[row.categoryId].push(completion);
+      }
+
+      // Group by set, preserving displayOrder. Sort completions by district >
+      // group > troupe > patrouille so the modal reads top-down.
+      const setMap = {};
+      for (const si of setItems) {
+        const setKey = si.categorySet.id;
+        if (!setMap[setKey]) {
+          setMap[setKey] = {
+            setId: si.categorySet.id,
+            setName: si.categorySet.name,
+            displayOrder: si.categorySet.displayOrder,
+            items: [],
+          };
+        }
+        const completions = (byCategory[si.categoryId] || []).slice().sort((a, b) => {
+          return (
+            (a.districtName || '').localeCompare(b.districtName || '') ||
+            (a.groupName || '').localeCompare(b.groupName || '') ||
+            (a.troupeName || '').localeCompare(b.troupeName || '') ||
+            (a.patrouilleName || '').localeCompare(b.patrouilleName || '')
+          );
+        });
+        setMap[setKey].items.push({
+          id: si.id,
+          categoryId: si.categoryId,
+          itemName: si.category.name,
+          displayOrder: si.displayOrder,
+          completionCount: completions.length,
+          completions,
+        });
+      }
+
+      const sets = Object.values(setMap)
+        .map((s) => ({
+          ...s,
+          totalCompletions: s.items.reduce((acc, it) => acc + it.completionCount, 0),
+        }))
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+
+      res.json({ sets });
+    } catch (error) {
+      console.error('Error fetching completions:', error);
+      res.status(500).json({ error: 'Failed to fetch completions' });
+    }
+  }
+);
+
 // GET /api/schematics/progress/:patrouilleId - Get progress for one patrouille
 // NOTE: This generic route MUST be after the more specific routes above
 router.get('/progress/:patrouilleId', authenticate, async (req, res) => {

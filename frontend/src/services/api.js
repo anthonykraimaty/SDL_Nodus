@@ -351,6 +351,7 @@ export const schematicService = {
   },
   getStats: () => api.get('/api/schematics/stats', true),
   getCategoryStats: () => api.get('/api/schematics/stats/by-category', true),
+  getCompletions: () => api.get('/api/schematics/progress/completions', true),
 
   // Chef Troupe
   getUnclassified: () => api.get('/api/schematics/unclassified', true),
