@@ -86,6 +86,14 @@ const AdminLayout = () => {
           </Link>
 
           <Link
+            to="/admin/recovered"
+            className={`admin-nav-link ${isActive('/admin/recovered') ? 'active' : ''}`}
+          >
+            <span className="nav-icon">♻️</span>
+            <span className="nav-text">Recovered</span>
+          </Link>
+
+          <Link
             to="/admin/audit"
             className={`admin-nav-link ${isActive('/admin/audit') ? 'active' : ''}`}
           >

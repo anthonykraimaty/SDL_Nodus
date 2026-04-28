@@ -431,6 +431,17 @@ export const designGroupService = {
   },
 };
 
+// Recovered files (admin-only): orphan B2 objects whose Picture row was lost.
+export const recoveredService = {
+  list: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return api.get(`/api/admin/recovered${query ? '?' + query : ''}`, true);
+  },
+  promote: (id, data) => api.post(`/api/admin/recovered/${id}/promote`, data, true),
+  discard: (id, notes) => api.post(`/api/admin/recovered/${id}/discard`, { notes }, true),
+  restorePending: (id) => api.post(`/api/admin/recovered/${id}/restore-pending`, {}, true),
+};
+
 // System settings / feature flags
 export const settingsService = {
   get: () => api.get('/api/settings'),

@@ -24,6 +24,7 @@ import schematicRoutes from './routes/schematics.js';
 import categorySetRoutes from './routes/categorySets.js';
 import designGroupRoutes from './routes/designGroups.js';
 import sitemapRoutes from './routes/sitemap.js';
+import recoveredRoutes from './routes/recovered.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,6 +114,7 @@ app.use('/api/patrouilles', patrouilleRoutes);
 app.use('/api/schematics', schematicRoutes);
 app.use('/api/category-sets', categorySetRoutes);
 app.use('/api/design-groups', designGroupRoutes);
+app.use('/api/admin/recovered', recoveredRoutes);
 app.use('/api', sitemapRoutes); // Sitemap and robots.txt
 
 // 404 handler

@@ -43,6 +43,9 @@ Thumbs.db
 backend/uploads/
 uploads/
 
+# Local maintenance script reports (B2 reconciliation, etc.)
+backend/reports/
+
 # Database
 *.db
 *.sqlite

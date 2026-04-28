@@ -512,3 +512,46 @@ model CategoryProgress {
   @@index([categoryId])
   @@index([status])
 }
+
+// Holding area for B2 objects whose Picture row was lost. Admin reviews
+// each one in /admin/recovered, picks a type/troupe/category/patrouille,
+// then promotes it (creates a new PictureSet + Picture) or discards it.
+enum RecoveredFileStatus {
+  PENDING
+  PROMOTED
+  DISCARDED
+}
+
+model RecoveredFile {
+  id                Int                 @id @default(autoincrement())
+  fileKey           String              @unique // B2 key, e.g. pictures/2026/04/abc.jpg
+  fileUrl           String              // Public URL used by the frontend preview
+  thumbKey          String?
+  thumbUrl          String?
+  sizeBytes         Int?
+  lastModifiedB2    DateTime?
+  status            RecoveredFileStatus @default(PENDING)
+
+  // Audit-derived hints (from PictureAudit snapshot when row was deleted).
+  // Pre-filled in the UI but the admin can override before promoting.
+  hintTroupeId      Int?
+  hintUploaderId    Int?
+  hintAction        String?             // e.g. SET_DELETED_ON_LAST_ARCHIVE
+  hintAuditAt       DateTime?
+
+  // Result of promotion (set when an admin clicks "Restore")
+  promotedSetId     Int?
+  promotedAt        DateTime?
+  promotedById      Int?
+
+  // Result of discard
+  discardedAt       DateTime?
+  discardedById     Int?
+
+  notes             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([status])
+  @@index([hintTroupeId])
+}
