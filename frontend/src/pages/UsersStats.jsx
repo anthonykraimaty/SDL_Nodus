@@ -1,10 +1,19 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { analyticsService } from '../services/api';
 import './UsersStats.css';
 
 const emptyBucket = () => ({ total: 0, toClassify: 0, toApprove: 0, approved: 0, rejected: 0 });
+
+const COLUMN_ORDER_STORAGE_KEY = 'usersStats.columnOrder.v1';
+
+const DEFAULT_COLUMN_ORDER = [
+  'district', 'group', 'troupe',
+  'users', 'uploaders', 'total',
+  'photos.total', 'photos.approved', 'photos.toClassify', 'photos.toApprove', 'photos.rejected',
+  'schematics.total', 'schematics.approved', 'schematics.toApprove', 'schematics.rejected',
+];
 
 const UsersStats = () => {
   const { user } = useAuth();
@@ -15,6 +24,23 @@ const UsersStats = () => {
   const [districtFilter, setDistrictFilter] = useState('all');
   const [groupBy, setGroupBy] = useState('troupe'); // 'troupe' | 'group' | 'district'
   const [sort, setSort] = useState({ key: 'total', dir: 'desc' });
+
+  const [columnOrder, setColumnOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
+      if (!saved) return DEFAULT_COLUMN_ORDER;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return DEFAULT_COLUMN_ORDER;
+      const known = new Set(DEFAULT_COLUMN_ORDER);
+      const cleaned = parsed.filter((id) => known.has(id));
+      const missing = DEFAULT_COLUMN_ORDER.filter((id) => !cleaned.includes(id));
+      return [...cleaned, ...missing];
+    } catch {
+      return DEFAULT_COLUMN_ORDER;
+    }
+  });
+  const [draggedColId, setDraggedColId] = useState(null);
+  const [dragOverColId, setDragOverColId] = useState(null);
 
   // Pictures-by-category chart (moved here from Dashboard)
   const [categoryStats, setCategoryStats] = useState([]);
@@ -245,6 +271,219 @@ const UsersStats = () => {
     URL.revokeObjectURL(url);
   };
 
+  const columnDefs = useMemo(() => ({
+    district: {
+      label: 'District',
+      sortKey: 'district',
+      numeric: false,
+      visible: true,
+      render: (r) => <td>{r.district}</td>,
+    },
+    group: {
+      label: 'Groupe',
+      sortKey: 'group',
+      numeric: false,
+      visible: groupBy !== 'district',
+      render: (r) => <td className="group-name-cell">{r.group}</td>,
+    },
+    troupe: {
+      label: 'Troupe',
+      sortKey: 'troupe',
+      numeric: false,
+      visible: groupBy === 'troupe',
+      render: (r) => <td className="troupe-name-cell">{r.troupe}</td>,
+    },
+    users: {
+      label: 'Utilisateurs',
+      sortKey: 'users',
+      numeric: true,
+      visible: true,
+      render: (r) => <td className="num-col">{r.users}</td>,
+    },
+    uploaders: {
+      label: 'Uploaders',
+      sortKey: 'uploaders',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          <span className={r.uploaders === 0 ? 'zero-count' : ''}>{r.uploaders}</span>
+        </td>
+      ),
+    },
+    total: {
+      label: 'Total',
+      sortKey: 'total',
+      numeric: true,
+      visible: true,
+      render: (r) => <td className="num-col total-col">{r.total}</td>,
+    },
+    'photos.total': {
+      label: 'Photos',
+      sortKey: 'photos.total',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          <span className={r.photos.total === 0 ? 'zero-count' : ''}>{r.photos.total}</span>
+        </td>
+      ),
+    },
+    'photos.approved': {
+      label: 'Approuvées',
+      sortKey: 'photos.approved',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          <span className={r.photos.approved > 0 ? 'approved-count' : ''}>{r.photos.approved}</span>
+        </td>
+      ),
+    },
+    'photos.toClassify': {
+      label: 'À classer',
+      sortKey: 'photos.toClassify',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          {r.photos.toClassify > 0 && <span className="pending-count">{r.photos.toClassify}</span>}
+        </td>
+      ),
+    },
+    'photos.toApprove': {
+      label: 'À approuver',
+      sortKey: 'photos.toApprove',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          {r.photos.toApprove > 0 && <span className="pending-count">{r.photos.toApprove}</span>}
+        </td>
+      ),
+    },
+    'photos.rejected': {
+      label: 'Rejetées',
+      sortKey: 'photos.rejected',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          {r.photos.rejected > 0 && <span className="rejected-count">{r.photos.rejected}</span>}
+        </td>
+      ),
+    },
+    'schematics.total': {
+      label: 'Schémas',
+      sortKey: 'schematics.total',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          <span className={r.schematics.total === 0 ? 'zero-count' : ''}>{r.schematics.total}</span>
+        </td>
+      ),
+    },
+    'schematics.approved': {
+      label: 'Approuvés',
+      sortKey: 'schematics.approved',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          <span className={r.schematics.approved > 0 ? 'approved-count' : ''}>{r.schematics.approved}</span>
+        </td>
+      ),
+    },
+    'schematics.toApprove': {
+      label: 'À approuver',
+      sortKey: 'schematics.toApprove',
+      numeric: true,
+      visible: true,
+      render: (r) => {
+        const v = r.schematics.toClassify + r.schematics.toApprove;
+        return (
+          <td className="num-col">
+            {v > 0 && <span className="pending-count">{v}</span>}
+          </td>
+        );
+      },
+    },
+    'schematics.rejected': {
+      label: 'Rejetés',
+      sortKey: 'schematics.rejected',
+      numeric: true,
+      visible: true,
+      render: (r) => (
+        <td className="num-col">
+          {r.schematics.rejected > 0 && <span className="rejected-count">{r.schematics.rejected}</span>}
+        </td>
+      ),
+    },
+  }), [groupBy]);
+
+  const visibleColumns = useMemo(
+    () => columnOrder.filter((id) => columnDefs[id]?.visible),
+    [columnOrder, columnDefs]
+  );
+
+  const persistColumnOrder = (next) => {
+    setColumnOrder(next);
+    try {
+      localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignore quota / privacy mode
+    }
+  };
+
+  const handleColDragStart = (id) => (e) => {
+    setDraggedColId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', id); } catch { /* some browsers */ }
+  };
+
+  const handleColDragOver = (id) => (e) => {
+    if (draggedColId == null || draggedColId === id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColId !== id) setDragOverColId(id);
+  };
+
+  const handleColDragLeave = (id) => () => {
+    if (dragOverColId === id) setDragOverColId(null);
+  };
+
+  const handleColDrop = (targetId) => (e) => {
+    e.preventDefault();
+    if (!draggedColId || draggedColId === targetId) {
+      setDraggedColId(null);
+      setDragOverColId(null);
+      return;
+    }
+    const next = [...columnOrder];
+    const fromIdx = next.indexOf(draggedColId);
+    const toIdx = next.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedColId(null);
+      setDragOverColId(null);
+      return;
+    }
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, draggedColId);
+    persistColumnOrder(next);
+    setDraggedColId(null);
+    setDragOverColId(null);
+  };
+
+  const handleColDragEnd = () => {
+    setDraggedColId(null);
+    setDragOverColId(null);
+  };
+
+  const resetColumnOrder = () => {
+    persistColumnOrder(DEFAULT_COLUMN_ORDER);
+  };
+
   if (!['BRANCHE_ECLAIREURS', 'ADMIN'].includes(user?.role)) {
     return (
       <div className="container">
@@ -473,127 +712,65 @@ const UsersStats = () => {
               <button className="btn-export-csv" onClick={exportCSV}>
                 Export CSV
               </button>
+              <button
+                type="button"
+                className="btn-reset-columns"
+                onClick={resetColumnOrder}
+                title="Restaurer l'ordre par défaut des colonnes"
+              >
+                Reset columns
+              </button>
             </div>
 
             <div className="data-table-wrapper">
               <table className="users-stats-table">
                 <thead>
                   <tr>
-                    <th onClick={() => toggleSort('district')}>
-                      District <SortIcon column="district" />
-                    </th>
-                    {groupBy !== 'district' && (
-                      <th onClick={() => toggleSort('group')}>
-                        Groupe <SortIcon column="group" />
-                      </th>
-                    )}
-                    {groupBy === 'troupe' && (
-                      <th onClick={() => toggleSort('troupe')}>
-                        Troupe <SortIcon column="troupe" />
-                      </th>
-                    )}
-                    <th onClick={() => toggleSort('users')} className="num-col">
-                      Utilisateurs <SortIcon column="users" />
-                    </th>
-                    <th onClick={() => toggleSort('uploaders')} className="num-col">
-                      Uploaders <SortIcon column="uploaders" />
-                    </th>
-                    <th onClick={() => toggleSort('total')} className="num-col">
-                      Total <SortIcon column="total" />
-                    </th>
-                    <th onClick={() => toggleSort('photos.total')} className="num-col">
-                      Photos <SortIcon column="photos.total" />
-                    </th>
-                    <th onClick={() => toggleSort('photos.approved')} className="num-col">
-                      Approuvées <SortIcon column="photos.approved" />
-                    </th>
-                    <th onClick={() => toggleSort('photos.toClassify')} className="num-col">
-                      À classer <SortIcon column="photos.toClassify" />
-                    </th>
-                    <th onClick={() => toggleSort('photos.toApprove')} className="num-col">
-                      À approuver <SortIcon column="photos.toApprove" />
-                    </th>
-                    <th onClick={() => toggleSort('photos.rejected')} className="num-col">
-                      Rejetées <SortIcon column="photos.rejected" />
-                    </th>
-                    <th onClick={() => toggleSort('schematics.total')} className="num-col">
-                      Schémas <SortIcon column="schematics.total" />
-                    </th>
-                    <th onClick={() => toggleSort('schematics.approved')} className="num-col">
-                      Approuvés <SortIcon column="schematics.approved" />
-                    </th>
-                    <th onClick={() => toggleSort('schematics.toApprove')} className="num-col">
-                      À approuver <SortIcon column="schematics.toApprove" />
-                    </th>
-                    <th onClick={() => toggleSort('schematics.rejected')} className="num-col">
-                      Rejetés <SortIcon column="schematics.rejected" />
-                    </th>
+                    {visibleColumns.map((id) => {
+                      const col = columnDefs[id];
+                      const classes = [
+                        col.numeric ? 'num-col' : '',
+                        'reorderable-col',
+                        draggedColId === id ? 'col-dragging' : '',
+                        dragOverColId === id ? 'col-drag-over' : '',
+                      ].filter(Boolean).join(' ');
+                      return (
+                        <th
+                          key={id}
+                          className={classes}
+                          draggable
+                          onDragStart={handleColDragStart(id)}
+                          onDragOver={handleColDragOver(id)}
+                          onDragLeave={handleColDragLeave(id)}
+                          onDrop={handleColDrop(id)}
+                          onDragEnd={handleColDragEnd}
+                          onClick={() => toggleSort(col.sortKey)}
+                          title="Glisser pour réorganiser · Cliquer pour trier"
+                        >
+                          <span className="col-drag-handle" aria-hidden="true">⋮⋮</span>
+                          {col.label} <SortIcon column={col.sortKey} />
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={13 + (groupBy !== 'district' ? 1 : 0) + (groupBy === 'troupe' ? 1 : 0)} className="empty-row">
+                      <td colSpan={visibleColumns.length} className="empty-row">
                         Aucun résultat trouvé
                       </td>
                     </tr>
                   ) : (
                     filteredSorted.map((r) => {
-                      const schemToApprove = r.schematics.toClassify + r.schematics.toApprove;
                       const approvedTier =
                         r.photos.approved >= 20 ? 'tier-high' :
                         r.photos.approved >= 15 ? 'tier-mid' : '';
                       return (
                         <tr key={r.key} className={approvedTier}>
-                          <td>{r.district}</td>
-                          {groupBy !== 'district' && (
-                            <td className="group-name-cell">{r.group}</td>
-                          )}
-                          {groupBy === 'troupe' && (
-                            <td className="troupe-name-cell">{r.troupe}</td>
-                          )}
-                          <td className="num-col">{r.users}</td>
-                          <td className="num-col">
-                            <span className={r.uploaders === 0 ? 'zero-count' : ''}>
-                              {r.uploaders}
-                            </span>
-                          </td>
-                          <td className="num-col total-col">{r.total}</td>
-                          <td className="num-col">
-                            <span className={r.photos.total === 0 ? 'zero-count' : ''}>
-                              {r.photos.total}
-                            </span>
-                          </td>
-                          <td className="num-col">
-                            <span className={r.photos.approved > 0 ? 'approved-count' : ''}>
-                              {r.photos.approved}
-                            </span>
-                          </td>
-                          <td className="num-col">
-                            {r.photos.toClassify > 0 && <span className="pending-count">{r.photos.toClassify}</span>}
-                          </td>
-                          <td className="num-col">
-                            {r.photos.toApprove > 0 && <span className="pending-count">{r.photos.toApprove}</span>}
-                          </td>
-                          <td className="num-col">
-                            {r.photos.rejected > 0 && <span className="rejected-count">{r.photos.rejected}</span>}
-                          </td>
-                          <td className="num-col">
-                            <span className={r.schematics.total === 0 ? 'zero-count' : ''}>
-                              {r.schematics.total}
-                            </span>
-                          </td>
-                          <td className="num-col">
-                            <span className={r.schematics.approved > 0 ? 'approved-count' : ''}>
-                              {r.schematics.approved}
-                            </span>
-                          </td>
-                          <td className="num-col">
-                            {schemToApprove > 0 && <span className="pending-count">{schemToApprove}</span>}
-                          </td>
-                          <td className="num-col">
-                            {r.schematics.rejected > 0 && <span className="rejected-count">{r.schematics.rejected}</span>}
-                          </td>
+                          {visibleColumns.map((id) => (
+                            <Fragment key={id}>{columnDefs[id].render(r)}</Fragment>
+                          ))}
                         </tr>
                       );
                     })

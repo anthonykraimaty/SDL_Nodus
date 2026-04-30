@@ -423,6 +423,56 @@
   color: var(--primary-dark);
 }
 
+.users-stats-table thead th.reorderable-col {
+  position: relative;
+  cursor: grab;
+}
+
+.users-stats-table thead th.reorderable-col:active {
+  cursor: grabbing;
+}
+
+.col-drag-handle {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: -1px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+  vertical-align: middle;
+}
+
+.users-stats-table thead th:hover .col-drag-handle {
+  opacity: 0.9;
+}
+
+.users-stats-table thead th.col-dragging {
+  opacity: 0.4;
+  background: var(--bg-medium);
+}
+
+.users-stats-table thead th.col-drag-over {
+  background: rgba(212, 165, 116, 0.25);
+  box-shadow: inset 3px 0 0 0 var(--accent, #d4a574);
+}
+
+.btn-reset-columns {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.btn-reset-columns:hover {
+  border-color: var(--accent, #d4a574);
+  color: var(--text-primary);
+}
+
 .users-stats-table .num-col {
   text-align: right;
   width: 1%;
