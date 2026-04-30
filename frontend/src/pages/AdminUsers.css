@@ -404,6 +404,7 @@
 
   .users-table-container {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .users-table {
@@ -412,6 +413,8 @@
 
   .modal-content {
     padding: var(--spacing-lg);
+    max-width: 90vw;
+    width: 100%;
   }
 
   .modal-actions {
@@ -421,6 +424,27 @@
   .btn-cancel,
   .btn-submit {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-users {
+    padding: var(--spacing-md);
+  }
+
+  .modal-content {
+    padding: var(--spacing-md);
+    max-width: calc(100vw - var(--spacing-md));
+    border-radius: var(--radius-md);
+  }
+
+  .modal-content h3 {
+    font-size: 1.2rem;
+  }
+
+  .modal-content input,
+  .modal-content select {
+    font-size: 16px;
   }
 }
 

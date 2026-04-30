@@ -179,98 +179,7 @@
   box-shadow: 0 6px 20px rgba(212, 165, 116, 0.5);
 }
 
-@media (max-width: 768px) {
-  .navbar {
-    padding: var(--spacing-sm) 0;
-  }
-
-  .navbar-content {
-    flex-wrap: wrap;
-  }
-
-  .navbar-brand {
-    font-size: 1.25rem;
-  }
-
-  .brand-logo {
-    height: 32px;
-  }
-
-  .brand-text {
-    display: none;
-  }
-
-  .navbar-links {
-    order: 3;
-    width: 100%;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--border);
-  }
-
-  .nav-link {
-    padding: var(--spacing-sm);
-    font-size: 0.9rem;
-    min-height: var(--touch-target-min);
-    display: flex;
-    align-items: center;
-  }
-
-  .navbar-user {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--spacing-sm);
-    border-left: none;
-    padding-left: 0;
-    flex-wrap: wrap;
-  }
-
-  .user-name {
-    display: none;
-  }
-
-  .user-role {
-    font-size: 0.75rem;
-    padding: var(--spacing-xs) var(--spacing-sm);
-  }
-
-  .btn-logout {
-    padding: var(--spacing-sm);
-    font-size: 0.85rem;
-    min-height: var(--touch-target-min);
-  }
-
-  .btn-login {
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-size: 0.9rem;
-    min-height: var(--touch-target-min);
-  }
-}
-
-@media (max-width: 480px) {
-  .navbar-links {
-    justify-content: center;
-  }
-
-  .nav-link {
-    flex: 1;
-    justify-content: center;
-    min-width: calc(50% - var(--spacing-xs));
-  }
-
-  .navbar-user {
-    width: 100%;
-    justify-content: space-between;
-    order: 2;
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--border);
-  }
-}
-
-/* Hamburger Menu for Mobile */
+/* Hamburger Menu (hidden on desktop, shown on mobile/tablet) */
 .mobile-menu-toggle {
   display: none;
   background: transparent;
@@ -297,9 +206,28 @@
   transition: all 0.3s ease;
 }
 
-@media (max-width: 640px) {
+/* Mobile + tablet: collapse nav into a hamburger dropdown.
+   The admin role surfaces 10+ links, so even tablet widths can't show them
+   horizontally without overflowing or wrapping awkwardly. */
+@media (max-width: 768px) {
+  .navbar {
+    padding: var(--spacing-sm) 0;
+    position: relative;
+  }
+
+  .navbar-content {
+    flex-wrap: nowrap;
+    gap: var(--spacing-sm);
+  }
+
+  .navbar-brand {
+    font-size: 1.25rem;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
   .brand-logo {
-    height: 44px;
+    height: 40px;
   }
 
   .mobile-menu-toggle {
@@ -307,6 +235,7 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
   }
 
   .navbar-links {
@@ -320,7 +249,11 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     padding: var(--spacing-md);
     flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
     z-index: 99;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
   }
 
   .navbar-links.open {
@@ -334,15 +267,49 @@
     border-radius: var(--radius-sm);
     color: #f5f0e8;
     font-weight: 500;
+    min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
   }
 
   .navbar-links .nav-link:hover {
     background: rgba(212, 165, 116, 0.2);
     color: #d4a574;
+    transform: none;
+  }
+
+  .navbar-links .nav-link::before {
+    display: none;
+  }
+
+  .navbar-user {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+    border-left: none;
+    padding-left: 0;
+    padding-top: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    border-top: 1px solid rgba(245, 240, 232, 0.15);
   }
 
   .navbar-links .btn-login {
     color: var(--primary-dark);
+    width: 100%;
+    justify-content: center;
+  }
+
+  .user-role {
+    font-size: 0.75rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .btn-logout {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.85rem;
+    min-height: var(--touch-target-min);
   }
 
   .mobile-menu-toggle.open span:nth-child(1) {
@@ -355,5 +322,19 @@
 
   .mobile-menu-toggle.open span:nth-child(3) {
     transform: rotate(-45deg) translate(7px, -7px);
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-text {
+    display: none;
+  }
+
+  .brand-logo {
+    height: 36px;
+  }
+
+  .navbar-brand {
+    font-size: 1.1rem;
   }
 }

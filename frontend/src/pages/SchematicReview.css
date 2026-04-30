@@ -511,6 +511,33 @@
 
   .review-filters select {
     width: 100%;
+    min-width: 0;
+  }
+
+  .review-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .review-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .schematic-card {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+
+  .schematic-images {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .approval-preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
 }
 

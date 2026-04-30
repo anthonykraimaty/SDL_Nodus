@@ -377,3 +377,36 @@
   color: #1f2937;
   min-width: 0;
 }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .admin-audit .container {
+    padding: 0 var(--spacing-md);
+  }
+
+  .filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-field-small {
+    max-width: 100%;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-audit {
+    padding: 16px 0 48px;
+  }
+
+  .admin-audit .page-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .audit-filters {
+    padding: 12px;
+  }
+}

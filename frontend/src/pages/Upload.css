@@ -387,3 +387,27 @@
     text-align: center;
   }
 }
+
+@media (max-width: 480px) {
+  .upload-container {
+    margin: 0 var(--spacing-sm);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+  }
+
+  .upload-container h2 {
+    font-size: 1.4rem;
+  }
+
+  .upload-form .form-group {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .upload-form input[type="file"] {
+    font-size: 0.85rem;
+  }
+
+  .upload-form button[type="submit"] {
+    width: 100%;
+  }
+}

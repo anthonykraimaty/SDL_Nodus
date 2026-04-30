@@ -778,6 +778,22 @@
   }
 }
 
+@media (max-width: 480px) {
+  .photo-categories-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .category-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .category-details-modal {
+    width: 100%;
+    max-width: calc(100vw - var(--spacing-md));
+    padding: 16px;
+  }
+}
+
 /* Error Page (Access Denied) */
 .error-page {
   text-align: center;

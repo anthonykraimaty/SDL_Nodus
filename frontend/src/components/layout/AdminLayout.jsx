@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './AdminLayout.css';
@@ -6,6 +7,14 @@ const AdminLayout = () => {
   const { user, logout, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  const closeMobileSidebar = () => setMobileSidebarOpen(false);
+  const toggleMobileSidebar = () => setMobileSidebarOpen((prev) => !prev);
 
   const handleLogout = async () => {
     await logout();
@@ -29,8 +38,24 @@ const AdminLayout = () => {
 
   return (
     <div className="admin-layout">
+      <button
+        className={`mobile-admin-toggle ${mobileSidebarOpen ? 'open' : ''}`}
+        onClick={toggleMobileSidebar}
+        aria-label="Toggle admin menu"
+      >
+        {mobileSidebarOpen ? '✕' : '☰'}
+      </button>
+
+      {mobileSidebarOpen && (
+        <div
+          className="admin-sidebar-backdrop"
+          onClick={closeMobileSidebar}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Admin Sidebar */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
         <div className="admin-brand">
           <span className="brand-icon">🏕️</span>
           <span className="brand-text">Nodus Admin</span>

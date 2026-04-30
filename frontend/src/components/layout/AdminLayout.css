@@ -168,10 +168,22 @@
   }
 }
 
+/* Toggle + backdrop are hidden on desktop */
+.mobile-admin-toggle {
+  display: none;
+}
+
+.admin-sidebar-backdrop {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .admin-sidebar {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
+    width: 280px;
+    max-width: 85vw;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
   }
 
   .admin-sidebar.mobile-open {
@@ -180,21 +192,52 @@
 
   .admin-main {
     margin-left: 0;
+    padding-top: calc(var(--touch-target-min) + var(--spacing-md));
+  }
+
+  .admin-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+    animation: fadeIn 0.2s ease;
   }
 
   /* Mobile menu toggle button */
   .mobile-admin-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: fixed;
-    top: var(--spacing-md);
-    left: var(--spacing-md);
-    z-index: 101;
-    padding: var(--spacing-sm);
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+    z-index: 102;
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    padding: 0;
     background-color: var(--bg-medium);
     border: 2px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
     cursor: pointer;
     font-size: 1.5rem;
+    line-height: 1;
+    box-shadow: var(--shadow-md);
   }
+
+  .mobile-admin-toggle.open {
+    background-color: var(--accent);
+    color: var(--primary-dark);
+    border-color: var(--accent);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Error Page */

@@ -98,6 +98,11 @@
   padding: 0;
 }
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -106,6 +111,11 @@ body {
   background-attachment: fixed;
   color: var(--text-primary);
   position: relative;
+}
+
+img, svg, video, canvas, picture {
+  max-width: 100%;
+  height: auto;
 }
 
 body::before {
@@ -437,6 +447,11 @@ input::placeholder, textarea::placeholder {
 
   .container {
     padding: 0 var(--spacing-sm);
+  }
+
+  button {
+    padding: 0.875rem 1.25rem;
+    font-size: 0.95rem;
   }
 }
 

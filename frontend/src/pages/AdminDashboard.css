@@ -1193,6 +1193,63 @@
   .chart-value { grid-area: value; }
 }
 
+@media (max-width: 480px) {
+  .admin-dashboard { padding: 1.5rem 0.75rem 3rem; }
+
+  .dashboard-header h1 { font-size: 2rem; }
+  .dashboard-header p { font-size: 0.7rem; }
+
+  .hero-metric { padding: 1.25rem 0 1.5rem; margin-bottom: 1.5rem; }
+  .hero-metric__value { font-size: 4rem; }
+
+  .section-header { margin: 2rem 0 0.75rem; }
+  .section-header h2 { font-size: 1.25rem; }
+  .section-header .section-subtitle {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .troupe-search,
+  .troupe-district-filter {
+    max-width: 100%;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .filter-tab { white-space: nowrap; flex-shrink: 0; }
+
+  .data-table-section { padding: 0.75rem; }
+  .data-table { font-size: 0.72rem; }
+  .data-table th,
+  .data-table td { padding: 0.45rem 0.5rem; }
+
+  .date-inputs { flex-direction: column; align-items: stretch; }
+  .date-inputs label { width: 100%; }
+  .date-inputs input[type="date"] { width: 100%; }
+  .btn-compare { width: 100%; }
+
+  .audit-toolbar { flex-direction: column; align-items: stretch; }
+
+  .maintenance-card { padding: 1rem; }
+  .maintenance-actions { flex-direction: column; }
+  .maintenance-actions .btn-secondary,
+  .maintenance-actions .btn-primary { width: 100%; }
+
+  .comp-stat-value { font-size: 1.5rem; }
+}
+
 /* ---------------- Icon utility ---------------- */
 
 .nodus-icon {

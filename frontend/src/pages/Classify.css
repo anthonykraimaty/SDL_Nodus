@@ -870,6 +870,7 @@
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .classify-page .pictures-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: var(--spacing-md);
   }
 
