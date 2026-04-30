@@ -1,7 +1,9 @@
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 import { uploadToR2, isR2Configured } from '../services/r2Storage.js';
+import { isHeic, normalizeImage } from '../services/imageNormalize.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,17 +37,22 @@ const getStorage = () => {
   });
 };
 
-// File filter for images and PDFs
+// File filter for images and PDFs.
+// HEIC/HEIF is accepted here and transcoded to JPEG inside uploadToR2 — the
+// browser cannot render HEIC directly, so we never persist the original.
 const fileFilter = (req, file, cb) => {
   const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
   const extname = path.extname(file.originalname).toLowerCase();
   const isImage = allowedImageTypes.test(extname) && allowedImageTypes.test(file.mimetype);
+  const isHeic =
+    /\.(heic|heif|hif)$/i.test(extname) ||
+    /^image\/(heic|heif)(-sequence)?$/i.test(file.mimetype);
   const isPdf = extname === '.pdf' && file.mimetype === 'application/pdf';
 
-  if (isImage || isPdf) {
+  if (isImage || isHeic || isPdf) {
     return cb(null, true);
   } else {
-    cb(new Error('Only image files (jpeg, jpg, png, gif, webp) and PDF files are allowed'));
+    cb(new Error('Only image files (jpeg, jpg, png, gif, webp, heic) and PDF files are allowed'));
   }
 };
 
@@ -82,7 +89,18 @@ export const processUpload = async (req, res, next) => {
       req.file.filePath = result.url; // For compatibility
       req.file.storageType = 'r2';
     } else {
-      // Local storage - construct the path
+      // Local storage - transcode HEIC on disk so the served file is renderable.
+      if (isHeic(req.file.originalname, req.file.mimetype)) {
+        const buffer = await fs.readFile(req.file.path);
+        const normalized = await normalizeImage(buffer, req.file.originalname, req.file.mimetype);
+        const newFilename = req.file.filename.replace(/\.[^.]+$/, '') + '.jpg';
+        const newPath = path.join(path.dirname(req.file.path), newFilename);
+        await fs.writeFile(newPath, normalized.buffer);
+        await fs.unlink(req.file.path);
+        req.file.filename = newFilename;
+        req.file.path = newPath;
+        req.file.mimetype = 'image/jpeg';
+      }
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');

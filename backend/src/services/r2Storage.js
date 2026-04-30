@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } fr
 import path from 'path';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { normalizeImage } from './imageNormalize.js';
 
 const THUMBNAIL_WIDTH = 400;
 const THUMBNAIL_QUALITY = 75;
@@ -56,13 +57,20 @@ export const uploadToR2 = async (fileBuffer, originalFilename, mimeType) => {
     throw new Error('B2 storage is not configured');
   }
 
-  const fileKey = generateFileKey(originalFilename);
+  // HEIC → JPEG transcode happens here so both the stored object and the
+  // downstream thumbnail use a browser-renderable buffer.
+  const normalized = await normalizeImage(fileBuffer, originalFilename, mimeType);
+  const finalBuffer = normalized.buffer;
+  const finalName = normalized.originalName;
+  const finalMime = normalized.mimeType;
+
+  const fileKey = generateFileKey(finalName);
 
   const command = new PutObjectCommand({
     Bucket: B2_BUCKET,
     Key: fileKey,
-    Body: fileBuffer,
-    ContentType: mimeType,
+    Body: finalBuffer,
+    ContentType: finalMime,
     // Cache for 1 year (images rarely change)
     CacheControl: 'public, max-age=31536000',
   });
@@ -77,8 +85,8 @@ export const uploadToR2 = async (fileBuffer, originalFilename, mimeType) => {
 
   // Fire-and-forget thumbnail generation: never block or fail the main upload.
   // Only images are thumbnailed (PDFs and unknowns are skipped).
-  if (mimeType && mimeType.startsWith('image/')) {
-    generateAndUploadThumbnail(fileBuffer, fileKey).catch((err) => {
+  if (finalMime && finalMime.startsWith('image/')) {
+    generateAndUploadThumbnail(finalBuffer, fileKey).catch((err) => {
       console.error(`Thumbnail generation failed for ${fileKey}:`, err?.message || err);
     });
   }

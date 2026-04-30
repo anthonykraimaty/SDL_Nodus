@@ -4,6 +4,8 @@ import { API_URL } from '../config/api';
 import './AdminAudit.css';
 
 const ACTION_LABELS = {
+  UPLOADED: 'Uploaded',
+  UPLOADED_REPLACEMENT: 'Replaced (edit)',
   ARCHIVED: 'Archived',
   RESTORED: 'Restored',
   DELETED: 'Deleted',
@@ -14,6 +16,8 @@ const ACTION_LABELS = {
 };
 
 const ACTION_CLASS = {
+  UPLOADED: 'ok',
+  UPLOADED_REPLACEMENT: 'info',
   ARCHIVED: 'warn',
   RESTORED: 'ok',
   DELETED: 'bad',

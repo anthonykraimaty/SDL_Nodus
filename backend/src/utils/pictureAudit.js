@@ -2,6 +2,8 @@
 // Never throws — failures are logged so the parent operation still succeeds.
 
 export const PictureAuditAction = Object.freeze({
+  UPLOADED: 'UPLOADED',                                 // New file written to storage
+  UPLOADED_REPLACEMENT: 'UPLOADED_REPLACEMENT',         // Edit-image overwrote an existing picture
   ARCHIVED: 'ARCHIVED',
   RESTORED: 'RESTORED',
   DELETED: 'DELETED',

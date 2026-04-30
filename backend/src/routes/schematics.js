@@ -865,7 +865,7 @@ router.post(
       // Validate patrouille belongs to user's troupe
       const patrouille = await prisma.patrouille.findUnique({
         where: { id: parseInt(patrouilleId) },
-        include: { troupe: true },
+        include: { troupe: { include: { group: { include: { district: true } } } } },
       });
 
       if (!patrouille) {
@@ -942,8 +942,10 @@ router.post(
         });
       }
 
-      // Upload files to storage
+      // Upload files to storage. Track originalFilename per uploaded file
+      // so the audit log can record it alongside the resulting filePath.
       const uploadedPictures = [];
+      const fileMeta = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         let filePath;
@@ -977,6 +979,12 @@ router.post(
           filePath,
           displayOrder: i,
         });
+        fileMeta.push({
+          filePath,
+          displayOrder: i,
+          originalName: file.originalname,
+          sizeBytes: file.size,
+        });
       }
 
       // Generate title
@@ -1004,6 +1012,38 @@ router.post(
           patrouille: true,
         },
       });
+
+      // Audit: one row per uploaded file so the B2 key (filePath) can be
+      // mapped back to the user / district / group / troupe / patrouille
+      // even if the PictureSet row is later lost.
+      for (const pic of pictureSet.pictures) {
+        const meta = fileMeta.find((m) => m.filePath === pic.filePath) || {};
+        await logPictureAudit(prisma, {
+          action: PictureAuditAction.UPLOADED,
+          pictureId: pic.id,
+          pictureSetId: pictureSet.id,
+          uploaderId: user.id,
+          troupeId: user.troupeId,
+          actorId: user.id,
+          actorRole: user.role,
+          pictureSetStatusAtAction: pictureSet.status,
+          filePath: pic.filePath,
+          details: {
+            type: 'SCHEMATIC',
+            districtId: patrouille.troupe.group.district.id,
+            districtName: patrouille.troupe.group.district.name,
+            groupId: patrouille.troupe.group.id,
+            groupName: patrouille.troupe.group.name,
+            troupeName: patrouille.troupe.name,
+            patrouilleId: patrouille.id,
+            patrouilleName: patrouille.name,
+            categoryId: categoryIdInt,
+            categoryName: category?.name || null,
+            originalFilename: meta.originalName || null,
+            sizeBytes: meta.sizeBytes || null,
+          },
+        });
+      }
 
       // Create progress record only if category was provided
       if (categoryIdInt) {

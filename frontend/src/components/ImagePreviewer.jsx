@@ -45,6 +45,7 @@ const ImagePreviewer = ({
   // Image editor state
   const [isImageEditing, setIsImageEditing] = useState(false);
   const [imageVersion, setImageVersion] = useState(0);
+  const [imageEditorError, setImageEditorError] = useState('');
 
   // Archive state
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -326,13 +327,19 @@ const ImagePreviewer = ({
   };
 
   const handleImageEditorSave = async (blob, pictureId) => {
+    setImageEditorError('');
     try {
+      if (!blob) {
+        throw new Error("Aucune image à sauvegarder (canvas vide ou export annulé)");
+      }
       await pictureService.editImage(pictureId, blob);
       setIsImageEditing(false);
       setImageVersion(v => v + 1);
       if (onPictureUpdate) onPictureUpdate();
     } catch (err) {
       console.error('Failed to save edited image:', err);
+      setImageEditorError(err.message || 'Échec de la sauvegarde');
+      throw err; // re-throw so ImageEditor stops its saving spinner
     }
   };
 
@@ -403,16 +410,6 @@ const ImagePreviewer = ({
           <button onClick={handleZoomReset} aria-label="Reset zoom">
             Reset
           </button>
-          {canEdit && !isEditing && !isImageEditing && (
-            <button
-              onClick={() => setIsImageEditing(true)}
-              className="toolbar-edit-btn"
-              aria-label="Edit image"
-              title="Retoucher l'image"
-            >
-              ✎ Edit
-            </button>
-          )}
           <button
             onClick={() => setShowDetails(!showDetails)}
             className="toggle-details"
@@ -657,7 +654,11 @@ const ImagePreviewer = ({
               imageUrl={getImageUrl(currentPicture.filePath)}
               pictureId={currentPicture.id}
               onSave={handleImageEditorSave}
-              onCancel={() => setIsImageEditing(false)}
+              onCancel={() => {
+                setIsImageEditing(false);
+                setImageEditorError('');
+              }}
+              saveError={imageEditorError}
             />
           </div>
         )}

@@ -238,7 +238,16 @@
 }
 
 .magic-slider {
-  width: 130px;
+  width: 110px;
+}
+
+.magic-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-ink-soft);
+  padding: 0 2px 0 6px;
 }
 
 .blur-value {
@@ -512,6 +521,18 @@
 .image-editor__actions .image-editor__btn--primary {
   min-width: 160px;
   justify-content: center;
+}
+
+.image-editor__save-error {
+  margin-right: auto;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  background: rgba(220, 53, 69, 0.12);
+  border: 1px solid rgba(220, 53, 69, 0.4);
+  color: #dc3545;
+  font-size: 0.85rem;
+  font-weight: 500;
+  max-width: 60%;
 }
 
 /* =====================================================

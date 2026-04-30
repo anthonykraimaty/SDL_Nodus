@@ -20,7 +20,7 @@ const EDGE_THRESHOLD = 8;
  * - onCancel: Callback when editing is cancelled
  * - pictureId: ID of the picture being edited
  */
-const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
+const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId, saveError = '' }) => {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
   const containerRef = useRef(null);
@@ -49,6 +49,11 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const [blurHandle, setBlurHandle] = useState(null); // Which handle is being dragged
   const [blurDragStart, setBlurDragStart] = useState(null); // Starting position for blur drag
 
+  // Perspective correction state — 4 corners in display coords (TL, TR, BR, BL)
+  const [isPerspective, setIsPerspective] = useState(false);
+  const [perspectiveCorners, setPerspectiveCorners] = useState(null);
+  const [activePerspectiveCorner, setActivePerspectiveCorner] = useState(-1);
+
   // Healing brush state
   const [isHealing, setIsHealing] = useState(false);
   const [healBrushSize, setHealBrushSize] = useState(15);
@@ -63,6 +68,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   // Magic background state
   const [isMagicOpen, setIsMagicOpen] = useState(false);
   const [magicIntensity, setMagicIntensity] = useState(50); // 0-100
+  const [shadowRemoval, setShadowRemoval] = useState(0); // 0-100 — flat-field illumination correction
 
   // Zoom state for the canvas (1.0 = fit, up to 3.0 = 300%)
   const [zoom, setZoom] = useState(1);
@@ -380,12 +386,145 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   // Draw the image on canvas
   // Core pixel transform used by both live preview and final apply.
   // Mutates the passed imageData in place.
+  // `config` accepts a number (legacy: just whitening intensity) or an
+  // object { intensity, shadowRemoval } both 0-100.
   // Declared before drawImage because drawImage's dep array references it.
-  const transformMagicBackground = useCallback((imageData, intensity) => {
-    const t = Math.max(0, Math.min(100, intensity)) / 100;
+  const transformMagicBackground = useCallback((imageData, config) => {
+    const cfg = typeof config === 'number' ? { intensity: config, shadowRemoval: 0 } : (config || {});
+    const t = Math.max(0, Math.min(100, cfg.intensity ?? 0)) / 100;
+    const sFlat = Math.max(0, Math.min(100, cfg.shadowRemoval ?? 0)) / 100;
     const data = imageData.data;
+    const W = imageData.width;
+    const H = imageData.height;
 
-    // Sample near-white background luminance
+    // ---------- Pass 1: shadow / illumination flat-field correction ----------
+    // Build a low-resolution illumination map by taking, in each tile, the
+    // brightest pixel found inside that tile. That brightest value approximates
+    // "the color of the paper at this spot if there were no ink." Then smooth
+    // that map and divide every source pixel by it so the paper becomes uniform.
+    if (sFlat > 0) {
+      const TILE = 24;                    // tile size in pixels
+      const cols = Math.max(1, Math.ceil(W / TILE));
+      const rows = Math.max(1, Math.ceil(H / TILE));
+      const illumR = new Float32Array(cols * rows);
+      const illumG = new Float32Array(cols * rows);
+      const illumB = new Float32Array(cols * rows);
+
+      // Initialize with image min so max-filter works
+      illumR.fill(0); illumG.fill(0); illumB.fill(0);
+
+      // Max-pool each tile, weighted by luminance
+      for (let ty = 0; ty < rows; ty++) {
+        const y0 = ty * TILE;
+        const y1 = Math.min(H, y0 + TILE);
+        for (let tx = 0; tx < cols; tx++) {
+          const x0 = tx * TILE;
+          const x1 = Math.min(W, x0 + TILE);
+          let bestLum = -1, bestR = 220, bestG = 220, bestB = 220;
+          // Subsample inside the tile for speed (every 3rd pixel)
+          for (let y = y0; y < y1; y += 3) {
+            for (let x = x0; x < x1; x += 3) {
+              const i = (y * W + x) * 4;
+              const r = data[i], g = data[i + 1], b = data[i + 2];
+              const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+              if (lum > bestLum) {
+                bestLum = lum;
+                bestR = r; bestG = g; bestB = b;
+              }
+            }
+          }
+          const idx = ty * cols + tx;
+          illumR[idx] = bestR;
+          illumG[idx] = bestG;
+          illumB[idx] = bestB;
+        }
+      }
+
+      // Smooth the illumination map with a few box-blur passes — this is what
+      // turns a tile mosaic into a soft gradient.
+      const blurMap = (src) => {
+        const out = new Float32Array(src.length);
+        const radius = 2;
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            let sum = 0, n = 0;
+            for (let dy = -radius; dy <= radius; dy++) {
+              const yy = Math.max(0, Math.min(rows - 1, y + dy));
+              for (let dx = -radius; dx <= radius; dx++) {
+                const xx = Math.max(0, Math.min(cols - 1, x + dx));
+                sum += src[yy * cols + xx];
+                n++;
+              }
+            }
+            out[y * cols + x] = sum / n;
+          }
+        }
+        return out;
+      };
+      let mR = illumR, mG = illumG, mB = illumB;
+      for (let p = 0; p < 3; p++) {
+        mR = blurMap(mR);
+        mG = blurMap(mG);
+        mB = blurMap(mB);
+      }
+
+      // Find the global brightest tile across the (smoothed) map — that's our target white.
+      let targetR = 240, targetG = 240, targetB = 240;
+      let bestTargetLum = -1;
+      for (let i = 0; i < mR.length; i++) {
+        const lum = 0.299 * mR[i] + 0.587 * mG[i] + 0.114 * mB[i];
+        if (lum > bestTargetLum) {
+          bestTargetLum = lum;
+          targetR = mR[i]; targetG = mG[i]; targetB = mB[i];
+        }
+      }
+      // Divide every pixel by its bilinearly-interpolated illumination, scaled
+      // so the brightest tile maps to ~target white. Blend with the original
+      // by shadowRemoval intensity.
+      const sampleIllum = (x, y, mapArr) => {
+        // Map pixel coords → tile coords, sampling tile centers
+        const fx = x / TILE - 0.5;
+        const fy = y / TILE - 0.5;
+        const ix = Math.max(0, Math.min(cols - 1, Math.floor(fx)));
+        const iy = Math.max(0, Math.min(rows - 1, Math.floor(fy)));
+        const ix1 = Math.min(cols - 1, ix + 1);
+        const iy1 = Math.min(rows - 1, iy + 1);
+        const tx = Math.max(0, Math.min(1, fx - ix));
+        const ty = Math.max(0, Math.min(1, fy - iy));
+        const v00 = mapArr[iy * cols + ix];
+        const v10 = mapArr[iy * cols + ix1];
+        const v01 = mapArr[iy1 * cols + ix];
+        const v11 = mapArr[iy1 * cols + ix1];
+        return (
+          v00 * (1 - tx) * (1 - ty) +
+          v10 * tx * (1 - ty) +
+          v01 * (1 - tx) * ty +
+          v11 * tx * ty
+        );
+      };
+
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 4;
+          const lr = Math.max(1, sampleIllum(x, y, mR));
+          const lg = Math.max(1, sampleIllum(x, y, mG));
+          const lb = Math.max(1, sampleIllum(x, y, mB));
+
+          const correctedR = (data[i]     / lr) * targetR;
+          const correctedG = (data[i + 1] / lg) * targetG;
+          const correctedB = (data[i + 2] / lb) * targetB;
+
+          // Blend toward correction by sFlat
+          data[i]     = Math.max(0, Math.min(255, data[i]     * (1 - sFlat) + correctedR * sFlat));
+          data[i + 1] = Math.max(0, Math.min(255, data[i + 1] * (1 - sFlat) + correctedG * sFlat));
+          data[i + 2] = Math.max(0, Math.min(255, data[i + 2] * (1 - sFlat) + correctedB * sFlat));
+        }
+      }
+    }
+
+    // ---------- Pass 2: paper whitening + contrast (existing behavior) ----------
+    if (t === 0) return;
+
     let sum = 0;
     let count = 0;
     const sampleStep = Math.max(1, Math.floor(Math.sqrt(data.length / 4) / 200));
@@ -652,12 +791,69 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       ctx.stroke();
     }
 
+    // Draw perspective quadrilateral overlay
+    if (isPerspective && perspectiveCorners) {
+      const c = perspectiveCorners;
+
+      // Darken outside the quad: fill canvas with semi-transparent black,
+      // then "punch out" the quad by re-drawing it from the source canvas.
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(canvas.width, 0);
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.closePath();
+      // Counter-clockwise quad → even-odd fill clears its interior
+      ctx.moveTo(c[0].x, c[0].y);
+      ctx.lineTo(c[3].x, c[3].y);
+      ctx.lineTo(c[2].x, c[2].y);
+      ctx.lineTo(c[1].x, c[1].y);
+      ctx.closePath();
+      ctx.fill('evenodd');
+      ctx.restore();
+
+      // Quad outline
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(c[0].x, c[0].y);
+      ctx.lineTo(c[1].x, c[1].y);
+      ctx.lineTo(c[2].x, c[2].y);
+      ctx.lineTo(c[3].x, c[3].y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Numbered corner handles (1=TL, 2=TR, 3=BR, 4=BL)
+      const handleR = HANDLE_SIZE;
+      c.forEach((pt, i) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, handleR, 0, Math.PI * 2);
+        ctx.fillStyle = i === activePerspectiveCorner ? '#d4a574' : '#fff';
+        ctx.fill();
+        ctx.strokeStyle = '#d4a574';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#3b2a14';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), pt.x, pt.y);
+      });
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+
     // Magic background live preview (non-destructive): applied after draw, before mask overlay.
     // Skipped while cropping/blurring/healing to avoid interfering with those overlays.
     if (isMagicOpen && !isCropping && !isBlurring && !isHealing && canvas.width > 0 && canvas.height > 0) {
       try {
         const previewData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        transformMagicBackground(previewData, magicIntensity);
+        transformMagicBackground(previewData, { intensity: magicIntensity, shadowRemoval });
         ctx.putImageData(previewData, 0, 0);
       } catch (err) {
         // getImageData can throw on tainted canvases; silently skip preview
@@ -670,7 +866,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       ctx.drawImage(maskCanvasRef.current, 0, 0);
       ctx.globalAlpha = 1.0;
     }
-  }, [displaySize, rotation, flipH, flipV, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask, isMagicOpen, magicIntensity, transformMagicBackground]);
+  }, [displaySize, rotation, flipH, flipV, imageLoaded, isCropping, cropStart, cropEnd, blurRegions, currentBlurRegion, blurIntensity, selectedBlurIndex, isBlurring, isHealing, hasMask, isMagicOpen, magicIntensity, shadowRemoval, transformMagicBackground, isPerspective, perspectiveCorners, activePerspectiveCorner]);
 
   useEffect(() => {
     drawImage();
@@ -747,6 +943,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setIsCropping(!isCropping);
     setIsBlurring(false);
     setIsHealing(false);
+    setIsPerspective(false);
+    setPerspectiveCorners(null);
   };
 
   // Toggle blur mode
@@ -757,6 +955,8 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setCropEnd(null);
     setSelectedBlurIndex(-1);
     setIsHealing(false);
+    setIsPerspective(false);
+    setPerspectiveCorners(null);
   };
 
   // Toggle healing mode
@@ -765,6 +965,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     setIsHealing(entering);
     setIsCropping(false);
     setIsBlurring(false);
+    setIsPerspective(false);
     setCropStart(null);
     setCropEnd(null);
     setSelectedBlurIndex(-1);
@@ -772,6 +973,35 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       // Initialize mask canvas
       initMaskCanvas();
     }
+  };
+
+  // Toggle perspective-correction mode. Initializes the 4 corners to a
+  // centered rectangle inset by ~15 % so the user can grab them and pull
+  // them to the actual paper corners.
+  const togglePerspectiveMode = () => {
+    const entering = !isPerspective;
+    setIsCropping(false);
+    setIsBlurring(false);
+    setIsHealing(false);
+    setCropStart(null);
+    setCropEnd(null);
+    setSelectedBlurIndex(-1);
+    setIsPerspective(entering);
+    if (entering) {
+      const w = displaySize.width;
+      const h = displaySize.height;
+      const ix = w * 0.15;
+      const iy = h * 0.15;
+      setPerspectiveCorners([
+        { x: ix,         y: iy },           // TL
+        { x: w - ix,     y: iy },           // TR
+        { x: w - ix,     y: h - iy },       // BR
+        { x: ix,         y: h - iy },       // BL
+      ]);
+    } else {
+      setPerspectiveCorners(null);
+    }
+    setActivePerspectiveCorner(-1);
   };
 
   // Initialize or reset mask canvas
@@ -1087,9 +1317,30 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     ));
   };
 
+  // Find which perspective corner index is under a position, or -1
+  const getPerspectiveCornerAt = (pos) => {
+    if (!perspectiveCorners) return -1;
+    const radius = HANDLE_SIZE * 1.6; // forgiving touch target
+    for (let i = 0; i < perspectiveCorners.length; i++) {
+      const dx = pos.x - perspectiveCorners[i].x;
+      const dy = pos.y - perspectiveCorners[i].y;
+      if (dx * dx + dy * dy <= radius * radius) return i;
+    }
+    return -1;
+  };
+
   // Mouse down handler
   const handleMouseDown = (e) => {
     const pos = getMousePos(e);
+
+    if (isPerspective) {
+      const idx = getPerspectiveCornerAt(pos);
+      if (idx >= 0) {
+        setActivePerspectiveCorner(idx);
+        setIsDragging(true);
+      }
+      return;
+    }
 
     if (isHealing) {
       isPaintingMask.current = true;
@@ -1157,6 +1408,22 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
   const handleMouseMove = (e) => {
     const pos = getMousePos(e);
     const canvas = canvasRef.current;
+
+    if (isPerspective) {
+      if (isDragging && activePerspectiveCorner >= 0) {
+        const clamped = clampToCanvas(pos);
+        setPerspectiveCorners((prev) => {
+          if (!prev) return prev;
+          const next = prev.slice();
+          next[activePerspectiveCorner] = clamped;
+          return next;
+        });
+        canvas.style.cursor = 'grabbing';
+      } else {
+        canvas.style.cursor = getPerspectiveCornerAt(pos) >= 0 ? 'grab' : 'crosshair';
+      }
+      return;
+    }
 
     if (isHealing) {
       canvas.style.cursor = isErasingMask ? 'cell' : 'crosshair';
@@ -1293,6 +1560,12 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
   // Mouse up handler
   const handleMouseUp = async () => {
+    if (isPerspective) {
+      setIsDragging(false);
+      setActivePerspectiveCorner(-1);
+      return;
+    }
+
     if (isHealing) {
       isPaintingMask.current = false;
       lastMaskPos.current = null;
@@ -1342,21 +1615,21 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
   // Touch event handlers for mobile support
   const handleTouchStart = (e) => {
-    if (isCropping || isBlurring || isHealing) {
+    if (isCropping || isBlurring || isHealing || isPerspective) {
       e.preventDefault();
     }
     handleMouseDown(e);
   };
 
   const handleTouchMove = (e) => {
-    if (isCropping || isBlurring || isHealing) {
+    if (isCropping || isBlurring || isHealing || isPerspective) {
       e.preventDefault();
     }
     handleMouseMove(e);
   };
 
   const handleTouchEnd = (e) => {
-    if (isCropping || isBlurring || isHealing) {
+    if (isCropping || isBlurring || isHealing || isPerspective) {
       e.preventDefault();
     }
     handleMouseUp();
@@ -1429,6 +1702,182 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       setBlurRegions([]);
     };
     croppedImg.src = finalCanvas.toDataURL('image/jpeg', 0.92);
+  };
+
+  // ---------- Perspective correction ----------
+  //
+  // Solve the 3×3 homography H that maps the four source quadrilateral
+  // corners (the paper as it appears in the photo) to the four corners
+  // of an axis-aligned rectangle (the "scanned" output).
+  //
+  // We then warp by walking every output pixel and inverse-mapping it
+  // through H to sample the source with bilinear interpolation.
+
+  // Solve an 8×8 linear system for the 8 homography parameters
+  // (h33 fixed at 1). Standard direct linear transform.
+  const solveHomography = (src, dst) => {
+    // src, dst are arrays of 4 {x,y} points. Returns 9-element row-major H or null.
+    const A = [];
+    const b = [];
+    for (let i = 0; i < 4; i++) {
+      const { x: sx, y: sy } = src[i];
+      const { x: dx, y: dy } = dst[i];
+      A.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]);
+      b.push(dx);
+      A.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]);
+      b.push(dy);
+    }
+    // Gauss–Jordan elimination on the 8×9 augmented matrix
+    for (let i = 0; i < 8; i++) A[i].push(b[i]);
+    for (let col = 0; col < 8; col++) {
+      // Pivot: pick the row with largest |A[r][col]|
+      let pivot = col;
+      for (let r = col + 1; r < 8; r++) {
+        if (Math.abs(A[r][col]) > Math.abs(A[pivot][col])) pivot = r;
+      }
+      if (Math.abs(A[pivot][col]) < 1e-10) return null; // singular
+      if (pivot !== col) [A[col], A[pivot]] = [A[pivot], A[col]];
+      // Normalize pivot row
+      const pv = A[col][col];
+      for (let c = col; c <= 8; c++) A[col][c] /= pv;
+      // Eliminate other rows
+      for (let r = 0; r < 8; r++) {
+        if (r === col) continue;
+        const factor = A[r][col];
+        if (factor === 0) continue;
+        for (let c = col; c <= 8; c++) A[r][c] -= factor * A[col][c];
+      }
+    }
+    return [A[0][8], A[1][8], A[2][8], A[3][8], A[4][8], A[5][8], A[6][8], A[7][8], 1];
+  };
+
+  // Apply 3×3 homography H to point (x,y) → (x', y')
+  const applyHomography = (H, x, y) => {
+    const w = H[6] * x + H[7] * y + H[8];
+    if (w === 0) return { x: 0, y: 0 };
+    return {
+      x: (H[0] * x + H[1] * y + H[2]) / w,
+      y: (H[3] * x + H[4] * y + H[5]) / w,
+    };
+  };
+
+  const applyPerspective = () => {
+    if (!perspectiveCorners) return;
+    const img = imageRef.current;
+    if (!img) return;
+
+    pushUndo();
+
+    // 1) Bake any current rotation/flip into a source canvas so the corner
+    //    coordinates the user picked match the pixels we're sampling.
+    let srcWidth = img.width;
+    let srcHeight = img.height;
+    if (rotation % 180 !== 0) {
+      [srcWidth, srcHeight] = [srcHeight, srcWidth];
+    }
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = srcWidth;
+    srcCanvas.height = srcHeight;
+    const sctx = srcCanvas.getContext('2d');
+    sctx.translate(srcWidth / 2, srcHeight / 2);
+    sctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+    sctx.rotate((rotation * Math.PI) / 180);
+    sctx.drawImage(img, -img.width / 2, -img.height / 2);
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // 2) Convert display-space corners to source-image space.
+    const scale = srcWidth / displaySize.width;
+    const srcQuad = perspectiveCorners.map((c) => ({ x: c.x * scale, y: c.y * scale }));
+
+    // 3) Choose output dims = average of opposite-side lengths (roughly the
+    //    real paper dimensions, in source-image pixels).
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const outW = Math.max(50, Math.round((dist(srcQuad[0], srcQuad[1]) + dist(srcQuad[3], srcQuad[2])) / 2));
+    const outH = Math.max(50, Math.round((dist(srcQuad[0], srcQuad[3]) + dist(srcQuad[1], srcQuad[2])) / 2));
+    const dstQuad = [
+      { x: 0,    y: 0    },
+      { x: outW, y: 0    },
+      { x: outW, y: outH },
+      { x: 0,    y: outH },
+    ];
+
+    // 4) Solve forward homography src→dst, then INVERT it for the warp loop.
+    //    (We walk dst pixels and look up src; that's stable and produces a
+    //    fully-filled output image.)
+    const Hfwd = solveHomography(srcQuad, dstQuad);
+    if (!Hfwd) {
+      addToast?.('Quadrilatère dégénéré — déplace les coins', 'error');
+      return;
+    }
+    const Hinv = solveHomography(dstQuad, srcQuad);
+    if (!Hinv) {
+      addToast?.('Quadrilatère dégénéré — déplace les coins', 'error');
+      return;
+    }
+
+    // 5) Read source pixels once for sampling.
+    const srcData = sctx.getImageData(0, 0, srcWidth, srcHeight).data;
+
+    // 6) Build the output image, sampling with bilinear interpolation.
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outW;
+    outCanvas.height = outH;
+    const octx = outCanvas.getContext('2d');
+    const outImageData = octx.createImageData(outW, outH);
+    const outData = outImageData.data;
+
+    const sample = (sx, sy) => {
+      // Outside source → transparent (will become black on JPEG)
+      if (sx < 0 || sx >= srcWidth - 1 || sy < 0 || sy >= srcHeight - 1) {
+        return [0, 0, 0, 255];
+      }
+      const x0 = Math.floor(sx);
+      const y0 = Math.floor(sy);
+      const fx = sx - x0;
+      const fy = sy - y0;
+      const i00 = (y0 * srcWidth + x0) * 4;
+      const i10 = i00 + 4;
+      const i01 = i00 + srcWidth * 4;
+      const i11 = i01 + 4;
+      const w00 = (1 - fx) * (1 - fy);
+      const w10 = fx * (1 - fy);
+      const w01 = (1 - fx) * fy;
+      const w11 = fx * fy;
+      return [
+        srcData[i00]     * w00 + srcData[i10]     * w10 + srcData[i01]     * w01 + srcData[i11]     * w11,
+        srcData[i00 + 1] * w00 + srcData[i10 + 1] * w10 + srcData[i01 + 1] * w01 + srcData[i11 + 1] * w11,
+        srcData[i00 + 2] * w00 + srcData[i10 + 2] * w10 + srcData[i01 + 2] * w01 + srcData[i11 + 2] * w11,
+        255,
+      ];
+    };
+
+    for (let y = 0; y < outH; y++) {
+      for (let x = 0; x < outW; x++) {
+        const sp = applyHomography(Hinv, x, y);
+        const [r, g, b, a] = sample(sp.x, sp.y);
+        const oi = (y * outW + x) * 4;
+        outData[oi]     = r;
+        outData[oi + 1] = g;
+        outData[oi + 2] = b;
+        outData[oi + 3] = a;
+      }
+    }
+    octx.putImageData(outImageData, 0, 0);
+
+    // 7) Replace imageRef with the warped result and reset transform state.
+    const warpedImg = new Image();
+    warpedImg.onload = () => {
+      imageRef.current = warpedImg;
+      setOriginalSize({ width: warpedImg.width, height: warpedImg.height });
+      setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
+      setBlurRegions([]);
+      setIsPerspective(false);
+      setPerspectiveCorners(null);
+      setActivePerspectiveCorner(-1);
+    };
+    warpedImg.src = outCanvas.toDataURL('image/jpeg', 0.92);
   };
 
   // Remove a specific blur region
@@ -1563,7 +2012,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
   // Reset all edits
   // Final (destructive) magic background — mutates imageRef.current and pushes undo
-  const applyMagicBackground = (intensity = 50) => {
+  const applyMagicBackground = (intensity = 50, sFlat = 0) => {
     const img = imageRef.current;
     if (!img) return;
 
@@ -1576,7 +2025,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
     srcCtx.drawImage(img, 0, 0);
 
     const imageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
-    transformMagicBackground(imageData, intensity);
+    transformMagicBackground(imageData, { intensity, shadowRemoval: sFlat });
     srcCtx.putImageData(imageData, 0, 0);
 
     const cleaned = new Image();
@@ -1814,6 +2263,27 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
 
         <div className="image-editor__toolbar-group">
           <button
+            className={`image-editor__btn ${isPerspective ? 'active' : ''}`}
+            onClick={togglePerspectiveMode}
+            title={isPerspective ? 'Cancel perspective' : 'Perspective correction (4-corner straighten)'}
+          >
+            Perspective
+          </button>
+          {isPerspective && (
+            <button
+              className="image-editor__btn image-editor__btn--primary"
+              onClick={applyPerspective}
+              title="Straighten the selected quadrilateral into a rectangle"
+            >
+              Apply
+            </button>
+          )}
+        </div>
+
+        <div className="image-editor__toolbar-divider" />
+
+        <div className="image-editor__toolbar-group">
+          <button
             className={`image-editor__btn ${isBlurring ? 'active' : ''}`}
             onClick={toggleBlurMode}
             title={isBlurring ? 'Exit blur mode' : 'Add blur regions for privacy'}
@@ -1921,6 +2391,7 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
           </button>
           {isMagicOpen && (
             <>
+              <span className="magic-label" title="Blanchiment du papier">Blanc</span>
               <input
                 type="range"
                 min="0"
@@ -1928,14 +2399,28 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
                 value={magicIntensity}
                 onChange={(e) => setMagicIntensity(Number(e.target.value))}
                 className="magic-slider"
-                title="Glissez pour ajuster — aperçu en direct"
+                title="Blanchir le fond — aperçu en direct"
                 aria-label="Magic background intensity"
               />
               <span className="blur-value">{magicIntensity}%</span>
+
+              <span className="magic-label" title="Atténue les ombres et l'éclairage inégal">Ombres</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={shadowRemoval}
+                onChange={(e) => setShadowRemoval(Number(e.target.value))}
+                className="magic-slider"
+                title="Atténue les ombres / éclairage inégal — aperçu en direct"
+                aria-label="Shadow removal intensity"
+              />
+              <span className="blur-value">{shadowRemoval}%</span>
+
               <button
                 className="image-editor__btn image-editor__btn--magic"
                 onClick={() => {
-                  applyMagicBackground(magicIntensity);
+                  applyMagicBackground(magicIntensity, shadowRemoval);
                   setIsMagicOpen(false);
                 }}
                 title="Appliquer l'effet"
@@ -2076,6 +2561,11 @@ const ImageEditor = ({ imageUrl, onSave, onCancel, pictureId }) => {
       </div>
 
       <div className="image-editor__actions">
+        {saveError && (
+          <div className="image-editor__save-error" role="alert">
+            ⚠ {saveError}
+          </div>
+        )}
         <button
           className="image-editor__btn image-editor__btn--secondary"
           onClick={onCancel}

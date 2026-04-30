@@ -12,6 +12,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { logPictureAudit, PictureAuditAction } from '../utils/pictureAudit.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -175,6 +176,33 @@ router.post('/:id/promote', authenticate, authorize('ADMIN'), async (req, res) =
 
       return set;
     });
+
+    // Audit the (re-)attachment so the B2 key shows up in the normal audit trail
+    for (const pic of result.pictures) {
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.UPLOADED,
+        pictureId: pic.id,
+        pictureSetId: result.id,
+        uploaderId: result.uploadedById,
+        troupeId: result.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: result.status,
+        filePath: pic.filePath,
+        details: {
+          source: 'RECOVERED',
+          recoveredFileId: recovered.id,
+          type: result.type,
+          troupeName: troupe.name,
+          groupId: troupe.group.id,
+          groupName: troupe.group.name,
+          districtId: troupe.group.district.id,
+          districtName: troupe.group.district.name,
+          patrouilleId: result.patrouilleId,
+          categoryId: result.categoryId,
+        },
+      });
+    }
 
     res.json({ message: 'Restored', pictureSet: result });
   } catch (error) {

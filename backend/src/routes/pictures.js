@@ -659,6 +659,35 @@ router.post(
         },
       });
 
+      // Audit: one row per uploaded file so the B2 key (filePath) can be
+      // mapped back to the user / district / group / troupe / patrouille
+      // even if the PictureSet row is later lost.
+      for (const pic of pictureSet.pictures) {
+        const originalFile = req.files[pic.displayOrder - 1];
+        await logPictureAudit(prisma, {
+          action: PictureAuditAction.UPLOADED,
+          pictureId: pic.id,
+          pictureSetId: pictureSet.id,
+          uploaderId: req.user.id,
+          troupeId: req.user.troupeId,
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          pictureSetStatusAtAction: pictureSet.status,
+          filePath: pic.filePath,
+          details: {
+            type,
+            districtId: troupe.group.district.id,
+            districtName: troupe.group.district.name,
+            groupId: troupe.group.id,
+            groupName: troupe.group.name,
+            troupeName: troupe.name,
+            patrouilleId: pictureSet.patrouilleId,
+            originalFilename: originalFile?.originalname || null,
+            sizeBytes: originalFile?.size || null,
+          },
+        });
+      }
+
       res.status(201).json({
         message: 'Picture set uploaded successfully',
         pictureSet,
@@ -2169,6 +2198,32 @@ router.put(
       }).catch((auditErr) => {
         // Do not fail the edit if audit insert fails — just log it
         console.error('Failed to write picture edit audit:', auditErr);
+      });
+
+      // PictureAudit: replacement upload — snapshot of the NEW filePath so the
+      // edited B2 key is traceable even if the row is later lost.
+      await logPictureAudit(prisma, {
+        action: PictureAuditAction.UPLOADED_REPLACEMENT,
+        pictureId: parseInt(pictureId),
+        pictureSetId: picture.pictureSetId,
+        uploaderId: picture.pictureSet.uploadedById,
+        troupeId: picture.pictureSet.troupeId,
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        pictureSetStatusAtAction: status,
+        filePath: newFilePath,
+        details: {
+          editType: editType || null,
+          previousFilePath: oldFilePath,
+          originalFilePath,
+          districtId: picture.pictureSet.troupe?.group?.district?.id || null,
+          districtName: picture.pictureSet.troupe?.group?.district?.name || null,
+          groupId: picture.pictureSet.troupe?.group?.id || null,
+          groupName: picture.pictureSet.troupe?.group?.name || null,
+          troupeName: picture.pictureSet.troupe?.name || null,
+          originalFilename: req.file.originalname,
+          sizeBytes: req.file.size,
+        },
       });
 
       res.json({
