@@ -540,8 +540,11 @@ const UsersStats = () => {
                   ) : (
                     filteredSorted.map((r) => {
                       const schemToApprove = r.schematics.toClassify + r.schematics.toApprove;
+                      const approvedTier =
+                        r.photos.approved >= 20 ? 'tier-high' :
+                        r.photos.approved >= 15 ? 'tier-mid' : '';
                       return (
-                        <tr key={r.key}>
+                        <tr key={r.key} className={approvedTier}>
                           <td>{r.district}</td>
                           {groupBy !== 'district' && (
                             <td className="group-name-cell">{r.group}</td>
