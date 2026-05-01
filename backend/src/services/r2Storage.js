@@ -175,7 +175,19 @@ export const keyFromPublicUrl = (fileUrl) => {
 };
 
 /**
- * Delete a file from Backblaze B2
+ * Delete a file from Backblaze B2.
+ *
+ * SAFETY POLICY: bucket-side deletes are disabled by default. Every existing
+ * caller in the codebase (set delete, picture archive-as-last, exclude-on-
+ * approve, edit-image cleanup, etc.) used to call this and hard-delete the
+ * underlying B2 object. After repeated incidents where a DB row was lost
+ * but the file was already gone too, we changed the policy to "never delete
+ * from the bucket" — orphaned objects are kept and surfaced in /admin/recovered
+ * instead, where an admin can re-attach them.
+ *
+ * To opt back in for a one-off (e.g. compliance request), set
+ * ALLOW_R2_DELETE=true in the backend env.
+ *
  * @param {string} fileKey - The file key in B2 or full URL
  */
 export const deleteFromR2 = async (fileKey) => {
@@ -198,6 +210,12 @@ export const deleteFromR2 = async (fileKey) => {
     }
   }
 
+  if (process.env.ALLOW_R2_DELETE !== 'true') {
+    console.log(`[deleteFromR2 skipped — policy] key=${key}`);
+    return;
+  }
+
+  console.warn(`[deleteFromR2 ALLOWED via ALLOW_R2_DELETE=true] key=${key}`);
   const command = new DeleteObjectCommand({
     Bucket: B2_BUCKET,
     Key: key,

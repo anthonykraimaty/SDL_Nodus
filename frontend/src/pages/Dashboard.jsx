@@ -29,6 +29,10 @@ const Dashboard = () => {
     rejected: 0,
     total: 0,
   });
+  const [ctImageStats, setCtImageStats] = useState({
+    unclassifiedPhotos: 0,
+    schematics: 0,
+  });
   const { toasts, addToast, removeToast } = useToast();
 
   useEffect(() => {
@@ -58,6 +62,13 @@ const Dashboard = () => {
           approved,
           rejected,
         });
+
+        try {
+          const imageStats = await pictureService.getMyTroupeStats();
+          setCtImageStats(imageStats);
+        } catch (err) {
+          console.error('Failed to load CT image stats:', err);
+        }
       }
 
       // For Branche, show pictures needing review with detailed stats
@@ -336,6 +347,26 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {user?.role === 'CHEF_TROUPE' && (
+          <div className="stats-grid stats-grid-2">
+            <Link to="/classify" className="stat-card stat-card-link">
+              <div className="stat-icon classified">🏷️</div>
+              <div className="stat-info">
+                <h3>{ctImageStats.unclassifiedPhotos}</h3>
+                <p>Photos non classées</p>
+              </div>
+            </Link>
+
+            <Link to="/schematics/progress" className="stat-card stat-card-link">
+              <div className="stat-icon total">📐</div>
+              <div className="stat-info">
+                <h3>{ctImageStats.schematics}</h3>
+                <p>Schémas</p>
+              </div>
+            </Link>
+          </div>
+        )}
 
         {/* Category breakdown moved to Statistiques — link there instead */}
         {(user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') && (

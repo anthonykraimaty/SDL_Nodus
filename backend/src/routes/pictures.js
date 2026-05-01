@@ -310,6 +310,34 @@ router.get('/my-troupe', authenticate, authorize('CHEF_TROUPE'), async (req, res
   }
 });
 
+// GET /api/pictures/my-troupe-stats - Per-image counts for the CT's own uploads
+router.get('/my-troupe-stats', authenticate, authorize('CHEF_TROUPE'), async (req, res) => {
+  try {
+    const ownSetWhere = { uploadedById: req.user.id };
+
+    const [unclassifiedPhotos, schematics] = await Promise.all([
+      prisma.picture.count({
+        where: {
+          isArchived: false,
+          categoryId: null,
+          pictureSet: { ...ownSetWhere, type: 'INSTALLATION_PHOTO' },
+        },
+      }),
+      prisma.picture.count({
+        where: {
+          isArchived: false,
+          pictureSet: { ...ownSetWhere, type: 'SCHEMATIC' },
+        },
+      }),
+    ]);
+
+    res.json({ unclassifiedPhotos, schematics });
+  } catch (error) {
+    console.error('Get my-troupe-stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch troupe stats' });
+  }
+});
+
 // GET /api/pictures - Get all picture sets (public for approved, filtered for authenticated)
 router.get('/', optionalAuth, async (req, res) => {
   try {
@@ -990,11 +1018,16 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       }
     }
 
-    // Resolve excluded pictures up front (constrain to this set) so we know
-    // which files to delete AFTER the DB transaction commits successfully.
-    let picturesToDelete = [];
+    // Resolve excluded pictures up front (constrain to this set) for auditing.
+    // POLICY: "exclude on approve" used to hard-delete the Picture row + B2
+    // file. We changed both: rows are now archived (isArchived=true, hidden
+    // from the public gallery but preserved for restore), and B2 files are
+    // never deleted (see deleteFromR2 in services/r2Storage.js). Net effect:
+    // approving with exclusions no longer reduces the visible-picture count
+    // by surprise, and Archive can fully reverse the action.
+    let picturesToExclude = [];
     if (Array.isArray(excludedPictureIds) && excludedPictureIds.length > 0) {
-      picturesToDelete = await prisma.picture.findMany({
+      picturesToExclude = await prisma.picture.findMany({
         where: {
           id: { in: excludedPictureIds.map(Number) },
           pictureSetId: setId,
@@ -1002,7 +1035,8 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       });
     }
 
-    // Atomic DB mutation: archive, exclude-delete, and approve in a single transaction
+    // Atomic DB mutation: archive (both explicit + exclude paths) and approve
+    // in a single transaction.
     const pictureSet = await prisma.$transaction(async (tx) => {
       if (Array.isArray(archivePictureIds) && archivePictureIds.length > 0) {
         await tx.picture.updateMany({
@@ -1014,12 +1048,13 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
         });
       }
 
-      if (picturesToDelete.length > 0) {
-        await tx.picture.deleteMany({
+      if (picturesToExclude.length > 0) {
+        await tx.picture.updateMany({
           where: {
-            id: { in: picturesToDelete.map((p) => p.id) },
+            id: { in: picturesToExclude.map((p) => p.id) },
             pictureSetId: setId,
           },
+          data: { isArchived: true, archivedAt: new Date() },
         });
       }
 
@@ -1064,8 +1099,11 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       }
     }
 
-    // Audit excluded (hard-deleted) pictures
-    for (const picture of picturesToDelete) {
+    // Audit excluded pictures — now archived rather than deleted. We keep the
+    // existing EXCLUDED_ON_APPROVE action so the audit trail still distinguishes
+    // "user explicitly archived" vs "user excluded during approve", but the
+    // underlying effect is now equivalent to ARCHIVED (recoverable).
+    for (const picture of picturesToExclude) {
       await logPictureAudit(prisma, {
         action: PictureAuditAction.EXCLUDED_ON_APPROVE,
         pictureId: picture.id,
@@ -1076,21 +1114,8 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
         actorRole: req.user.role,
         pictureSetStatusAtAction: existingSet.status,
         filePath: picture.filePath,
+        details: { archivedNotDeleted: true },
       });
-    }
-
-    // Post-commit: best-effort cleanup of excluded files. Failures here are logged
-    // but do not roll back the approval — the picture rows are already gone.
-    for (const picture of picturesToDelete) {
-      try {
-        if (picture.filePath.startsWith('http')) {
-          await deleteFromR2(picture.filePath);
-        } else {
-          await fs.unlink(picture.filePath).catch(() => {});
-        }
-      } catch (err) {
-        console.error('Failed to delete excluded picture file:', picture.filePath, err);
-      }
     }
 
     res.json({

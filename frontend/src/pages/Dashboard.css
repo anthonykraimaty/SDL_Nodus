@@ -215,6 +215,16 @@
   grid-template-columns: repeat(5, 1fr);
 }
 
+/* Stats Grid 2 columns */
+.stats-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.stat-card.stat-card-link {
+  text-decoration: none;
+  color: inherit;
+}
+
 /* Chart Section */
 .chart-section {
   background-color: var(--bg-medium);

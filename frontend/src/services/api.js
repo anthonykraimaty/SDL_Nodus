@@ -183,6 +183,7 @@ export const pictureService = {
     const query = new URLSearchParams(cleaned).toString();
     return api.get(`/api/pictures/my-troupe${query ? '?' + query : ''}`, true);
   },
+  getMyTroupeStats: () => api.get('/api/pictures/my-troupe-stats', true),
   upload: (formData) => api.upload('/api/pictures', formData),
   uploadWithProgress: (formData, onProgress, signal) =>
     api.uploadWithProgress('/api/pictures', formData, onProgress, signal),
