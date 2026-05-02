@@ -1825,30 +1825,78 @@ router.put('/individual/bulk-update', authenticate, authorize('ADMIN'), async (r
       return res.status(400).json({ error: 'No pictures selected' });
     }
 
-    if (!updates || (updates.type === undefined && updates.categoryId === undefined)) {
+    const hasPictureUpdates = updates && (updates.type !== undefined || updates.categoryId !== undefined);
+    const hasSetUpdates = updates && updates.troupeId !== undefined;
+
+    if (!hasPictureUpdates && !hasSetUpdates) {
       return res.status(400).json({ error: 'No updates provided' });
     }
 
-    // Build the update data
-    const updateData = {};
-    if (updates.type !== undefined) {
-      updateData.type = updates.type;
-    }
-    if (updates.categoryId !== undefined) {
-      updateData.categoryId = updates.categoryId ? parseInt(updates.categoryId) : null;
+    const ids = pictureIds.map(id => parseInt(id));
+
+    // Picture-level updates (type, categoryId)
+    let pictureUpdateCount = 0;
+    if (hasPictureUpdates) {
+      const updateData = {};
+      if (updates.type !== undefined) {
+        updateData.type = updates.type;
+      }
+      if (updates.categoryId !== undefined) {
+        updateData.categoryId = updates.categoryId ? parseInt(updates.categoryId) : null;
+      }
+      const result = await prisma.picture.updateMany({
+        where: { id: { in: ids } },
+        data: updateData,
+      });
+      pictureUpdateCount = result.count;
     }
 
-    // Perform bulk update
-    const result = await prisma.picture.updateMany({
-      where: {
-        id: { in: pictureIds.map(id => parseInt(id)) },
-      },
-      data: updateData,
-    });
+    // PictureSet-level updates (troupeId) — moves the parent set, which migrates all
+    // sibling pictures in that set as well. We also clear patrouilleId since the
+    // patrouille is scoped to the old troupe.
+    let setUpdateCount = 0;
+    let affectedPictureCount = 0;
+    if (hasSetUpdates) {
+      const newTroupeId = parseInt(updates.troupeId);
+      const troupe = await prisma.troupe.findUnique({ where: { id: newTroupeId } });
+      if (!troupe) {
+        return res.status(400).json({ error: 'Target troupe not found' });
+      }
+
+      const pictures = await prisma.picture.findMany({
+        where: { id: { in: ids } },
+        select: { pictureSetId: true },
+      });
+      const setIds = [...new Set(pictures.map(p => p.pictureSetId))];
+
+      if (setIds.length > 0) {
+        const result = await prisma.pictureSet.updateMany({
+          where: { id: { in: setIds } },
+          data: { troupeId: newTroupeId, patrouilleId: null },
+        });
+        setUpdateCount = result.count;
+
+        const affected = await prisma.picture.count({
+          where: { pictureSetId: { in: setIds } },
+        });
+        affectedPictureCount = affected;
+      }
+    }
+
+    let message;
+    if (hasSetUpdates && hasPictureUpdates) {
+      message = `Updated ${pictureUpdateCount} picture(s); moved ${setUpdateCount} set(s) (${affectedPictureCount} pictures including siblings)`;
+    } else if (hasSetUpdates) {
+      message = `Moved ${setUpdateCount} set(s) to new troupe (${affectedPictureCount} pictures including siblings)`;
+    } else {
+      message = `Updated ${pictureUpdateCount} picture(s)`;
+    }
 
     res.json({
-      message: `Updated ${result.count} picture(s)`,
-      count: result.count,
+      message,
+      count: pictureUpdateCount,
+      setCount: setUpdateCount,
+      affectedPictureCount,
     });
   } catch (error) {
     console.error('Bulk update pictures error:', error);

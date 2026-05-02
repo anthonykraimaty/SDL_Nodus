@@ -309,6 +309,7 @@ export const announcementService = {
 export const organizationService = {
   getDistricts: () => api.get('/api/districts'),
   getGroups: () => api.get('/api/groups'),
+  getTroupes: () => api.get('/api/troupes', true),
 };
 
 // Analytics
@@ -319,6 +320,7 @@ export const analyticsService = {
   },
   getPictureStats: () => api.get('/api/analytics/pictures/stats', true),
   getUsersUploads: () => api.get('/api/analytics/users/uploads', true),
+  getDashboardSummary: () => api.get('/api/analytics/dashboard-summary', true),
   getPicturesByCategory: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return api.get(`/api/analytics/pictures/by-category${query ? '?' + query : ''}`, true);

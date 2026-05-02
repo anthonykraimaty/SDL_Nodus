@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, categoryService, analyticsService, designGroupService } from '../services/api';
+import { pictureService, categoryService, analyticsService, designGroupService, organizationService } from '../services/api';
 import { getImageUrl } from '../config/api';
 import Modal from '../components/Modal';
 import ImageEditor from '../components/ImageEditor';
@@ -11,6 +11,7 @@ const AdminPictures = () => {
 
   const [pictures, setPictures] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [troupes, setTroupes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -48,7 +49,7 @@ const AdminPictures = () => {
   const [selectedPictures, setSelectedPictures] = useState(new Set());
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
-  const [bulkEditForm, setBulkEditForm] = useState({ type: '', categoryId: '' });
+  const [bulkEditForm, setBulkEditForm] = useState({ type: '', categoryId: '', districtId: '', groupId: '', troupeId: '' });
   const [bulkSaving, setBulkSaving] = useState(false);
 
   // Design group state
@@ -66,8 +67,18 @@ const AdminPictures = () => {
 
   useEffect(() => {
     loadCategories();
+    loadTroupes();
     checkSyncNeeded();
   }, []);
+
+  const loadTroupes = async () => {
+    try {
+      const data = await organizationService.getTroupes();
+      setTroupes(data);
+    } catch (err) {
+      console.error('Failed to load troupes:', err);
+    }
+  };
 
   useEffect(() => {
     loadPictures();
@@ -252,7 +263,7 @@ const AdminPictures = () => {
   };
 
   const handleBulkEditClick = () => {
-    setBulkEditForm({ type: '', categoryId: '' });
+    setBulkEditForm({ type: '', categoryId: '', districtId: '', groupId: '', troupeId: '' });
     setShowBulkEdit(true);
   };
 
@@ -262,6 +273,7 @@ const AdminPictures = () => {
       const updates = {};
       if (bulkEditForm.type) updates.type = bulkEditForm.type;
       if (bulkEditForm.categoryId) updates.categoryId = bulkEditForm.categoryId;
+      if (bulkEditForm.troupeId) updates.troupeId = bulkEditForm.troupeId;
 
       if (Object.keys(updates).length === 0) {
         setError('Please select at least one field to update');
@@ -1059,44 +1071,131 @@ const AdminPictures = () => {
           size="medium"
         >
           <Modal.Body>
-            <div className="bulk-edit-modal">
-              <p className="bulk-edit-info">
-                Leave a field empty to keep the existing value for each picture.
-              </p>
-              <div className="edit-form">
-                <div className="form-group">
-                  <label>Type</label>
-                  <select
-                    value={bulkEditForm.type}
-                    onChange={(e) => setBulkEditForm({ ...bulkEditForm, type: e.target.value })}
-                    className="form-select"
-                  >
-                    <option value="">-- Keep existing --</option>
-                    <option value="INSTALLATION_PHOTO">Photo</option>
-                    <option value="SCHEMATIC">Schematic</option>
-                  </select>
+            {(() => {
+              const districts = [];
+              const districtMap = new Map();
+              const groupMap = new Map();
+              for (const t of troupes) {
+                const d = t.group?.district;
+                const g = t.group;
+                if (!d || !g) continue;
+                if (!districtMap.has(d.id)) {
+                  districtMap.set(d.id, { id: d.id, name: d.name });
+                  districts.push({ id: d.id, name: d.name });
+                }
+                if (!groupMap.has(g.id)) {
+                  groupMap.set(g.id, { id: g.id, name: g.name, districtId: d.id });
+                }
+              }
+              districts.sort((a, b) => a.name.localeCompare(b.name));
+              const filteredGroups = bulkEditForm.districtId
+                ? Array.from(groupMap.values()).filter(g => g.districtId === parseInt(bulkEditForm.districtId)).sort((a, b) => a.name.localeCompare(b.name))
+                : [];
+              const filteredTroupes = bulkEditForm.groupId
+                ? troupes.filter(t => t.groupId === parseInt(bulkEditForm.groupId)).sort((a, b) => a.name.localeCompare(b.name))
+                : [];
+
+              const selectedSetIds = new Set(
+                pictures.filter(p => selectedPictures.has(p.id)).map(p => p.pictureSetId)
+              );
+              const totalPicsInAffectedSets = pictures
+                .filter(p => selectedSetIds.has(p.pictureSetId))
+                .length;
+              const siblingPics = totalPicsInAffectedSets - selectedPictures.size;
+
+              return (
+                <div className="bulk-edit-modal">
+                  <p className="bulk-edit-info">
+                    Leave a field empty to keep the existing value for each picture.
+                  </p>
+                  <div className="edit-form">
+                    <div className="form-group">
+                      <label>Type</label>
+                      <select
+                        value={bulkEditForm.type}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, type: e.target.value })}
+                        className="form-select"
+                      >
+                        <option value="">-- Keep existing --</option>
+                        <option value="INSTALLATION_PHOTO">Photo</option>
+                        <option value="SCHEMATIC">Schematic</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Category</label>
+                      <select
+                        value={bulkEditForm.categoryId}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, categoryId: e.target.value })}
+                        className="form-select"
+                      >
+                        <option value="">-- Keep existing --</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="bulk-edit-section-header">
+                      Move to Troupe
+                    </div>
+                    <div className="form-group">
+                      <label>District</label>
+                      <select
+                        value={bulkEditForm.districtId}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, districtId: e.target.value, groupId: '', troupeId: '' })}
+                        className="form-select"
+                      >
+                        <option value="">-- Keep existing --</option>
+                        {districts.map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Group</label>
+                      <select
+                        value={bulkEditForm.groupId}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, groupId: e.target.value, troupeId: '' })}
+                        className="form-select"
+                        disabled={!bulkEditForm.districtId}
+                      >
+                        <option value="">{bulkEditForm.districtId ? '-- Select group --' : '-- Select district first --'}</option>
+                        {filteredGroups.map(g => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Troupe</label>
+                      <select
+                        value={bulkEditForm.troupeId}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, troupeId: e.target.value })}
+                        className="form-select"
+                        disabled={!bulkEditForm.groupId}
+                      >
+                        <option value="">{bulkEditForm.groupId ? '-- Select troupe --' : '-- Select group first --'}</option>
+                        {filteredTroupes.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {bulkEditForm.troupeId && siblingPics > 0 && (
+                      <div className="bulk-edit-warning">
+                        ⚠️ Moving troupe affects the entire picture set. {siblingPics} additional
+                        picture(s) sharing the same set(s) will also be moved. Patrouille
+                        assignment will be cleared on the moved sets.
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>Category</label>
-                  <select
-                    value={bulkEditForm.categoryId}
-                    onChange={(e) => setBulkEditForm({ ...bulkEditForm, categoryId: e.target.value })}
-                    className="form-select"
-                  >
-                    <option value="">-- Keep existing --</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </Modal.Body>
           <Modal.Actions>
             <button
               onClick={handleBulkEditSave}
               className="primary"
-              disabled={bulkSaving || (!bulkEditForm.type && !bulkEditForm.categoryId)}
+              disabled={bulkSaving || (!bulkEditForm.type && !bulkEditForm.categoryId && !bulkEditForm.troupeId)}
             >
               {bulkSaving ? 'Updating...' : 'Update Pictures'}
             </button>
