@@ -209,6 +209,13 @@ const Dashboard = () => {
                   <p>Approve or reject classified pictures</p>
                 </div>
               </Link>
+              <Link to="/browse-by-troupe" className="action-card browse-troupe-action">
+                <div className="action-icon">🏕️</div>
+                <div className="action-content">
+                  <h3>Photos par troupe</h3>
+                  <p>Parcourir les photos filtrées par district, groupe et troupe</p>
+                </div>
+              </Link>
             </div>
 
             <div className="quick-actions-separator"></div>

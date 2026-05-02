@@ -1,0 +1,195 @@
+.browse-troupe {
+  min-height: calc(100vh - 200px);
+  padding-bottom: var(--spacing-xxl);
+}
+
+.bt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  border-bottom: 2px solid var(--border);
+}
+
+.bt-header h2 {
+  margin-bottom: var(--spacing-xs);
+}
+
+.bt-back {
+  text-decoration: none;
+  color: var(--text-muted);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.bt-back:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.bt-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.bt-filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.bt-filter select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.bt-filter select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bt-error {
+  padding: var(--spacing-md);
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid var(--danger, #f44336);
+  color: var(--danger, #f44336);
+  border-radius: 8px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.bt-troupe-section {
+  margin-bottom: var(--spacing-xxl);
+}
+
+.bt-troupe-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--border);
+  font-size: 1.1rem;
+}
+
+.bt-troupe-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 var(--spacing-sm);
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.bt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.bt-tile {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  background: var(--bg-medium);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.bt-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px var(--shadow);
+}
+
+.bt-tile-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--bg-light);
+  overflow: hidden;
+}
+
+.bt-tile-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bt-tile-type {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 0.85rem;
+}
+
+.bt-tile-status {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.bt-tile-status.status-pending { background: rgba(255, 152, 0, 0.85); }
+.bt-tile-status.status-classified { background: rgba(66, 165, 245, 0.85); }
+.bt-tile-status.status-rejected { background: rgba(244, 67, 54, 0.85); }
+
+.bt-tile-category {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bt-tile-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .bt-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  .bt-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

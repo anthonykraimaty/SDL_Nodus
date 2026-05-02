@@ -111,6 +111,16 @@
   box-shadow: 0 8px 24px rgba(38, 166, 154, 0.3);
 }
 
+.action-card.browse-troupe-action {
+  border-color: #8d6e63;
+  background: linear-gradient(135deg, rgba(141, 110, 99, 0.15), var(--bg-medium));
+}
+
+.action-card.browse-troupe-action:hover {
+  border-color: #a1887f;
+  box-shadow: 0 8px 24px rgba(141, 110, 99, 0.3);
+}
+
 /* Quick Actions Separator */
 .quick-actions-separator {
   display: block;

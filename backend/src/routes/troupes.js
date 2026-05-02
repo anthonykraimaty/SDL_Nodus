@@ -5,8 +5,11 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all troupes (with group and district)
-router.get('/', authenticate, authorize('ADMIN'), async (req, res) => {
+// Get all troupes (with group and district).
+// Read access also granted to BRANCHE_ECLAIREURS so they can populate
+// district→group→troupe pickers on browsing pages. Mutating routes below
+// stay admin-only.
+router.get('/', authenticate, authorize('ADMIN', 'BRANCHE_ECLAIREURS'), async (req, res) => {
   try {
     const troupes = await prisma.troupe.findMany({
       include: {
