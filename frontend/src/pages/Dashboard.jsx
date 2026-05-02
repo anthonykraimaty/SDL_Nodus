@@ -16,6 +16,9 @@ const Dashboard = () => {
     photosApproved: 0,
     schematicsApproved: 0,
     rejected: 0,
+    photosToClassify: 0,
+    photosToApprove: 0,
+    schematicsToApprove: 0,
   });
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -54,6 +57,9 @@ const Dashboard = () => {
           photosApproved: summary.photosApproved || 0,
           schematicsApproved: summary.schematicsApproved || 0,
           rejected: summary.rejected || 0,
+          photosToClassify: summary.photosToClassify || 0,
+          photosToApprove: summary.photosToApprove || 0,
+          schematicsToApprove: summary.schematicsToApprove || 0,
         });
       } catch (err) {
         console.error('Failed to load dashboard summary:', err);
@@ -236,48 +242,84 @@ const Dashboard = () => {
           </>
         )}
 
-        {/* Stats Cards — counts individual images, scoped to the user's troupe (CT) or districts (Branche). */}
-        <div className="stats-grid stats-grid-5">
-          <div className="stat-card">
-            <div className="stat-icon total">🖼️</div>
-            <div className="stat-info">
-              <h3>{stats.total}</h3>
-              <p>Total uploads</p>
+        {/* Stats: Branche/Admin see the same approval-queue cards as the Statistiques page;
+            CT keeps the 5-card image-count summary scoped to their troupe. */}
+        {user?.role === 'CHEF_TROUPE' ? (
+          <div className="stats-grid stats-grid-5">
+            <div className="stat-card">
+              <div className="stat-icon total">🖼️</div>
+              <div className="stat-info">
+                <h3>{stats.total}</h3>
+                <p>Total uploads</p>
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon pending">⏳</div>
-            <div className="stat-info">
-              <h3>{stats.pending}</h3>
-              <p>Pending</p>
+            <div className="stat-card">
+              <div className="stat-icon pending">⏳</div>
+              <div className="stat-info">
+                <h3>{stats.pending}</h3>
+                <p>Pending</p>
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon approved">📷</div>
-            <div className="stat-info">
-              <h3>{stats.photosApproved}</h3>
-              <p>Photos approuvées</p>
+            <div className="stat-card">
+              <div className="stat-icon approved">📷</div>
+              <div className="stat-info">
+                <h3>{stats.photosApproved}</h3>
+                <p>Photos approuvées</p>
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon approved">📐</div>
-            <div className="stat-info">
-              <h3>{stats.schematicsApproved}</h3>
-              <p>Schémas approuvés</p>
+            <div className="stat-card">
+              <div className="stat-icon approved">📐</div>
+              <div className="stat-info">
+                <h3>{stats.schematicsApproved}</h3>
+                <p>Schémas approuvés</p>
+              </div>
             </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon rejected">❌</div>
-            <div className="stat-info">
-              <h3>{stats.rejected}</h3>
-              <p>Rejetés</p>
+            <div className="stat-card">
+              <div className="stat-icon rejected">❌</div>
+              <div className="stat-info">
+                <h3>{stats.rejected}</h3>
+                <p>Rejetés</p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="approval-kpi-row approval-kpi-row--three">
+            <Link to="/classify" className="approval-card approval-card--classify">
+              <div className="approval-icon" aria-hidden="true">🏷️</div>
+              <div className="approval-body">
+                <div className="approval-value">{stats.photosToClassify}</div>
+                <div className="approval-label">Photos à classer</div>
+                <div className="approval-sublabel">
+                  Tous districts{stats.photosToClassify > 0 && ' — ouvrir'}
+                </div>
+              </div>
+            </Link>
+            <Link to="/review" className="approval-card approval-card--photos">
+              <div className="approval-icon" aria-hidden="true">📷</div>
+              <div className="approval-body">
+                <div className="approval-value">{stats.photosToApprove}</div>
+                <div className="approval-label">Photos à approuver</div>
+                <div className="approval-sublabel">
+                  Tous districts{stats.photosToApprove > 0 && ' — ouvrir la file'}
+                </div>
+              </div>
+            </Link>
+            <Link to="/schematics/review" className="approval-card approval-card--schematics">
+              <div className="approval-icon" aria-hidden="true">📐</div>
+              <div className="approval-body">
+                <div className="approval-value">{stats.schematicsToApprove}</div>
+                <div className="approval-label">Schémas à approuver</div>
+                <div className="approval-sublabel">
+                  Tous districts{stats.schematicsToApprove > 0 && ' — ouvrir la file'}
+                </div>
+              </div>
+            </Link>
+          </div>
+        )}
 
         {user?.role === 'CHEF_TROUPE' && (
           <div className="stats-grid stats-grid-2">

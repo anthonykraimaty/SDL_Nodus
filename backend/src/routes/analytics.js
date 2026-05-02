@@ -518,26 +518,33 @@ router.get('/users/uploads', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMI
   }
 });
 
-// GET /api/analytics/dashboard-summary - 5-metric summary for the role-scoped dashboard.
+// GET /api/analytics/dashboard-summary - role-scoped picture-level summary for the dashboard.
 // Counts individual pictures (not sets), using the same bucketing rules as /users/uploads.
 // Scope:
 //   - CHEF_TROUPE: pictures whose set belongs to the user's troupe
 //   - BRANCHE_ECLAIREURS: pictures whose set's troupe is in the user's assigned districts
 //   - ADMIN: all pictures
-// Returns: { total, pending, photosApproved, schematicsApproved, rejected }
-//   total              = approved + pending (excludes rejected, matching the Statistiques page)
-//   pending            = not-yet-approved photos + schematics (toClassify + toApprove)
-//   photosApproved     = approved INSTALLATION_PHOTO pictures
-//   schematicsApproved = approved SCHEMATIC pictures
-//   rejected           = pictures whose set is REJECTED
+// Returns: { total, pending, photosApproved, schematicsApproved, rejected,
+//            photosToClassify, photosToApprove, schematicsToApprove }
+//   total                = approved + pending (excludes rejected)
+//   pending              = photosToClassify + photosToApprove + schematicsToApprove
+//   photosApproved       = approved INSTALLATION_PHOTO pictures
+//   schematicsApproved   = approved SCHEMATIC pictures
+//   rejected             = pictures whose set is REJECTED
+//   photosToClassify     = non-archived photos whose set is PENDING/CLASSIFIED and categoryId IS NULL
+//   photosToApprove      = non-archived photos whose set is CLASSIFIED and categoryId IS NOT NULL
+//   schematicsToApprove  = non-archived schematics whose set is PENDING/CLASSIFIED (matches Stats page,
+//                          where schematics.toClassify + schematics.toApprove are summed together)
 router.get('/dashboard-summary', authenticate, async (req, res) => {
   try {
+    const empty = {
+      total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0,
+      photosToClassify: 0, photosToApprove: 0, schematicsToApprove: 0,
+    };
     const setWhere = {};
 
     if (req.user.role === 'CHEF_TROUPE') {
-      if (!req.user.troupeId) {
-        return res.json({ total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0 });
-      }
+      if (!req.user.troupeId) return res.json(empty);
       setWhere.troupeId = req.user.troupeId;
     } else if (req.user.role === 'BRANCHE_ECLAIREURS') {
       const userDistrictAccess = await prisma.userDistrictAccess.findMany({
@@ -545,9 +552,7 @@ router.get('/dashboard-summary', authenticate, async (req, res) => {
         select: { districtId: true },
       });
       const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
-      if (allowedDistrictIds.length === 0) {
-        return res.json({ total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0 });
-      }
+      if (allowedDistrictIds.length === 0) return res.json(empty);
       setWhere.troupe = { group: { districtId: { in: allowedDistrictIds } } };
     } else if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Forbidden' });
@@ -565,20 +570,29 @@ router.get('/dashboard-summary', authenticate, async (req, res) => {
       },
     });
 
-    const summary = { total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0 };
+    const summary = { ...empty };
 
     for (const pic of pictures) {
       const set = pic.pictureSet;
       if (!set) continue;
       const effType = pic.type || set.type;
+      const isSchematic = effType === 'SCHEMATIC';
+      const isClassified = pic.categoryId != null;
 
       if (set.status === 'APPROVED') {
-        if (effType === 'SCHEMATIC') summary.schematicsApproved += 1;
+        if (isSchematic) summary.schematicsApproved += 1;
         else summary.photosApproved += 1;
         summary.total += 1;
       } else if (set.status === 'REJECTED') {
         summary.rejected += 1;
       } else if (set.status === 'PENDING' || set.status === 'CLASSIFIED') {
+        if (isSchematic) {
+          summary.schematicsToApprove += 1;
+        } else if (set.status === 'CLASSIFIED' && isClassified) {
+          summary.photosToApprove += 1;
+        } else {
+          summary.photosToClassify += 1;
+        }
         summary.pending += 1;
         summary.total += 1;
       }
