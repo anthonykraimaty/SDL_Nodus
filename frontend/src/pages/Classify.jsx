@@ -43,6 +43,8 @@ const Classify = () => {
 
   useEffect(() => {
     loadData();
+    const id = setInterval(() => loadData({ background: true }), 20000);
+    return () => clearInterval(id);
   }, []);
 
   const loadData = async ({ background = false } = {}) => {
@@ -137,6 +139,55 @@ const Classify = () => {
     return { groups: Array.from(groupMap.values()), ungrouped };
   };
 
+  // Build a human-readable summary of a conflict response from /classify-bulk
+  // so the override prompt names the categories rather than just showing IDs.
+  const describeConflicts = (conflicts) => {
+    const nameOf = (id) => categories.find(c => c.id === id)?.name || `#${id}`;
+    if (conflicts.length === 1) {
+      const c = conflicts[0];
+      return `It is now classified as "${nameOf(c.currentCategoryId)}". You were about to set it to "${nameOf(c.attemptedCategoryId)}".`;
+    }
+    return `${conflicts.length} pictures are already classified differently. Override will replace their categories with yours.`;
+  };
+
+  // Wraps a classifyBulk call so a 409 response prompts the user to override
+  // (retry with force=true) instead of failing silently. Returns true on success.
+  const classifyBulkWithConflictPrompt = async (setId, payload, { onSuccess } = {}) => {
+    try {
+      await pictureService.classifyBulk(setId, payload);
+      if (onSuccess) await onSuccess();
+      return true;
+    } catch (err) {
+      if (err.status === 409 && err.body?.conflicts) {
+        return new Promise((resolve) => {
+          setConfirmAction({
+            title: 'Already classified by someone else',
+            message: `Another user just classified this while you were working. ${describeConflicts(err.body.conflicts)} Override with your classification?`,
+            confirmText: 'Override',
+            variant: 'warning',
+            onConfirm: async () => {
+              setConfirmAction(null);
+              try {
+                await pictureService.classifyBulk(setId, { ...payload, force: true });
+                if (onSuccess) await onSuccess();
+                resolve(true);
+              } catch (retryErr) {
+                console.error('Override classify error:', retryErr);
+                addToast(retryErr.message || 'Failed to override classification', 'error');
+                resolve(false);
+              }
+            },
+            onCancel: () => {
+              setConfirmAction(null);
+              resolve(false);
+            },
+          });
+        });
+      }
+      throw err;
+    }
+  };
+
   const handleClassifyPicture = async (pictureSet, picture) => {
     try {
       const data = classificationData[picture.id];
@@ -146,18 +197,23 @@ const Classify = () => {
         return;
       }
 
-      // Use classify-bulk for per-picture classification
-      await pictureService.classifyBulk(pictureSet.id, {
+      const ok = await classifyBulkWithConflictPrompt(pictureSet.id, {
         classifications: [{
           pictureId: picture.id,
           categoryId: data.categoryId,
           takenAt: data.takenAt || null,
         }],
+      }, {
+        onSuccess: async () => {
+          await loadData({ background: true });
+          addToast('Picture classified successfully!');
+        },
       });
-
-      // Refresh in background so the page doesn't blank out
-      await loadData({ background: true });
-      addToast('Picture classified successfully!');
+      if (!ok) {
+        // User cancelled the override prompt — silently re-fetch so the
+        // queue reflects the current state (the picture probably vanished).
+        await loadData({ background: true });
+      }
     } catch (err) {
       console.error('Classification error:', err);
       addToast('Failed to classify picture', 'error');
@@ -305,6 +361,7 @@ const Classify = () => {
     setBulkClassifying(true);
     let successCount = 0;
     let failCount = 0;
+    let conflictCount = 0;
 
     // Build takenAt date if month and year are provided
     let takenAt = null;
@@ -335,8 +392,12 @@ const Classify = () => {
         await pictureService.classifyBulk(parseInt(setId), { classifications });
         successCount++;
       } catch (err) {
-        console.error(`Failed to classify set ${setId}:`, err);
-        failCount++;
+        if (err.status === 409) {
+          conflictCount++;
+        } else {
+          console.error(`Failed to classify set ${setId}:`, err);
+          failCount++;
+        }
       }
     }
 
@@ -365,8 +426,11 @@ const Classify = () => {
 
     setBulkClassifying(false);
 
-    if (failCount > 0) {
-      addToast(`Classification complete: ${successCount} sets classified, ${failCount} failed`, 'warning');
+    if (failCount > 0 || conflictCount > 0) {
+      const parts = [`${successCount} classified`];
+      if (conflictCount > 0) parts.push(`${conflictCount} skipped (already classified by another user)`);
+      if (failCount > 0) parts.push(`${failCount} failed`);
+      addToast(parts.join(', '), 'warning');
     } else if (groupError) {
       addToast(
         `Classified ${successCount} picture set(s), but group creation failed: ${groupError}`,

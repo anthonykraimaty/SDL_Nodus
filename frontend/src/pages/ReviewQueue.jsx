@@ -17,6 +17,7 @@ const ReviewQueue = () => {
   const [rejectedSets, setRejectedSets] = useState([]);
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'rejected'
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -53,6 +54,11 @@ const ReviewQueue = () => {
     loadData();
   }, [filters]);
 
+  useEffect(() => {
+    const id = setInterval(() => loadData({ background: true }), 20000);
+    return () => clearInterval(id);
+  }, [filters]);
+
   const loadOrgData = async () => {
     try {
       const [districtsData, groupsData] = await Promise.all([
@@ -70,9 +76,9 @@ const ReviewQueue = () => {
     ? groups.filter((g) => String(g.districtId) === filters.districtId)
     : groups;
 
-  const loadData = async () => {
+  const loadData = async ({ background = false } = {}) => {
     try {
-      setLoading(true);
+      if (background) setRefreshing(true); else setLoading(true);
       // Build filter params
       const baseParams = { type: 'INSTALLATION_PHOTO', limit: 1000 };
       if (filters.districtId) baseParams.districtId = filters.districtId;
@@ -101,13 +107,28 @@ const ReviewQueue = () => {
 
       setPictureSets(setsWithClassified);
       setRejectedSets(rejectedData.pictures || []);
-      // Reset excluded pictures when data reloads
-      setExcludedPictures({});
+      if (background) {
+        // Preserve user's exclusion choices, but drop entries for sets/pictures
+        // that no longer exist after the refresh.
+        setExcludedPictures((prev) => {
+          const next = {};
+          for (const set of setsWithClassified) {
+            const prior = prev[set.id];
+            if (!prior || prior.size === 0) continue;
+            const validIds = new Set(set.pictures.map(p => p.id));
+            const kept = new Set([...prior].filter(id => validIds.has(id)));
+            if (kept.size > 0) next[set.id] = kept;
+          }
+          return next;
+        });
+      } else {
+        setExcludedPictures({});
+      }
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError('Failed to load pictures');
+      if (!background) setError('Failed to load pictures');
     } finally {
-      setLoading(false);
+      if (background) setRefreshing(false); else setLoading(false);
     }
   };
 
@@ -131,6 +152,23 @@ const ReviewQueue = () => {
   const getIncludedCount = (set) => {
     const excluded = excludedPictures[set.id]?.size || 0;
     return (set.pictures?.length || 0) - excluded;
+  };
+
+  // Detects the "another reviewer beat you to it" race from the backend's
+  // 409 ALREADY_REVIEWED response and turns it into a friendly toast +
+  // queue refresh. Returns true if the error was handled.
+  const handleAlreadyReviewed = async (err, action) => {
+    if (err?.status === 409 && err.body?.code === 'ALREADY_REVIEWED') {
+      const status = err.body.currentStatus;
+      const verb = status === 'APPROVED' ? 'approved' : status === 'REJECTED' ? 'rejected' : `marked as ${status}`;
+      addToast(`Another reviewer already ${verb} this set. Refreshing the queue.`, 'warning');
+      setShowRejectModal(null);
+      setSelectedImage(null);
+      setModalEditing(false);
+      await loadData({ background: true });
+      return true;
+    }
+    return false;
   };
 
   const handleApprove = async (pictureSetId, asHighlight = false) => {
@@ -157,6 +195,7 @@ const ReviewQueue = () => {
       setSuccess(asHighlight ? `Picture set approved and marked as highlight!${excludedMsg}${archivedMsg}` : `Picture set approved successfully!${excludedMsg}${archivedMsg}`);
       await loadData();
     } catch (err) {
+      if (await handleAlreadyReviewed(err)) return;
       console.error('Approval error:', err);
       setError('Failed to approve picture set');
     }
@@ -175,6 +214,7 @@ const ReviewQueue = () => {
       setModalEditing(false);
       await loadData();
     } catch (err) {
+      if (await handleAlreadyReviewed(err)) return;
       console.error('Single picture approval error:', err);
       addToast(err.message || 'Failed to approve picture', 'error');
     }
@@ -275,6 +315,7 @@ const ReviewQueue = () => {
       setShowRejectModal(null);
       await loadData();
     } catch (err) {
+      if (await handleAlreadyReviewed(err)) return;
       console.error('Rejection error:', err);
       setError('Failed to reject picture set');
     }
@@ -310,6 +351,8 @@ const ReviewQueue = () => {
           <p>Review and approve classified pictures before they become publicly visible</p>
           <p className="review-hint">Click on pictures to exclude them from approval</p>
         </div>
+
+        {refreshing && <div className="refresh-bar" aria-hidden="true" />}
 
         {/* Filters */}
         <div className="review-filters">

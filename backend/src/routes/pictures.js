@@ -890,7 +890,7 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const { classifications, woodCount, type } = req.body;
+    const { classifications, woodCount, type, force } = req.body;
 
     if (!classifications || !Array.isArray(classifications)) {
       return res.status(400).json({ error: 'Classifications array is required' });
@@ -903,6 +903,33 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
 
     // Determine the effective type: from request body or fall back to set type
     const effectiveType = type || pictureSet.type;
+
+    // Concurrency guard: if any picture is already classified with a DIFFERENT
+    // category than what we're about to write, refuse unless the caller passed
+    // force=true. Same-category resubmits pass through (idempotent). This is
+    // what prevents two Branche users silently overwriting each other when
+    // both have the same picture open in a modal.
+    if (!force) {
+      const existingById = new Map(pictureSet.pictures.map(p => [p.id, p]));
+      const conflicts = [];
+      for (const { pictureId, categoryId } of classifications) {
+        const existing = existingById.get(parseInt(pictureId));
+        if (!existing) continue;
+        if (existing.categoryId && existing.categoryId !== parseInt(categoryId)) {
+          conflicts.push({
+            pictureId: existing.id,
+            currentCategoryId: existing.categoryId,
+            attemptedCategoryId: parseInt(categoryId),
+          });
+        }
+      }
+      if (conflicts.length > 0) {
+        return res.status(409).json({
+          error: 'Already classified by someone else',
+          conflicts,
+        });
+      }
+    }
 
     // Update each picture with its classification
     const updatePromises = classifications.map(({ pictureId, categoryId, takenAt, woodCount: picWoodCount }) => {
@@ -1000,10 +1027,15 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       return res.status(404).json({ error: 'Picture set not found' });
     }
 
-    // Status guard: only PENDING or CLASSIFIED sets can be approved
+    // Status guard: only PENDING or CLASSIFIED sets can be approved.
+    // 409 (not 400) signals to the client that this is a concurrency loss
+    // — another reviewer already acted on this set — so the UI can show
+    // a friendly "already reviewed by X" toast and refresh the queue.
     if (!['PENDING', 'CLASSIFIED'].includes(existingSet.status)) {
-      return res.status(400).json({
+      return res.status(409).json({
         error: `Cannot approve a picture set with status ${existingSet.status}`,
+        code: 'ALREADY_REVIEWED',
+        currentStatus: existingSet.status,
       });
     }
 
@@ -1151,10 +1183,13 @@ router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCH
       return res.status(404).json({ error: 'Picture set not found' });
     }
 
-    // Status guard: only PENDING or CLASSIFIED sets can be approved
+    // Status guard: only PENDING or CLASSIFIED sets can be approved.
+    // See comment on /:id/approve for rationale on 409 vs 400.
     if (!['PENDING', 'CLASSIFIED'].includes(originalSet.status)) {
-      return res.status(400).json({
+      return res.status(409).json({
         error: `Cannot approve a picture set with status ${originalSet.status}`,
+        code: 'ALREADY_REVIEWED',
+        currentStatus: originalSet.status,
       });
     }
 
@@ -1281,10 +1316,13 @@ router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'
       return res.status(404).json({ error: 'Picture set not found' });
     }
 
-    // Status guard: only PENDING or CLASSIFIED sets can be rejected
+    // Status guard: only PENDING or CLASSIFIED sets can be rejected.
+    // See comment on /:id/approve for rationale on 409 vs 400.
     if (!['PENDING', 'CLASSIFIED'].includes(existingSet.status)) {
-      return res.status(400).json({
+      return res.status(409).json({
         error: `Cannot reject a picture set with status ${existingSet.status}`,
+        code: 'ALREADY_REVIEWED',
+        currentStatus: existingSet.status,
       });
     }
 

@@ -40,8 +40,11 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || response.statusText);
+      const body = await response.json().catch(() => ({ error: response.statusText }));
+      const err = new Error(body.error || response.statusText);
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
     return response.json();
   },
@@ -53,8 +56,11 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || response.statusText);
+      const body = await response.json().catch(() => ({ error: response.statusText }));
+      const err = new Error(body.error || response.statusText);
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
     return response.json();
   },

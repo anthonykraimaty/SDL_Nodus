@@ -117,6 +117,11 @@ const PictureStatus = () => {
       setExcludedPictures(new Set());
       await loadPictureSet();
     } catch (err) {
+      if (err?.status === 409 && err.body?.code === 'ALREADY_REVIEWED') {
+        setError(`Another reviewer already ${err.body.currentStatus === 'APPROVED' ? 'approved' : 'rejected'} this set.`);
+        await loadPictureSet();
+        return;
+      }
       console.error('Approval error:', err);
       setError('Failed to approve picture set');
     }
@@ -138,6 +143,12 @@ const PictureStatus = () => {
       setRejectionReason('');
       await loadPictureSet();
     } catch (err) {
+      if (err?.status === 409 && err.body?.code === 'ALREADY_REVIEWED') {
+        setError(`Another reviewer already ${err.body.currentStatus === 'APPROVED' ? 'approved' : 'rejected'} this set.`);
+        setShowRejectModal(false);
+        await loadPictureSet();
+        return;
+      }
       console.error('Rejection error:', err);
       setError('Failed to reject picture set');
     }

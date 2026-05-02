@@ -266,7 +266,11 @@ const ImageClassifier = () => {
       }, 1500);
     } catch (err) {
       console.error('Classification error:', err);
-      setError('Failed to save classifications');
+      if (err.status === 409) {
+        setError('Another user just classified some of these pictures. Refresh to see the latest, then re-classify only the ones you still want to change.');
+      } else {
+        setError('Failed to save classifications');
+      }
     }
   };
 

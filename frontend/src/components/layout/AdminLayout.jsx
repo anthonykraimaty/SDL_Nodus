@@ -56,6 +56,11 @@ const AdminLayout = () => {
 
       {/* Admin Sidebar */}
       <aside className={`admin-sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
+        <Link to="/" className="admin-back-link">
+          <span className="back-icon">←</span>
+          <span className="back-text">Back to App</span>
+        </Link>
+
         <div className="admin-brand">
           <span className="brand-icon">🏕️</span>
           <span className="brand-text">Nodus Admin</span>
