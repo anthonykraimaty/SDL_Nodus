@@ -518,4 +518,77 @@ router.get('/users/uploads', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMI
   }
 });
 
+// GET /api/analytics/dashboard-summary - 5-metric summary for the role-scoped dashboard.
+// Counts individual pictures (not sets), using the same bucketing rules as /users/uploads.
+// Scope:
+//   - CHEF_TROUPE: pictures whose set belongs to the user's troupe
+//   - BRANCHE_ECLAIREURS: pictures whose set's troupe is in the user's assigned districts
+//   - ADMIN: all pictures
+// Returns: { total, pending, photosApproved, schematicsApproved, rejected }
+//   total              = approved + pending (excludes rejected, matching the Statistiques page)
+//   pending            = not-yet-approved photos + schematics (toClassify + toApprove)
+//   photosApproved     = approved INSTALLATION_PHOTO pictures
+//   schematicsApproved = approved SCHEMATIC pictures
+//   rejected           = pictures whose set is REJECTED
+router.get('/dashboard-summary', authenticate, async (req, res) => {
+  try {
+    const setWhere = {};
+
+    if (req.user.role === 'CHEF_TROUPE') {
+      if (!req.user.troupeId) {
+        return res.json({ total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0 });
+      }
+      setWhere.troupeId = req.user.troupeId;
+    } else if (req.user.role === 'BRANCHE_ECLAIREURS') {
+      const userDistrictAccess = await prisma.userDistrictAccess.findMany({
+        where: { userId: req.user.id },
+        select: { districtId: true },
+      });
+      const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
+      if (allowedDistrictIds.length === 0) {
+        return res.json({ total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0 });
+      }
+      setWhere.troupe = { group: { districtId: { in: allowedDistrictIds } } };
+    } else if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const pictures = await prisma.picture.findMany({
+      where: {
+        isArchived: false,
+        pictureSet: setWhere,
+      },
+      select: {
+        type: true,
+        categoryId: true,
+        pictureSet: { select: { type: true, status: true } },
+      },
+    });
+
+    const summary = { total: 0, pending: 0, photosApproved: 0, schematicsApproved: 0, rejected: 0 };
+
+    for (const pic of pictures) {
+      const set = pic.pictureSet;
+      if (!set) continue;
+      const effType = pic.type || set.type;
+
+      if (set.status === 'APPROVED') {
+        if (effType === 'SCHEMATIC') summary.schematicsApproved += 1;
+        else summary.photosApproved += 1;
+        summary.total += 1;
+      } else if (set.status === 'REJECTED') {
+        summary.rejected += 1;
+      } else if (set.status === 'PENDING' || set.status === 'CLASSIFIED') {
+        summary.pending += 1;
+        summary.total += 1;
+      }
+    }
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Get dashboard summary error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard summary' });
+  }
+});
+
 export default router;

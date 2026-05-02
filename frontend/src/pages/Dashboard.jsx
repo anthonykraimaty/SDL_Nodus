@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { pictureService, schematicService } from '../services/api';
-import { API_URL } from '../config/api';
+import { pictureService, schematicService, analyticsService } from '../services/api';
 import Modal from '../components/Modal';
 import { ToastContainer, useToast } from '../components/Toast';
 import './Dashboard.css';
@@ -11,16 +10,14 @@ const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [pictures, setPictures] = useState([]);
-  const [allPictures, setAllPictures] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
-    classified: 0,
-    approved: 0,
+    photosApproved: 0,
+    schematicsApproved: 0,
     rejected: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('all');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [schematicStats, setSchematicStats] = useState({
@@ -41,28 +38,29 @@ const Dashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      // Recent sets list (for the table below) — separate from the summary counts.
+      const data = await pictureService.getAll({ limit: 50 });
+      const listPictures = user?.role === 'CHEF_TROUPE'
+        ? data.pictures.filter(p => p.uploadedBy?.id === user.id)
+        : data.pictures;
+      setPictures(listPictures);
 
-      // For Chef Troupe, show their own pictures
-      if (user?.role === 'CHEF_TROUPE') {
-        const data = await pictureService.getAll({ limit: 50 });
-        const userPictures = data.pictures.filter(p => p.uploadedBy?.id === user.id);
-        setAllPictures(userPictures);
-        setPictures(userPictures);
-
-        const pending = userPictures.filter(p => p.status === 'PENDING').length;
-        const classified = userPictures.filter(p => p.status === 'CLASSIFIED').length;
-        const approved = userPictures.filter(p => p.status === 'APPROVED').length;
-        const rejected = userPictures.filter(p => p.status === 'REJECTED').length;
-
+      // Role-scoped summary (counts individual images, matches Statistiques page).
+      try {
+        const summary = await analyticsService.getDashboardSummary();
         setStats({
-          total: pending + classified + approved + rejected,
-          pending,
-          classified,
-          approved,
-          rejected,
+          total: summary.total || 0,
+          pending: summary.pending || 0,
+          photosApproved: summary.photosApproved || 0,
+          schematicsApproved: summary.schematicsApproved || 0,
+          rejected: summary.rejected || 0,
         });
+      } catch (err) {
+        console.error('Failed to load dashboard summary:', err);
+      }
 
+      // CT-only secondary stats (unclassified photos / schematics counts).
+      if (user?.role === 'CHEF_TROUPE') {
         try {
           const imageStats = await pictureService.getMyTroupeStats();
           setCtImageStats(imageStats);
@@ -71,50 +69,7 @@ const Dashboard = () => {
         }
       }
 
-      // For Branche, show pictures needing review with detailed stats
-      if (user?.role === 'BRANCHE_ECLAIREURS' || user?.role === 'ADMIN') {
-        const data = await pictureService.getAll({ limit: 50 });
-        setAllPictures(data.pictures);
-        setPictures(data.pictures);
-
-        // Get accurate counts from API
-        const [pendingRes, classifiedRes, approvedRes, rejectedRes] = await Promise.all([
-          fetch(`${API_URL}/api/pictures?status=PENDING&limit=1`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          }),
-          fetch(`${API_URL}/api/pictures?status=CLASSIFIED&limit=1`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          }),
-          fetch(`${API_URL}/api/pictures?status=APPROVED&limit=1`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          }),
-          fetch(`${API_URL}/api/pictures?status=REJECTED&limit=1`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          }),
-        ]);
-
-        const [pendingData, classifiedData, approvedData, rejectedData] = await Promise.all([
-          pendingRes.json(),
-          classifiedRes.json(),
-          approvedRes.json(),
-          rejectedRes.json(),
-        ]);
-
-        const pending = pendingData.pagination?.total || 0;
-        const classified = classifiedData.pagination?.total || 0;
-        const approved = approvedData.pagination?.total || 0;
-        const rejected = rejectedData.pagination?.total || 0;
-
-        setStats({
-          total: pending + classified + approved + rejected,
-          pending,
-          classified,
-          approved,
-          rejected,
-        });
-      }
-
-      // Load schematic stats for all authenticated users
+      // Schematic stats for the action card.
       try {
         const schematicData = await schematicService.getStats();
         setSchematicStats(schematicData);
@@ -125,15 +80,6 @@ const Dashboard = () => {
       console.error('Failed to load dashboard:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const filterByStatus = (status) => {
-    setActiveFilter(status);
-    if (status === 'all') {
-      setPictures(allPictures);
-    } else {
-      setPictures(allPictures.filter(p => p.status === status.toUpperCase()));
     }
   };
 
@@ -290,23 +236,17 @@ const Dashboard = () => {
           </>
         )}
 
-        {/* Stats Cards */}
+        {/* Stats Cards — counts individual images, scoped to the user's troupe (CT) or districts (Branche). */}
         <div className="stats-grid stats-grid-5">
-          <div
-            className={`stat-card ${activeFilter === 'all' ? 'active' : ''}`}
-            onClick={() => filterByStatus('all')}
-          >
+          <div className="stat-card">
             <div className="stat-icon total">🖼️</div>
             <div className="stat-info">
               <h3>{stats.total}</h3>
-              <p>Total</p>
+              <p>Total uploads</p>
             </div>
           </div>
 
-          <div
-            className={`stat-card ${activeFilter === 'pending' ? 'active' : ''}`}
-            onClick={() => filterByStatus('pending')}
-          >
+          <div className="stat-card">
             <div className="stat-icon pending">⏳</div>
             <div className="stat-info">
               <h3>{stats.pending}</h3>
@@ -314,36 +254,27 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div
-            className={`stat-card ${activeFilter === 'classified' ? 'active' : ''}`}
-            onClick={() => filterByStatus('classified')}
-          >
-            <div className="stat-icon classified">📝</div>
+          <div className="stat-card">
+            <div className="stat-icon approved">📷</div>
             <div className="stat-info">
-              <h3>{stats.classified}</h3>
-              <p>Classified</p>
+              <h3>{stats.photosApproved}</h3>
+              <p>Photos approuvées</p>
             </div>
           </div>
 
-          <div
-            className={`stat-card ${activeFilter === 'approved' ? 'active' : ''}`}
-            onClick={() => filterByStatus('approved')}
-          >
-            <div className="stat-icon approved">✅</div>
+          <div className="stat-card">
+            <div className="stat-icon approved">📐</div>
             <div className="stat-info">
-              <h3>{stats.approved}</h3>
-              <p>Approved</p>
+              <h3>{stats.schematicsApproved}</h3>
+              <p>Schémas approuvés</p>
             </div>
           </div>
 
-          <div
-            className={`stat-card ${activeFilter === 'rejected' ? 'active' : ''}`}
-            onClick={() => filterByStatus('rejected')}
-          >
+          <div className="stat-card">
             <div className="stat-icon rejected">❌</div>
             <div className="stat-info">
               <h3>{stats.rejected}</h3>
-              <p>Rejected</p>
+              <p>Rejetés</p>
             </div>
           </div>
         </div>
@@ -385,15 +316,7 @@ const Dashboard = () => {
         {/* Recent Pictures */}
         <div className="recent-pictures">
           <div className="pictures-header">
-            <h3>
-              {user?.role === 'CHEF_TROUPE' ? 'Your Pictures' : 'Recent Submissions'}
-              {activeFilter !== 'all' && ` - ${activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)}`}
-            </h3>
-            {activeFilter !== 'all' && (
-              <button onClick={() => filterByStatus('all')} className="btn-clear-filter">
-                Show All
-              </button>
-            )}
+            <h3>{user?.role === 'CHEF_TROUPE' ? 'Your Pictures' : 'Recent Submissions'}</h3>
           </div>
 
           {pictures.length === 0 ? (
