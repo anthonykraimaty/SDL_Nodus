@@ -309,11 +309,17 @@ const ImagePreviewer = ({
 
       // Only call API if there are changes
       if (Object.keys(updateData).length > 0) {
-        await pictureService.updateIndividualPicture(currentPicture.id, updateData);
+        const result = await pictureService.updateIndividualPicture(currentPicture.id, updateData);
 
-        // Notify parent to refresh data
+        // Notify parent. If the parent supports patch-in-place, pass the
+        // picture id + the fields that actually changed so the parent can
+        // skip a reload (which on curated-sorted lists would reshuffle the
+        // grid and visually "lose" the picture).
         if (onPictureUpdate) {
-          onPictureUpdate();
+          const patch = result?.picture
+            ? { categoryId: result.picture.categoryId, category: result.picture.category, takenAt: result.picture.takenAt }
+            : updateData;
+          onPictureUpdate({ pictureId: currentPicture.id, patch });
         }
       }
 
@@ -332,10 +338,13 @@ const ImagePreviewer = ({
       if (!blob) {
         throw new Error("Aucune image à sauvegarder (canvas vide ou export annulé)");
       }
-      await pictureService.editImage(pictureId, blob);
+      const result = await pictureService.editImage(pictureId, blob);
       setIsImageEditing(false);
       setImageVersion(v => v + 1);
-      if (onPictureUpdate) onPictureUpdate();
+      if (onPictureUpdate) {
+        const newFilePath = result?.picture?.filePath;
+        onPictureUpdate(newFilePath ? { pictureId, patch: { filePath: newFilePath } } : undefined);
+      }
     } catch (err) {
       console.error('Failed to save edited image:', err);
       setImageEditorError(err.message || 'Échec de la sauvegarde');

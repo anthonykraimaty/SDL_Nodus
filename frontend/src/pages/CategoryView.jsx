@@ -368,19 +368,57 @@ const CategoryView = () => {
 
   const handleSaveEdit = async (blob, pictureId) => {
     try {
-      await pictureService.editImage(pictureId, blob);
+      const result = await pictureService.editImage(pictureId, blob);
+      // Patch the edited picture's filePath in place. Reloading the list
+      // would re-trigger the curated shuffle and the picture would jump
+      // off page 1, making it look like it disappeared.
+      const newFilePath = result?.picture?.filePath;
+      if (newFilePath) {
+        const apply = (p) => (p.id === pictureId ? { ...p, filePath: newFilePath } : p);
+        setPictures(prev => prev.map(apply));
+        setUngroupedPictures(prev => prev.map(apply));
+        setDesignGroups(prev => prev.map(g => ({
+          ...g,
+          pictures: (g.pictures || []).map(apply),
+        })));
+      }
       setSuccess('Image modifiée avec succès');
       setEditingPicture(null);
-      reloadPictures();
     } catch (err) {
       console.error('Failed to save edited image:', err);
       setError('Échec de la sauvegarde: ' + err.message);
     }
   };
 
-  // Handler for when picture metadata is updated in the previewer
-  const handlePictureUpdate = () => {
+  // Handler for when picture metadata or image is updated in the previewer.
+  // When the previewer hands us a { pictureId, patch }, we update local state
+  // in place to avoid a list reload — which on the default 'curated' sort
+  // would reshuffle the grid and make the picture appear to "disappear".
+  //
+  // Edge case: if the patch changes categoryId or type so the picture no
+  // longer matches the current view's filter, drop it from local state
+  // instead of patching (it really should leave this list).
+  const handlePictureUpdate = (info) => {
     setSuccess('Image mise à jour avec succès');
+    if (info?.pictureId && info?.patch) {
+      const movedOutOfView =
+        (info.patch.categoryId !== undefined && info.patch.categoryId !== parseInt(categoryId)) ||
+        (typeFilter && info.patch.type !== undefined && info.patch.type !== typeFilter);
+      if (movedOutOfView) {
+        removePicturesFromState([info.pictureId]);
+        return;
+      }
+      const apply = (p) => (p.id === info.pictureId ? { ...p, ...info.patch } : p);
+      setPictures(prev => prev.map(apply));
+      setUngroupedPictures(prev => prev.map(apply));
+      setDesignGroups(prev => prev.map(g => ({
+        ...g,
+        pictures: (g.pictures || []).map(apply),
+      })));
+      return;
+    }
+    // Fallback for callers that don't pass a patch (defensive — current
+    // ImagePreviewer always does).
     reloadPictures();
   };
 
