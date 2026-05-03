@@ -295,6 +295,12 @@ model Picture {
   isArchived    Boolean      @default(false)
   archivedAt    DateTime?
 
+  // Hidden curation: 1-5 stars (null = unrated, treated as 3 in tiered shuffle).
+  // Only ADMIN can set. Never exposed to public users.
+  rating        Int?
+  pinned        Boolean      @default(false)
+  pinnedAt      DateTime?
+
   uploadedAt    DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -308,6 +314,8 @@ model Picture {
   @@index([type])
   @@index([designGroupId])
   @@index([isArchived])
+  @@index([rating])
+  @@index([pinned])
 }
 
 // Global platform settings / feature flags. Admin-editable via /admin/organizations.

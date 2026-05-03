@@ -49,7 +49,9 @@ const AdminPictures = () => {
   const [selectedPictures, setSelectedPictures] = useState(new Set());
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
-  const [bulkEditForm, setBulkEditForm] = useState({ type: '', categoryId: '', districtId: '', groupId: '', troupeId: '' });
+  const [bulkEditForm, setBulkEditForm] = useState({ type: '', categoryId: '', districtId: '', groupId: '', troupeId: '', rating: '', pinned: '' });
+  // Per-picture saving state for inline rating/pin updates
+  const [savingCuration, setSavingCuration] = useState(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
 
   // Design group state
@@ -262,8 +264,97 @@ const AdminPictures = () => {
     setSelectedPictures(newSelected);
   };
 
+  // Inline rating/pin update with optimistic state.
+  const updateLocalCuration = (pictureId, patch) => {
+    setPictures(prev => prev.map(p => (p.id === pictureId ? { ...p, ...patch } : p)));
+  };
+
+  const handleInlineRating = async (pictureId, newRating) => {
+    setSavingCuration(prev => new Set(prev).add(pictureId));
+    const previous = pictures.find(p => p.id === pictureId);
+    updateLocalCuration(pictureId, { rating: newRating });
+    try {
+      await pictureService.updateIndividualPicture(pictureId, { rating: newRating });
+    } catch (err) {
+      console.error('Failed to update rating:', err);
+      setError(err.message || 'Failed to update rating');
+      if (previous) updateLocalCuration(pictureId, { rating: previous.rating });
+    } finally {
+      setSavingCuration(prev => {
+        const next = new Set(prev);
+        next.delete(pictureId);
+        return next;
+      });
+    }
+  };
+
+  const handleInlinePin = async (pictureId, currentPinned) => {
+    const newPinned = !currentPinned;
+    setSavingCuration(prev => new Set(prev).add(pictureId));
+    updateLocalCuration(pictureId, {
+      pinned: newPinned,
+      pinnedAt: newPinned ? new Date().toISOString() : null,
+    });
+    try {
+      await pictureService.updateIndividualPicture(pictureId, { pinned: newPinned });
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+      setError(err.message || 'Failed to toggle pin');
+      updateLocalCuration(pictureId, {
+        pinned: currentPinned,
+        pinnedAt: currentPinned ? new Date().toISOString() : null,
+      });
+    } finally {
+      setSavingCuration(prev => {
+        const next = new Set(prev);
+        next.delete(pictureId);
+        return next;
+      });
+    }
+  };
+
+  // Compact star widget used inline in the table/grid.
+  const renderInlineStars = (picture) => {
+    const saving = savingCuration.has(picture.id);
+    const stop = (e) => { e.stopPropagation(); };
+    return (
+      <span className="admin-curation-inline" onClick={stop}>
+        <span className="admin-curation-stars" role="radiogroup" aria-label="Rating">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              type="button"
+              className={`admin-star${picture.rating != null && n <= picture.rating ? ' on' : ''}`}
+              onClick={() => handleInlineRating(picture.id, n)}
+              disabled={saving}
+              title={`${n} étoile${n > 1 ? 's' : ''}`}
+            >★</button>
+          ))}
+          {picture.rating != null && (
+            <button
+              type="button"
+              className="admin-star-clear"
+              onClick={() => handleInlineRating(picture.id, null)}
+              disabled={saving}
+              title="Clear"
+            >✕</button>
+          )}
+        </span>
+        <button
+          type="button"
+          className={`admin-pin-btn${picture.pinned ? ' pinned' : ''}`}
+          onClick={() => handleInlinePin(picture.id, !!picture.pinned)}
+          disabled={saving}
+          title={picture.pinned ? 'Unpin' : 'Pin to top'}
+        >
+          📌
+        </button>
+      </span>
+    );
+  };
+
   const handleBulkEditClick = () => {
-    setBulkEditForm({ type: '', categoryId: '', districtId: '', groupId: '', troupeId: '' });
+    setBulkEditForm({ type: '', categoryId: '', districtId: '', groupId: '', troupeId: '', rating: '', pinned: '' });
     setShowBulkEdit(true);
   };
 
@@ -274,6 +365,12 @@ const AdminPictures = () => {
       if (bulkEditForm.type) updates.type = bulkEditForm.type;
       if (bulkEditForm.categoryId) updates.categoryId = bulkEditForm.categoryId;
       if (bulkEditForm.troupeId) updates.troupeId = bulkEditForm.troupeId;
+      // Rating: '' = keep, 'clear' = set to null, '1'..'5' = set to int
+      if (bulkEditForm.rating === 'clear') updates.rating = null;
+      else if (bulkEditForm.rating) updates.rating = parseInt(bulkEditForm.rating);
+      // Pinned: '' = keep, 'yes'/'no' = set
+      if (bulkEditForm.pinned === 'yes') updates.pinned = true;
+      else if (bulkEditForm.pinned === 'no') updates.pinned = false;
 
       if (Object.keys(updates).length === 0) {
         setError('Please select at least one field to update');
@@ -665,7 +762,11 @@ const AdminPictures = () => {
                   <span className="thumbnail-category">
                     {picture.category?.name || 'No category'}
                   </span>
+                  {renderInlineStars(picture)}
                 </div>
+                {picture.pinned && (
+                  <div className="picture-pin-badge" title="Pinned">📌 Pinned</div>
+                )}
               </div>
             ))}
           </div>
@@ -704,6 +805,9 @@ const AdminPictures = () => {
                     </th>
                     <th className="sortable" onClick={() => handleSort('category')}>
                       Category <span className="sort-icon">{getSortIcon('category')}</span>
+                    </th>
+                    <th className="sortable" onClick={() => handleSort('rating')}>
+                      Curation <span className="sort-icon">{getSortIcon('rating')}</span>
                     </th>
                     <th>Actions</th>
                   </tr>
@@ -767,6 +871,9 @@ const AdminPictures = () => {
                         {picture.woodCount && (
                           <div className="wood-count">{picture.woodCount} bois</div>
                         )}
+                      </td>
+                      <td className="curation-cell" onClick={(e) => e.stopPropagation()}>
+                        {renderInlineStars(picture)}
                       </td>
                       <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
                         <button
@@ -1136,6 +1243,38 @@ const AdminPictures = () => {
                     </div>
 
                     <div className="bulk-edit-section-header">
+                      Curation (hidden, admin only)
+                    </div>
+                    <div className="form-group">
+                      <label>Rating</label>
+                      <select
+                        value={bulkEditForm.rating}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, rating: e.target.value })}
+                        className="form-select"
+                      >
+                        <option value="">-- Keep existing --</option>
+                        <option value="1">★ 1 — bottom tier</option>
+                        <option value="2">★★ 2 — bottom tier</option>
+                        <option value="3">★★★ 3 — middle</option>
+                        <option value="4">★★★★ 4 — top tier</option>
+                        <option value="5">★★★★★ 5 — top tier</option>
+                        <option value="clear">Clear rating (unrated)</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Pinned</label>
+                      <select
+                        value={bulkEditForm.pinned}
+                        onChange={(e) => setBulkEditForm({ ...bulkEditForm, pinned: e.target.value })}
+                        className="form-select"
+                      >
+                        <option value="">-- Keep existing --</option>
+                        <option value="yes">Pin to top</option>
+                        <option value="no">Unpin</option>
+                      </select>
+                    </div>
+
+                    <div className="bulk-edit-section-header">
                       Move to Troupe
                     </div>
                     <div className="form-group">
@@ -1195,7 +1334,7 @@ const AdminPictures = () => {
             <button
               onClick={handleBulkEditSave}
               className="primary"
-              disabled={bulkSaving || (!bulkEditForm.type && !bulkEditForm.categoryId && !bulkEditForm.troupeId)}
+              disabled={bulkSaving || (!bulkEditForm.type && !bulkEditForm.categoryId && !bulkEditForm.troupeId && !bulkEditForm.rating && !bulkEditForm.pinned)}
             >
               {bulkSaving ? 'Updating...' : 'Update Pictures'}
             </button>

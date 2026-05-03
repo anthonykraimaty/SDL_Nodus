@@ -1,6 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
 import { getSetting } from '../utils/settings.js';
 
 const router = express.Router();
@@ -125,39 +125,43 @@ router.get('/', async (req, res) => {
             where: totalUploadsFilter,
           });
 
-          // Get random thumbnail pictures for preview
-          // Prioritize photos over schematics when no type filter is set
+          // Get random thumbnail pictures for preview.
+          // Curation: prefer 4-5 star pictures; fall back to all if a category
+          // hasn't been curated yet (so tiles don't go blank on day 1).
+          // Photos are prioritized over schematics when no type filter is set.
           let thumbnailPictures = [];
           if (count > 0) {
-            // If no type filter, try to get photos first
+            const shuffleAndTake4 = async (filter) => {
+              const rows = await prisma.picture.findMany({
+                where: filter,
+                select: { id: true, filePath: true },
+              });
+              return rows.sort(() => Math.random() - 0.5).slice(0, 4);
+            };
+            const topRated = { rating: { gte: 4 } };
+
             if (!type) {
               const photoFilter = { ...pictureFilter, type: 'INSTALLATION_PHOTO' };
-              const photoPictures = await prisma.picture.findMany({
-                where: photoFilter,
-                select: { id: true, filePath: true },
-              });
-
-              if (photoPictures.length > 0) {
-                // Use photos for thumbnails
-                const shuffled = photoPictures.sort(() => Math.random() - 0.5);
-                thumbnailPictures = shuffled.slice(0, 4);
-              } else {
-                // No photos, fall back to schematics
-                const allPictures = await prisma.picture.findMany({
-                  where: pictureFilter,
-                  select: { id: true, filePath: true },
-                });
-                const shuffled = allPictures.sort(() => Math.random() - 0.5);
-                thumbnailPictures = shuffled.slice(0, 4);
+              // 1) top-rated photos
+              thumbnailPictures = await shuffleAndTake4({ ...photoFilter, ...topRated });
+              // 2) any photos
+              if (thumbnailPictures.length === 0) {
+                thumbnailPictures = await shuffleAndTake4(photoFilter);
+              }
+              // 3) top-rated of any type
+              if (thumbnailPictures.length === 0) {
+                thumbnailPictures = await shuffleAndTake4({ ...pictureFilter, ...topRated });
+              }
+              // 4) any picture
+              if (thumbnailPictures.length === 0) {
+                thumbnailPictures = await shuffleAndTake4(pictureFilter);
               }
             } else {
-              // Type filter is set, use all matching pictures
-              const allPictures = await prisma.picture.findMany({
-                where: pictureFilter,
-                select: { id: true, filePath: true },
-              });
-              const shuffled = allPictures.sort(() => Math.random() - 0.5);
-              thumbnailPictures = shuffled.slice(0, 4);
+              // Type filter is set
+              thumbnailPictures = await shuffleAndTake4({ ...pictureFilter, ...topRated });
+              if (thumbnailPictures.length === 0) {
+                thumbnailPictures = await shuffleAndTake4(pictureFilter);
+              }
             }
           }
 
@@ -636,7 +640,7 @@ router.patch('/:id/main-picture', authenticate, authorize('ADMIN'), async (req, 
 });
 
 // GET /api/categories/:id/pictures - Get all approved pictures in a category with optional filtering
-router.get('/:id/pictures', async (req, res) => {
+router.get('/:id/pictures', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -750,86 +754,160 @@ router.get('/:id/pictures', async (req, res) => {
     }
 
     // Build order by clause
-    let orderByClause;
+    // Pinned pictures always come first across all sort modes; the chosen
+    // sortBy then orders the rest. 'curated' is a hidden tiered shuffle:
+    // pinned → 4-5★ (random) → 3★/unrated (random) → 1-2★ (random).
     const order = sortOrder === 'asc' ? 'asc' : 'desc';
+    const effectiveSortBy = sortBy || 'curated';
 
-    switch (sortBy) {
-      case 'woodCount':
-        orderByClause = { pictureSet: { woodCount: order } };
-        break;
-      case 'dateDone':
-        orderByClause = { takenAt: order };
-        break;
-      case 'uploadDate':
-      default:
-        orderByClause = { pictureSet: { uploadedAt: order } };
-        break;
-    }
+    const pictureInclude = {
+      category: true,
+      designGroup: {
+        include: {
+          primaryPicture: {
+            select: {
+              id: true,
+              filePath: true,
+            },
+          },
+          _count: {
+            select: { pictures: true },
+          },
+        },
+      },
+      pictureSet: {
+        include: {
+          troupe: {
+            include: {
+              group: {
+                include: {
+                  district: true,
+                },
+              },
+            },
+          },
+          patrouille: true,
+          uploadedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    };
 
     // Count total matching pictures (for hasMore / pagination UI)
     const total = await prisma.picture.count({ where: pictureWhere });
 
-    // Get pictures that belong to this category (via Picture.categoryId)
-    const pictures = await prisma.picture.findMany({
-      where: pictureWhere,
-      include: {
-        category: true,
-        designGroup: {
-          include: {
-            primaryPicture: {
-              select: {
-                id: true,
-                filePath: true,
-              },
-            },
-            _count: {
-              select: { pictures: true },
-            },
-          },
-        },
-        pictureSet: {
-          include: {
-            troupe: {
-              include: {
-                group: {
-                  include: {
-                    district: true,
-                  },
-                },
-              },
-            },
-            patrouille: true,
-            uploadedBy: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: orderByClause,
-      skip,
-      take: limitNum,
-    });
+    let pictures;
+
+    if (effectiveSortBy === 'curated') {
+      // Two-step: fetch IDs+rating+pinned only, do the tiered shuffle in JS,
+      // page the resulting ID list, then re-fetch the page with full includes.
+      const lite = await prisma.picture.findMany({
+        where: pictureWhere,
+        select: { id: true, rating: true, pinned: true, pinnedAt: true },
+      });
+
+      const pinnedBucket = [];
+      const top = [];
+      const middle = [];
+      const bottom = [];
+      for (const p of lite) {
+        if (p.pinned) {
+          pinnedBucket.push(p);
+        } else if (p.rating != null && p.rating >= 4) {
+          top.push(p);
+        } else if (p.rating != null && p.rating <= 2) {
+          bottom.push(p);
+        } else {
+          // rating === 3 or null (unrated → treated as middle)
+          middle.push(p);
+        }
+      }
+      pinnedBucket.sort((a, b) => {
+        const ta = a.pinnedAt ? a.pinnedAt.getTime() : 0;
+        const tb = b.pinnedAt ? b.pinnedAt.getTime() : 0;
+        return tb - ta; // most recently pinned first
+      });
+      const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+      shuffle(top);
+      shuffle(middle);
+      shuffle(bottom);
+
+      const orderedIds = [
+        ...pinnedBucket.map(p => p.id),
+        ...top.map(p => p.id),
+        ...middle.map(p => p.id),
+        ...bottom.map(p => p.id),
+      ];
+      const pageIds = orderedIds.slice(skip, skip + limitNum);
+
+      if (pageIds.length === 0) {
+        pictures = [];
+      } else {
+        const fetched = await prisma.picture.findMany({
+          where: { id: { in: pageIds } },
+          include: pictureInclude,
+        });
+        // Reorder by orderedIds since `in` doesn't preserve order
+        const byId = new Map(fetched.map(p => [p.id, p]));
+        pictures = pageIds.map(id => byId.get(id)).filter(Boolean);
+      }
+    } else {
+      // Explicit sort: pin first, then user-chosen field.
+      let secondary;
+      switch (effectiveSortBy) {
+        case 'woodCount':
+          secondary = { pictureSet: { woodCount: order } };
+          break;
+        case 'dateDone':
+          secondary = { takenAt: order };
+          break;
+        case 'uploadDate':
+        default:
+          secondary = { pictureSet: { uploadedAt: order } };
+          break;
+      }
+      pictures = await prisma.picture.findMany({
+        where: pictureWhere,
+        include: pictureInclude,
+        orderBy: [
+          { pinned: 'desc' },
+          { pinnedAt: 'desc' },
+          secondary,
+        ],
+        skip,
+        take: limitNum,
+      });
+    }
 
     const hasMore = skip + pictures.length < total;
 
+    // Hide the hidden rating from non-admin clients (pinned + pinnedAt are
+    // publicly visible — they drive the visible "Pinned" badge).
+    const isAdmin = req.user?.role === 'ADMIN';
+
     // Transform to expected format
-    const transformedPictures = pictures.map(pic => ({
-      ...pic,
-      troupe: pic.pictureSet.troupe,
-      patrouille: pic.pictureSet.patrouille,
-      pictureSet: {
-        id: pic.pictureSet.id,
-        title: pic.pictureSet.title,
-        description: pic.pictureSet.description,
-        location: pic.pictureSet.location,
-        uploadedAt: pic.pictureSet.uploadedAt,
-        woodCount: pic.pictureSet.woodCount,
-      },
-    }));
+    const transformedPictures = pictures.map(pic => {
+      const { rating, ...rest } = pic;
+      return {
+        ...rest,
+        ...(isAdmin ? { rating } : {}),
+        troupe: pic.pictureSet.troupe,
+        patrouille: pic.pictureSet.patrouille,
+        pictureSet: {
+          id: pic.pictureSet.id,
+          title: pic.pictureSet.title,
+          description: pic.pictureSet.description,
+          location: pic.pictureSet.location,
+          uploadedAt: pic.pictureSet.uploadedAt,
+          woodCount: pic.pictureSet.woodCount,
+        },
+      };
+    });
 
     // If grouped=true, organize pictures by design groups
     if (grouped === 'true') {

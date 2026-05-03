@@ -1193,3 +1193,78 @@
   font-size: 0.8rem;
   color: var(--accent);
 }
+
+/* === Inline curation widget (rating stars + pin) === */
+.admin-curation-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.admin-curation-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.admin-star {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #aaa);
+  font-size: 1.05rem;
+  cursor: pointer;
+  padding: 0 1px;
+  line-height: 1;
+}
+
+.admin-star.on {
+  color: #ffc107;
+}
+
+.admin-star:disabled,
+.admin-star-clear:disabled,
+.admin-pin-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-star-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #888);
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-left: 3px;
+}
+
+.admin-pin-btn {
+  background: transparent;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.15));
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.admin-pin-btn.pinned {
+  background: rgba(255, 152, 0, 0.18);
+  border-color: rgba(255, 152, 0, 0.6);
+  color: #ff9800;
+}
+
+/* Pinned badge on the AdminPictures grid thumbnail */
+.pictures-grid .picture-thumbnail .picture-pin-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(255, 152, 0, 0.95);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 2;
+}

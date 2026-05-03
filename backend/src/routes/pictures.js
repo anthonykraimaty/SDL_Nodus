@@ -1809,6 +1809,13 @@ router.get('/individual/list', authenticate, authorize('ADMIN'), async (req, res
       orderBy = { category: { name: sortOrder } };
     } else if (sortBy === 'type') {
       orderBy = { type: sortOrder }; // Sort by Picture.type now
+    } else if (sortBy === 'rating') {
+      // Pinned first (desc), then rating (nulls last when desc, first when asc)
+      orderBy = [
+        { pinned: 'desc' },
+        { rating: { sort: sortOrder, nulls: sortOrder === 'desc' ? 'last' : 'first' } },
+        { uploadedAt: 'desc' },
+      ];
     } else if (sortBy === 'uploadedAt') {
       orderBy = { uploadedAt: sortOrder };
     }
@@ -1863,7 +1870,12 @@ router.put('/individual/bulk-update', authenticate, authorize('ADMIN'), async (r
       return res.status(400).json({ error: 'No pictures selected' });
     }
 
-    const hasPictureUpdates = updates && (updates.type !== undefined || updates.categoryId !== undefined);
+    const hasPictureUpdates = updates && (
+      updates.type !== undefined ||
+      updates.categoryId !== undefined ||
+      updates.rating !== undefined ||
+      updates.pinned !== undefined
+    );
     const hasSetUpdates = updates && updates.troupeId !== undefined;
 
     if (!hasPictureUpdates && !hasSetUpdates) {
@@ -1872,7 +1884,7 @@ router.put('/individual/bulk-update', authenticate, authorize('ADMIN'), async (r
 
     const ids = pictureIds.map(id => parseInt(id));
 
-    // Picture-level updates (type, categoryId)
+    // Picture-level updates (type, categoryId, rating, pinned)
     let pictureUpdateCount = 0;
     if (hasPictureUpdates) {
       const updateData = {};
@@ -1881,6 +1893,22 @@ router.put('/individual/bulk-update', authenticate, authorize('ADMIN'), async (r
       }
       if (updates.categoryId !== undefined) {
         updateData.categoryId = updates.categoryId ? parseInt(updates.categoryId) : null;
+      }
+      if (updates.rating !== undefined) {
+        if (updates.rating === null || updates.rating === '') {
+          updateData.rating = null;
+        } else {
+          const r = parseInt(updates.rating);
+          if (!Number.isInteger(r) || r < 1 || r > 5) {
+            return res.status(400).json({ error: 'rating must be an integer between 1 and 5, or null' });
+          }
+          updateData.rating = r;
+        }
+      }
+      if (updates.pinned !== undefined) {
+        const newPinned = !!updates.pinned;
+        updateData.pinned = newPinned;
+        updateData.pinnedAt = newPinned ? new Date() : null;
       }
       const result = await prisma.picture.updateMany({
         where: { id: { in: ids } },
@@ -2035,7 +2063,7 @@ router.delete('/individual/bulk-delete', authenticate, authorize('ADMIN'), async
 router.put('/individual/:pictureId', authenticate, authorize('ADMIN', 'BRANCHE_ECLAIREURS'), async (req, res) => {
   try {
     const { pictureId } = req.params;
-    const { categoryId, takenAt, woodCount, type } = req.body;
+    const { categoryId, takenAt, woodCount, type, rating, pinned } = req.body;
 
     const picture = await prisma.picture.findUnique({
       where: { id: parseInt(pictureId) },
@@ -2086,6 +2114,27 @@ router.put('/individual/:pictureId', authenticate, authorize('ADMIN', 'BRANCHE_E
     // Type is now per-picture, not per-set
     if (type !== undefined) {
       updateData.type = type && ['INSTALLATION_PHOTO', 'SCHEMATIC'].includes(type) ? type : null;
+    }
+
+    // Hidden rating + pin: ADMIN-only. Silently ignored for branche so that
+    // shared edits (takenAt/woodCount/etc) still go through.
+    if (req.user.role === 'ADMIN') {
+      if (rating !== undefined) {
+        if (rating === null || rating === '') {
+          updateData.rating = null;
+        } else {
+          const r = parseInt(rating);
+          if (!Number.isInteger(r) || r < 1 || r > 5) {
+            return res.status(400).json({ error: 'rating must be an integer between 1 and 5, or null' });
+          }
+          updateData.rating = r;
+        }
+      }
+      if (pinned !== undefined) {
+        const newPinned = !!pinned;
+        updateData.pinned = newPinned;
+        updateData.pinnedAt = newPinned ? new Date() : null;
+      }
     }
 
     // Update picture

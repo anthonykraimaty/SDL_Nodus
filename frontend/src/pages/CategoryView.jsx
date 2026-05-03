@@ -60,8 +60,14 @@ const CategoryView = () => {
   const [dateDoneYear, setDateDoneYear] = useState('');
 
   // Sort states
-  const [sortBy, setSortBy] = useState('uploadDate'); // 'uploadDate', 'woodCount', 'dateDone'
+  // 'curated' is the default hidden tiered shuffle (pinned → 4-5★ → 3★/unrated → 1-2★).
+  // Users can flip to 'uploadDate', 'woodCount', or 'dateDone' explicitly.
+  const [sortBy, setSortBy] = useState('curated');
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
+
+  // Admin-only: track in-flight rating/pin updates per picture id
+  const isAdmin = user?.role === 'ADMIN';
+  const [savingCuration, setSavingCuration] = useState(new Set());
 
   // Thumbnail size state (0-100, default 50)
   const [thumbnailSize, setThumbnailSize] = useState(50);
@@ -145,7 +151,12 @@ const CategoryView = () => {
 
       const url = `${API_URL}/api/categories/${categoryId}/pictures?${params.toString()}`;
 
-      const response = await fetch(url);
+      // Send the auth token when present so the backend knows whether to
+      // include the hidden `rating` field for ADMIN users.
+      const token = localStorage.getItem('token');
+      const response = await fetch(url, token ? {
+        headers: { Authorization: `Bearer ${token}` },
+      } : undefined);
 
       if (!response.ok) {
         throw new Error('Failed to load category pictures');
@@ -275,6 +286,63 @@ const CategoryView = () => {
     setTypeFilter(type);
     // Note: We don't update URL params here - the filter is local to CategoryView
     // and shouldn't affect the Browse page filter (stored in sessionStorage)
+  };
+
+  // Admin-only: update rating or pin on a picture, with optimistic UI update.
+  const updateLocalCuration = (pictureId, patch) => {
+    const apply = (p) => (p.id === pictureId ? { ...p, ...patch } : p);
+    setPictures(prev => prev.map(apply));
+    setUngroupedPictures(prev => prev.map(apply));
+    setDesignGroups(prev => prev.map(g => ({
+      ...g,
+      pictures: (g.pictures || []).map(apply),
+    })));
+  };
+
+  const handleSetRating = async (pictureId, newRating) => {
+    if (!isAdmin) return;
+    setSavingCuration(prev => new Set(prev).add(pictureId));
+    const previous = pictures.find(p => p.id === pictureId);
+    updateLocalCuration(pictureId, { rating: newRating });
+    try {
+      await pictureService.updateIndividualPicture(pictureId, { rating: newRating });
+    } catch (err) {
+      console.error('Failed to update rating:', err);
+      setError("Échec de l'enregistrement de la note");
+      if (previous) updateLocalCuration(pictureId, { rating: previous.rating });
+    } finally {
+      setSavingCuration(prev => {
+        const next = new Set(prev);
+        next.delete(pictureId);
+        return next;
+      });
+    }
+  };
+
+  const handleTogglePin = async (pictureId, currentPinned) => {
+    if (!isAdmin) return;
+    const newPinned = !currentPinned;
+    setSavingCuration(prev => new Set(prev).add(pictureId));
+    updateLocalCuration(pictureId, {
+      pinned: newPinned,
+      pinnedAt: newPinned ? new Date().toISOString() : null,
+    });
+    try {
+      await pictureService.updateIndividualPicture(pictureId, { pinned: newPinned });
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+      setError("Échec de l'épinglage");
+      updateLocalCuration(pictureId, {
+        pinned: currentPinned,
+        pinnedAt: currentPinned ? new Date().toISOString() : null,
+      });
+    } finally {
+      setSavingCuration(prev => {
+        const next = new Set(prev);
+        next.delete(pictureId);
+        return next;
+      });
+    }
   };
 
   const handleSort = (field) => {
@@ -502,6 +570,65 @@ const CategoryView = () => {
     }
   };
 
+  // Visible-to-all "Pinned" badge.
+  const renderPinBadge = (picture) => {
+    if (!picture.pinned) return null;
+    return (
+      <div className="picture-pin-badge" title="Photo épinglée">
+        📌 Épinglée
+      </div>
+    );
+  };
+
+  // Admin-only curation overlay: 1-5 star rating + pin toggle.
+  // Stops propagation so clicks don't open the previewer.
+  const renderCurationOverlay = (picture) => {
+    if (!isAdmin) return null;
+    const saving = savingCuration.has(picture.id);
+    const stop = (e) => { e.stopPropagation(); e.preventDefault(); };
+    const stars = [1, 2, 3, 4, 5];
+    return (
+      <div
+        className={`picture-curation-overlay${saving ? ' saving' : ''}`}
+        onClick={stop}
+        onKeyDown={stop}
+      >
+        <div className="curation-stars" role="radiogroup" aria-label="Note (cachée, admin seulement)">
+          {stars.map(n => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={picture.rating === n}
+              className={`curation-star ${picture.rating != null && n <= picture.rating ? 'on' : ''}`}
+              onClick={(e) => { stop(e); handleSetRating(picture.id, n); }}
+              disabled={saving}
+              title={`${n} étoile${n > 1 ? 's' : ''}`}
+            >★</button>
+          ))}
+          {picture.rating != null && (
+            <button
+              type="button"
+              className="curation-star-clear"
+              onClick={(e) => { stop(e); handleSetRating(picture.id, null); }}
+              disabled={saving}
+              title="Effacer la note"
+            >✕</button>
+          )}
+        </div>
+        <button
+          type="button"
+          className={`curation-pin-btn${picture.pinned ? ' pinned' : ''}`}
+          onClick={(e) => { stop(e); handleTogglePin(picture.id, !!picture.pinned); }}
+          disabled={saving}
+          title={picture.pinned ? 'Désépingler' : 'Épingler en tête'}
+        >
+          {picture.pinned ? '📌 Épinglée' : '📌 Épingler'}
+        </button>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="category-view">
@@ -698,6 +825,13 @@ const CategoryView = () => {
         {/* Sort Options */}
         <div className="sort-options">
           <span className="sort-label">Trier:</span>
+          <button
+            className={`sort-btn ${sortBy === 'curated' ? 'active' : ''}`}
+            onClick={() => { setSortBy('curated'); setSortOrder('desc'); }}
+            title="Mélange par défaut, photos épinglées en premier"
+          >
+            Suggéré {sortBy === 'curated' && '★'}
+          </button>
           <button
             className={`sort-btn ${sortBy === 'uploadDate' ? 'active' : ''}`}
             onClick={() => handleSort('uploadDate')}
@@ -963,6 +1097,12 @@ const CategoryView = () => {
                       <div className="picture-category-label">{picture.category.name}</div>
                     )}
 
+                    {/* Pinned badge (visible to all) */}
+                    {renderPinBadge(picture)}
+
+                    {/* Admin-only rating + pin overlay */}
+                    {renderCurationOverlay(picture)}
+
                     <figcaption className="thumbnail-overlay">
                       <div className="thumbnail-info">
                         {picture.troupe && (
@@ -1028,6 +1168,8 @@ const CategoryView = () => {
                         ✎
                       </button>
                     )}
+                    {renderPinBadge(picture)}
+                    {renderCurationOverlay(picture)}
                   </figure>
 
                   <div className="row-meta">
