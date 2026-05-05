@@ -130,6 +130,30 @@
   font-size: 0.85rem;
 }
 
+.setting-number-input {
+  width: 110px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: right;
+  background: var(--bg-light, #fff);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  font-variant-numeric: tabular-nums;
+}
+
+.setting-number-input:focus {
+  outline: none;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.setting-number-input:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* Toggle switch */
 .toggle-switch {
   display: inline-flex;

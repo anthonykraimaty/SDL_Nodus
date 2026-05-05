@@ -1,8 +1,14 @@
 import { Fragment, useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { analyticsService } from '../services/api';
+import { analyticsService, settingsService } from '../services/api';
 import './UsersStats.css';
+
+// Fallbacks if /api/settings fails. Match the backend defaults in
+// backend/src/utils/settings.js so colors still appear when offline.
+const DEFAULT_TIER_HIGH = 20;
+const DEFAULT_TIER_MID = 15;
+const DEFAULT_AGG_FACTOR = 0.8;
 
 const emptyBucket = () => ({ total: 0, toClassify: 0, toApprove: 0, approved: 0, rejected: 0 });
 
@@ -42,6 +48,13 @@ const UsersStats = () => {
   const [draggedColId, setDraggedColId] = useState(null);
   const [dragOverColId, setDragOverColId] = useState(null);
 
+  // Tier coloring thresholds, configured by admins via /admin/organizations.
+  const [tierConfig, setTierConfig] = useState({
+    high: DEFAULT_TIER_HIGH,
+    mid: DEFAULT_TIER_MID,
+    factor: DEFAULT_AGG_FACTOR,
+  });
+
   // Pictures-by-category chart (moved here from Dashboard)
   const [categoryStats, setCategoryStats] = useState([]);
   const [categoryTotal, setCategoryTotal] = useState(0);
@@ -51,7 +64,21 @@ const UsersStats = () => {
 
   useEffect(() => {
     loadStats();
+    loadTierConfig();
   }, []);
+
+  const loadTierConfig = async () => {
+    try {
+      const s = await settingsService.get();
+      setTierConfig({
+        high: Number.isFinite(s?.statsTierHighThreshold) ? s.statsTierHighThreshold : DEFAULT_TIER_HIGH,
+        mid: Number.isFinite(s?.statsTierMidThreshold) ? s.statsTierMidThreshold : DEFAULT_TIER_MID,
+        factor: Number.isFinite(s?.statsAggregationFactor) ? s.statsAggregationFactor : DEFAULT_AGG_FACTOR,
+      });
+    } catch {
+      // keep defaults
+    }
+  };
 
   useEffect(() => {
     loadCategoryStats(categoryStatusFilter);
@@ -103,10 +130,17 @@ const UsersStats = () => {
     return <span className="sort-icon active">{sort.dir === 'asc' ? '↑' : '↓'}</span>;
   };
 
-  // Aggregate per-user rows based on selected grouping
+  // Aggregate per-user rows based on selected grouping. Branche/Admin users
+  // are excluded from the table — only scout users count toward troupe stats.
+  const scoutUsers = useMemo(
+    () => users.filter((u) => u.role !== 'BRANCHE_ECLAIREURS' && u.role !== 'ADMIN'),
+    [users]
+  );
+
   const groupRows = useMemo(() => {
     const map = new Map();
-    for (const u of users) {
+    const troupeKeys = new Map(); // grouping key -> Set of distinct troupe identifiers
+    for (const u of scoutUsers) {
       const districtName = u.district || '—';
       const groupName = u.group || '—';
       const troupeName = u.troupe || '—';
@@ -143,10 +177,15 @@ const UsersStats = () => {
           users: 0,
           uploaders: 0,
           total: 0,
+          troupeCount: 0,
           photos: emptyBucket(),
           schematics: emptyBucket(),
         };
         map.set(key, entry);
+        troupeKeys.set(key, new Set());
+      }
+      if (u.troupe) {
+        troupeKeys.get(key).add(`${districtName}||${groupName}||${u.troupe}`);
       }
       entry.users += 1;
       if (u.total > 0) entry.uploaders += 1;
@@ -156,8 +195,11 @@ const UsersStats = () => {
         entry.schematics[k] += u.schematics?.[k] || 0;
       }
     }
+    for (const [key, set] of troupeKeys) {
+      map.get(key).troupeCount = set.size;
+    }
     return Array.from(map.values());
-  }, [users, groupBy]);
+  }, [scoutUsers, groupBy]);
 
   // Districts for the filter dropdown
   const districts = useMemo(() => {
@@ -219,7 +261,7 @@ const UsersStats = () => {
     const troupeSet = new Set();
     const groupSet = new Set();
     const districtSet = new Set();
-    for (const u of users) {
+    for (const u of scoutUsers) {
       const districtName = u.district || '—';
       const groupName = u.group || '—';
       const troupeName = u.troupe || '—';
@@ -235,7 +277,7 @@ const UsersStats = () => {
       if (u.district) districtSet.add(districtName);
     }
     return { troupes: troupeSet.size, groups: groupSet.size, districts: districtSet.size };
-  }, [users, districtFilter, search]);
+  }, [scoutUsers, districtFilter, search]);
 
   const exportCSV = () => {
     const showGroup = groupBy !== 'district';
@@ -763,9 +805,20 @@ const UsersStats = () => {
                     </tr>
                   ) : (
                     filteredSorted.map((r) => {
+                      // Tier threshold scales with grouping: per-troupe baseline
+                      // comes from the admin-configured settings. When grouped
+                      // by group/district, scale by troupe count × aggregation
+                      // factor.
+                      const troupeCount = r.troupeCount || 1;
+                      const highBase = troupeCount > 1
+                        ? tierConfig.high * troupeCount * tierConfig.factor
+                        : tierConfig.high;
+                      const midBase = troupeCount > 1
+                        ? tierConfig.mid * troupeCount * tierConfig.factor
+                        : tierConfig.mid;
                       const approvedTier =
-                        r.photos.approved >= 20 ? 'tier-high' :
-                        r.photos.approved >= 15 ? 'tier-mid' : '';
+                        r.photos.approved >= highBase ? 'tier-high' :
+                        r.photos.approved >= midBase ? 'tier-mid' : '';
                       return (
                         <tr key={r.key} className={approvedTier}>
                           {visibleColumns.map((id) => (

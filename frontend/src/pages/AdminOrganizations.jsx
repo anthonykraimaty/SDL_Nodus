@@ -22,11 +22,34 @@ const FLAG_LABELS = {
   },
 };
 
+const NUMBER_LABELS = {
+  statsTierHighThreshold: {
+    title: 'Seuil vert (par troupe)',
+    description: "Photos approuvées requises pour qu'une troupe passe en vert. Pour les groupes/districts, multiplié par le nombre de troupes × facteur d'agrégation.",
+    min: 0,
+    step: 1,
+  },
+  statsTierMidThreshold: {
+    title: 'Seuil orange (par troupe)',
+    description: "Photos approuvées requises pour qu'une troupe atteigne le palier intermédiaire. Mêmes règles d'agrégation.",
+    min: 0,
+    step: 1,
+  },
+  statsAggregationFactor: {
+    title: 'Facteur d\'agrégation',
+    description: "Coefficient appliqué quand les rangées agrègent plusieurs troupes (groupe ou district). 1 = somme stricte, < 1 = bonus pour récompenser l'effort collectif.",
+    min: 0,
+    step: 0.05,
+  },
+};
+
 const AdminOrganizations = () => {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
   const [error, setError] = useState('');
+  // Local draft values for number inputs so typing doesn't fire a save per keystroke.
+  const [numberDrafts, setNumberDrafts] = useState({});
 
   useEffect(() => {
     loadSettings();
@@ -41,6 +64,33 @@ const AdminOrganizations = () => {
       setError(err.message || 'Failed to load settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const commitNumber = async (key) => {
+    const raw = numberDrafts[key];
+    if (raw === undefined || raw === '') return;
+    const next = Number(raw);
+    if (!Number.isFinite(next) || next < 0) {
+      setNumberDrafts((prev) => ({ ...prev, [key]: undefined }));
+      return;
+    }
+    if (next === settings[key]) {
+      setNumberDrafts((prev) => ({ ...prev, [key]: undefined }));
+      return;
+    }
+    const previous = settings[key];
+    setSettings((prev) => ({ ...prev, [key]: next }));
+    setSavingKey(key);
+    try {
+      const res = await settingsService.update({ [key]: next });
+      setSettings(res.settings);
+      setNumberDrafts((prev) => ({ ...prev, [key]: undefined }));
+    } catch (err) {
+      setSettings((prev) => ({ ...prev, [key]: previous }));
+      setError(err.message || 'Failed to update setting');
+    } finally {
+      setSavingKey(null);
     }
   };
 
@@ -141,6 +191,52 @@ const AdminOrganizations = () => {
                         {checked ? 'Activé' : 'Désactivé'}
                       </span>
                     </label>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Stats coloring thresholds */}
+        <div className="settings-section">
+          <div className="section-header">
+            <h2>🎨 Statistiques — Coloration des troupes</h2>
+            <span className="section-subtitle">
+              Seuils de photos approuvées qui déclenchent la coloration verte/orange dans la table des statistiques
+            </span>
+          </div>
+
+          {loading || !settings ? (
+            <div className="settings-loading">Chargement…</div>
+          ) : (
+            <div className="settings-grid">
+              {Object.keys(NUMBER_LABELS).map((key) => {
+                const meta = NUMBER_LABELS[key];
+                const draft = numberDrafts[key];
+                const value = draft !== undefined ? draft : settings[key];
+                const saving = savingKey === key;
+                return (
+                  <div key={key} className="setting-row setting-on">
+                    <div className="setting-info">
+                      <h4>{meta.title}</h4>
+                      <p>{meta.description}</p>
+                    </div>
+                    <input
+                      type="number"
+                      className="setting-number-input"
+                      min={meta.min}
+                      step={meta.step}
+                      value={value}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setNumberDrafts((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
+                      onBlur={() => commitNumber(key)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                      }}
+                    />
                   </div>
                 );
               })}

@@ -8,6 +8,11 @@ export const FEATURE_FLAGS = {
   schematicsPublicViewEnabled: { default: true, type: 'boolean' },
   photoApprovalEnabled: { default: true, type: 'boolean' },
   schematicApprovalEnabled: { default: true, type: 'boolean' },
+  // Stats page tier coloring thresholds (per troupe). When grouped by group/district
+  // the threshold is multiplied by troupeCount × statsAggregationFactor.
+  statsTierHighThreshold: { default: 20, type: 'number' },
+  statsTierMidThreshold: { default: 15, type: 'number' },
+  statsAggregationFactor: { default: 0.8, type: 'number' },
 };
 
 const parseValue = (raw, type) => {
