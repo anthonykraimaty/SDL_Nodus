@@ -605,7 +605,13 @@ router.get(
       const categoryIds = setItems.map((si) => si.categoryId);
 
       const approved = categoryIds.length === 0 ? [] : await prisma.categoryProgress.findMany({
-        where: { status: 'APPROVED', categoryId: { in: categoryIds } },
+        where: {
+          status: 'APPROVED',
+          categoryId: { in: categoryIds },
+          // Guard against stale CategoryProgress rows whose linked picture set
+          // was later re-uploaded/re-classified back to SUBMITTED/REJECTED.
+          pictureSet: { is: { status: 'APPROVED' } },
+        },
         select: {
           categoryId: true,
           completedAt: true,
@@ -978,6 +984,8 @@ router.post(
         uploadedPictures.push({
           filePath,
           displayOrder: i,
+          type: 'SCHEMATIC',
+          categoryId: categoryIdInt,
         });
         fileMeta.push({
           filePath,
@@ -1164,18 +1172,28 @@ router.put(
       const categoryLabel = category.name;
       const title = `${pictureSet.patrouille.troupe.name}_${pictureSet.patrouille.name}_${categoryLabel}`;
 
-      const updatedPictureSet = await prisma.pictureSet.update({
-        where: { id: parseInt(id) },
-        data: {
-          categoryId: categoryIdInt,
-          title,
-          status: 'PENDING',
-        },
-        include: {
-          pictures: true,
-          category: true,
-          patrouille: true,
-        },
+      // Update the set + propagate type/categoryId onto child Pictures so they
+      // show up under /category/:id/pictures (which filters by Picture.categoryId,
+      // not PictureSet.categoryId).
+      const updatedPictureSet = await prisma.$transaction(async (tx) => {
+        const updated = await tx.pictureSet.update({
+          where: { id: parseInt(id) },
+          data: {
+            categoryId: categoryIdInt,
+            title,
+            status: 'PENDING',
+          },
+          include: {
+            pictures: true,
+            category: true,
+            patrouille: true,
+          },
+        });
+        await tx.picture.updateMany({
+          where: { pictureSetId: parseInt(id) },
+          data: { type: 'SCHEMATIC', categoryId: categoryIdInt },
+        });
+        return updated;
       });
 
       // Create/update progress record
