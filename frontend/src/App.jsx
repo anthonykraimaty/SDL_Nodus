@@ -54,6 +54,7 @@ function PageTracker() {
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -64,7 +65,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    // Carry the page they asked for through the sign-in round trip, so a
+    // shared deep link (e.g. /review-queue) lands there rather than on the
+    // dashboard. /login passes it to Keycloak as returnTo; someone whose
+    // Keycloak session is already open never sees a form at all.
+    const wanted = `${location.pathname}${location.search}`;
+    return (
+      <Navigate to={`/login?next=${encodeURIComponent(wanted)}`} replace />
+    );
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
