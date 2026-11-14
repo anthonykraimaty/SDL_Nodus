@@ -841,10 +841,235 @@
   flex-shrink: 0;
 }
 
+/* Branche (Eclaireurs / Eclaireuses) — sits above the district line. */
+.category-view .thumbnail-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
+.thumbnail-branche {
+  display: inline-block;
+  align-self: flex-start;
+  flex-shrink: 0;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #3e2723;
+  background: #ffd9a0;
+  white-space: nowrap;
+}
+
+.thumbnail-branche.branche-eclaireuses {
+  background: #f6c6b8;
+}
+
+.category-view .row-branche {
+  margin-bottom: 2px;
+}
+
+/* Category chip lives in the caption on touch/narrow screens only; on
+ * desktop the floating .picture-category-label already shows it. */
+.thumbnail-category-chip {
+  display: none;
+  min-width: 0;
+  font-family: 'Atkinson Hyperlegible', -apple-system, sans-serif;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .category-view .thumbnail-overlay {
     transition: none !important;
     transform: none !important;
+  }
+}
+
+/* ------- Mobile / touch tile layout -------
+ * No hover on these devices, so everything that desktop reveals on hover is
+ * shown at rest. To keep the photo readable:
+ *  - the caption is a full-bleed gradient hugging the bottom edge, sized to
+ *    its content instead of a fixed 44% panel;
+ *  - the category moves into the caption (no separate floating label);
+ *  - the admin stars/pin bar becomes one compact row along the top edge,
+ *    between the selection badge and the edit button.
+ */
+@media (hover: none), (max-width: 768px) {
+  .category-view .thumbnail-overlay {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    max-height: 70%;
+    transform: none;
+    border-radius: 0;
+    padding: 36px 12px 10px;
+    background: linear-gradient(
+      180deg,
+      rgba(43, 27, 20, 0) 0%,
+      rgba(43, 27, 20, 0.72) 38%,
+      rgba(43, 27, 20, 0.92) 100%
+    );
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .category-view .thumbnail-info {
+    gap: 1px;
+  }
+
+  .category-view .picture-category-label {
+    display: none;
+  }
+
+  .category-view .thumbnail-category-chip {
+    display: inline-block;
+  }
+
+  .category-view .thumbnail-district {
+    font-size: 0.72rem;
+  }
+
+  .category-view .thumbnail-group {
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .category-view .thumbnail-troupe {
+    font-size: 0.82rem;
+  }
+
+  .category-view .thumbnail-location {
+    font-size: 0.72rem;
+    margin-top: 2px;
+  }
+
+  /* Admin curation: one slim row at the top, always visible. */
+  .category-view .picture-thumbnail .picture-curation-overlay {
+    top: 8px;
+    bottom: auto;
+    left: 44px;
+    right: 60px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 1;
+    pointer-events: auto;
+    min-width: 0;
+  }
+
+  .category-view .picture-thumbnail .curation-star {
+    font-size: 1rem;
+    padding: 2px;
+    min-width: 22px;
+    min-height: 26px;
+  }
+
+  .category-view .picture-thumbnail .curation-star-clear {
+    margin-left: 0;
+    min-height: 26px;
+  }
+
+  .category-view .picture-thumbnail .curation-star:not(.on) {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .category-view .picture-thumbnail .curation-pin-btn {
+    flex-shrink: 0;
+    min-height: 28px;
+    min-width: 32px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    line-height: 1;
+  }
+
+  .category-view .picture-thumbnail .curation-pin-label {
+    display: none;
+  }
+
+  /* Pinned badge would sit under the selection badge — nudge it down. */
+  .category-view .picture-thumbnail .thumbnail-image:has(.picture-selection-badge) .picture-pin-badge,
+  .category-view .picture-thumbnail .thumbnail-image:has(.picture-curation-overlay) .picture-pin-badge {
+    top: 44px;
+  }
+
+  .category-view .picture-thumbnail .picture-edit-btn {
+    opacity: 1;
+  }
+}
+
+/* Two-column phones: tiles are ~170px wide, tighten further. */
+@media (max-width: 480px) {
+  .category-view .thumbnail-overlay {
+    padding: 28px 8px 8px;
+  }
+
+  .category-view .thumbnail-kicker {
+    gap: 4px;
+  }
+
+  .thumbnail-branche,
+  .thumbnail-category-chip {
+    font-size: 0.58rem;
+    padding: 3px 6px;
+  }
+
+  .category-view .thumbnail-district {
+    font-size: 0.64rem;
+  }
+
+  .category-view .thumbnail-group {
+    font-size: 0.88rem;
+  }
+
+  .category-view .thumbnail-troupe {
+    font-size: 0.72rem;
+  }
+
+  .category-view .thumbnail-location {
+    display: none;
+  }
+
+  /* Stars + pin don't fit between the corner buttons; drop to a row just
+   * below them. */
+  .category-view .picture-thumbnail .picture-curation-overlay {
+    top: 58px;
+    left: 6px;
+    right: 6px;
+    justify-content: space-between;
+    gap: 0;
+    padding: 2px 4px 2px 8px;
+  }
+
+  .category-view .picture-thumbnail .curation-star {
+    min-width: 26px;
+  }
+
+  .category-view .picture-thumbnail .thumbnail-image:has(.picture-selection-badge) .picture-pin-badge,
+  .category-view .picture-thumbnail .thumbnail-image:has(.picture-curation-overlay) .picture-pin-badge {
+    top: 96px;
   }
 }
 
@@ -1028,29 +1253,6 @@
     margin-top: var(--spacing-sm, 0.5rem);
   }
 
-  .thumbnail-district {
-    font-size: 0.68rem;
-  }
-
-  .thumbnail-group {
-    font-size: 1.02rem;
-  }
-
-  .thumbnail-troupe {
-    font-size: 0.82rem;
-  }
-
-  .thumbnail-location {
-    font-size: 0.72rem;
-  }
-
-  .category-view .thumbnail-overlay {
-    left: 6px;
-    right: 6px;
-    bottom: 6px;
-    padding: 10px 12px;
-    border-radius: 10px;
-  }
 }
 
 @media (max-width: 480px) {

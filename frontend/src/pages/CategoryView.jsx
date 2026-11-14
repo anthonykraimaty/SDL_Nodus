@@ -661,7 +661,8 @@ const CategoryView = () => {
           disabled={saving}
           title={picture.pinned ? 'Désépingler' : 'Épingler en tête'}
         >
-          {picture.pinned ? '📌 Épinglée' : '📌 Épingler'}
+          <span aria-hidden="true">📌</span>
+          <span className="curation-pin-label">{picture.pinned ? 'Épinglée' : 'Épingler'}</span>
         </button>
       </div>
     );
@@ -1143,6 +1144,18 @@ const CategoryView = () => {
 
                     <figcaption className="thumbnail-overlay">
                       <div className="thumbnail-info">
+                        {(picture.troupe?.branche || picture.category) && (
+                          <div className="thumbnail-kicker">
+                            {picture.troupe?.branche && (
+                              <span className={`thumbnail-branche branche-${picture.troupe.branche.toLowerCase()}`}>
+                                {picture.troupe.branche}
+                              </span>
+                            )}
+                            {picture.category && (
+                              <span className="thumbnail-category-chip">{picture.category.name}</span>
+                            )}
+                          </div>
+                        )}
                         {picture.troupe && (
                           <>
                             {picture.troupe.group?.district?.name && (
@@ -1212,6 +1225,11 @@ const CategoryView = () => {
 
                   <div className="row-meta">
                     <div className="row-meta-main">
+                      {picture.troupe?.branche && (
+                        <span className={`thumbnail-branche row-branche branche-${picture.troupe.branche.toLowerCase()}`}>
+                          {picture.troupe.branche}
+                        </span>
+                      )}
                       {picture.troupe?.group?.district?.name && (
                         <span className="row-district">{picture.troupe.group.district.name}</span>
                       )}
