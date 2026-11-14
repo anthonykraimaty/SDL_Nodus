@@ -547,3 +547,35 @@
     box-shadow: none;
   }
 }
+
+/* A group or troupe that has left Inscription. It is deactivated, never
+   deleted: its pictures stay browsable, it just no longer appears where
+   someone picks a destination for a new upload. */
+.inactive-row {
+  opacity: 0.6;
+}
+
+.inactive-badge,
+.branche-badge {
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.inactive-badge {
+  background-color: rgba(121, 85, 72, 0.12);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  cursor: help;
+}
+
+.branche-badge {
+  background-color: rgba(212, 165, 116, 0.2);
+  color: var(--text-secondary);
+  border: 1px solid var(--accent-dark);
+}

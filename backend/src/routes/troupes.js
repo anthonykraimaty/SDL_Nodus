@@ -1,4 +1,5 @@
 import express from 'express';
+import { BRANCHES } from '../utils/keycloakAccess.js';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.js';
 
@@ -11,7 +12,12 @@ const prisma = new PrismaClient();
 // stay admin-only.
 router.get('/', authenticate, authorize('ADMIN', 'BRANCHE_ECLAIREURS'), async (req, res) => {
   try {
+    // ?activeOnly=1 hides units that have left Inscription. Used by pickers
+    // where someone chooses a troupe for NEW data. Browsing and statistics
+    // omit it, so the pictures of units that no longer exist stay visible.
+    const activeOnly = req.query.activeOnly === '1' || req.query.activeOnly === 'true';
     const troupes = await prisma.troupe.findMany({
+      where: activeOnly ? { isActive: true } : {},
       include: {
         group: {
           include: {
@@ -70,7 +76,7 @@ router.get('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
 // Create new troupe
 router.post('/', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, code, groupId } = req.body;
+    const { name, code, groupId, branche } = req.body;
 
     if (!name || !code || !groupId) {
       return res.status(400).json({ error: 'Name, code, and groupId are required' });
@@ -98,6 +104,9 @@ router.post('/', authenticate, authorize('ADMIN'), async (req, res) => {
       data: {
         name,
         code,
+        // Which branche this unit belongs to — decides which Branche team may
+        // approve its pictures. Defaults to Eclaireurs (see schema.prisma).
+        ...(BRANCHES.includes(branche) ? { branche } : {}),
         groupId: parseInt(groupId),
       },
       include: {
@@ -120,7 +129,7 @@ router.post('/', authenticate, authorize('ADMIN'), async (req, res) => {
 router.put('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, code, groupId } = req.body;
+    const { name, code, groupId, branche } = req.body;
 
     const existingTroupe = await prisma.troupe.findUnique({
       where: { id: parseInt(id) },
@@ -156,6 +165,8 @@ router.put('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
     if (name) updateData.name = name;
     if (code) updateData.code = code;
     if (groupId) updateData.groupId = parseInt(groupId);
+    // Unknown branche names are ignored rather than written.
+    if (branche !== undefined && BRANCHES.includes(branche)) updateData.branche = branche;
 
     const troupe = await prisma.troupe.update({
       where: { id: parseInt(id) },
@@ -186,11 +197,26 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
       include: {
         patrouilles: true,
         users: true,
+        _count: { select: { pictureSets: true } },
       },
     });
 
     if (!existingTroupe) {
       return res.status(404).json({ error: 'Troupe not found' });
+    }
+
+    // A troupe that has ever uploaded is DEACTIVATED, never deleted: the camps
+    // it photographed stay browsable even once the unit no longer exists.
+    if (existingTroupe._count.pictureSets > 0) {
+      const deactivated = await prisma.troupe.update({
+        where: { id: parseInt(id) },
+        data: { isActive: false },
+      });
+      return res.json({
+        message: `Troupe deactivated (${existingTroupe._count.pictureSets} picture set(s) kept)`,
+        deactivated: true,
+        troupe: deactivated,
+      });
     }
 
     if (existingTroupe.patrouilles.length > 0 || existingTroupe.users.length > 0) {
@@ -203,7 +229,7 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
       where: { id: parseInt(id) },
     });
 
-    res.json({ message: 'Troupe deleted successfully' });
+    res.json({ message: 'Troupe deleted successfully', deactivated: false });
   } catch (error) {
     console.error('Failed to delete troupe:', error);
     res.status(500).json({ error: 'Failed to delete troupe' });

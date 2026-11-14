@@ -8,6 +8,7 @@ import Landing from './pages/Landing';
 import Browse from './pages/Browse';
 import CategoryView from './pages/CategoryView';
 import Login from './pages/Login';
+import AuthCallback from './pages/AuthCallback';
 import Upload from './pages/Upload';
 import Classify from './pages/Classify';
 import ImageClassifier from './pages/ImageClassifier';
@@ -18,6 +19,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
 import AdminCategories from './pages/AdminCategories';
 import AdminRoles from './pages/AdminRoles';
+import AdminAccess from './pages/AdminAccess';
 import AdminOrganizations from './pages/AdminOrganizations';
 import AdminDistricts from './pages/AdminDistricts';
 import AdminGroups from './pages/AdminGroups';
@@ -98,6 +100,8 @@ function App() {
             <Route path="category/:categoryId/photo/:pictureId" element={<CategoryView />} />
             <Route path="schematics" element={<SchematicProgress />} />
             <Route path="login" element={<Login />} />
+            {/* Where Keycloak's round trip lands; trades its ticket for a token. */}
+            <Route path="auth/callback" element={<AuthCallback />} />
             <Route path="share-target" element={<ShareTarget />} />
 
             {/* Protected Routes */}
@@ -244,6 +248,7 @@ function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="roles" element={<AdminRoles />} />
+            <Route path="access" element={<AdminAccess />} />
             <Route path="categories" element={<AdminCategories />} />
             <Route path="organizations" element={<AdminOrganizations />} />
             <Route path="districts" element={<AdminDistricts />} />

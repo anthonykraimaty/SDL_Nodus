@@ -92,6 +92,14 @@ const AdminLayout = () => {
           </Link>
 
           <Link
+            to="/admin/access"
+            className={`admin-nav-link ${isActive('/admin/access') ? 'active' : ''}`}
+          >
+            <span className="nav-icon">🪪</span>
+            <span className="nav-text">Accès Keycloak</span>
+          </Link>
+
+          <Link
             to="/admin/categories"
             className={`admin-nav-link ${isActive('/admin/categories') ? 'active' : ''}`}
           >

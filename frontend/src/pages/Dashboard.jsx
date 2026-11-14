@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { pictureService, schematicService, analyticsService } from '../services/api';
 import Modal from '../components/Modal';
@@ -9,6 +9,12 @@ import './Dashboard.css';
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Set by the Keycloak callback when a chief's Inscription unit matched no
+  // nodus troupe: they can sign in, but cannot upload until an admin links them.
+  const needsTroupe =
+    searchParams.get('needsTroupe') === '1' ||
+    (user?.role === 'CHEF_TROUPE' && !user?.troupeId);
   const [pictures, setPictures] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -137,6 +143,17 @@ const Dashboard = () => {
             </p>
           </div>
         </div>
+
+        {needsTroupe && (
+          <div className="dashboard-notice">
+            <strong>Votre troupe n'est pas encore rattachée.</strong>
+            <p>
+              Nous n'avons pas pu relier automatiquement votre compte Scouts du Liban à une
+              troupe de Nodus. Vous pourrez déposer des photos dès qu'un commissaire vous
+              aura rattaché à votre troupe — contactez votre commissaire de branche.
+            </p>
+          </div>
+        )}
 
         {user?.role === 'CHEF_TROUPE' ? (
           <>

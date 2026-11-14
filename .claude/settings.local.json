@@ -15,7 +15,6 @@
       "Bash(npm run prisma:seed:*)",
       "Bash(curl:*)",
       "Bash(npx prisma:*)",
-      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force)",
       "Bash(npm run generate-icons:*)",
       "Bash(node src/server.js:*)",
       "Bash(netstat:*)",
@@ -47,9 +46,21 @@
       "Bash(scriptsdb-sync.bat)",
       "Bash(node check-categories.js:*)",
       "Bash(node fix-categories.js:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Read(//k/Downloads/**)",
+      "Bash(xxd)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_close",
+      "Bash(kill %1 %2)",
+      "Bash(pkill -f \"node.*nodemon\")",
+      "Bash(pkill -f \"vite\")"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(prisma migrate reset:*)",
+      "Bash(npx prisma db push --accept-data-loss:*)"
+    ],
     "ask": []
   }
 }

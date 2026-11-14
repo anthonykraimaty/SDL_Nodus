@@ -167,12 +167,43 @@ export const api = {
 // Authentication
 export const authService = {
   login: (email, password) => api.post('/api/auth/login', { email, password }),
+
+  // --- Keycloak (compte Scouts du Liban) ---
+  // Which ways in this server offers, so the login page knows what to draw.
+  getMethods: () => api.get('/api/auth/methods'),
+  // Full-page navigation to the backend, which redirects to Keycloak.
+  // `silent` asks Keycloak not to show its form: an open session signs the
+  // chief straight in, otherwise it comes back to /login?sso=0.
+  keycloakLoginUrl: ({ returnTo = '/dashboard', silent = false } = {}) => {
+    const q = new URLSearchParams({ returnTo });
+    if (silent) q.set('silent', '1');
+    return `${API_URL}/api/auth/keycloak/login?${q}`;
+  },
+  // Trade the one-time ticket from ?kc=… for the usual { token, user }.
+  keycloakExchange: (ticket) => api.post('/api/auth/keycloak/exchange', { ticket }),
+  // Ends the Keycloak session too (full-page navigation).
+  keycloakLogoutUrl: () => `${API_URL}/api/auth/keycloak/logout`,
+  // The raw claims nodus stored at the last sign-in — used by Admin → Accès
+  // to explain why a rule matched or not.
+  keycloakWhoami: () => api.get('/api/auth/keycloak/whoami', true),
+
   register: (data) => api.post('/api/auth/register', data),
   getMe: () => api.get('/api/auth/me', true),
   logout: () => api.post('/api/auth/logout', {}, true),
   updateProfile: (data) => api.put('/api/auth/profile', data, true),
   changePassword: (currentPassword, newPassword) =>
     api.post('/api/auth/change-password', { currentPassword, newPassword }, true),
+};
+
+// Admin → Accès: Keycloak access rules (who may sign in, approve, administer)
+export const accessService = {
+  get: () => api.get('/api/access', true),
+  save: (settings) => api.put('/api/access', settings, true),
+  // The realm's groups and roles for the dropdowns; ?refresh=1 skips the cache.
+  directory: (refresh = false) =>
+    api.get(`/api/access/directory${refresh ? '?refresh=1' : ''}`, true),
+  // Dry-run a rule set against an identity or an existing user.
+  test: (payload) => api.post('/api/access/test', payload, true),
 };
 
 // Pictures
@@ -312,10 +343,19 @@ export const announcementService = {
 };
 
 // Organizational
+//
+// Two flavours on purpose:
+//   getX()       everything, including rows deactivated because they left
+//                Inscription. Use for BROWSING and admin — the pictures of a
+//                group that no longer exists must stay reachable.
+//   getActiveX() only rows still in Inscription. Use for PICKERS, where
+//                someone chooses a destination for new data.
 export const organizationService = {
   getDistricts: () => api.get('/api/districts'),
   getGroups: () => api.get('/api/groups'),
   getTroupes: () => api.get('/api/troupes', true),
+  getActiveGroups: () => api.get('/api/groups?activeOnly=1'),
+  getActiveTroupes: () => api.get('/api/troupes?activeOnly=1', true),
 };
 
 // Analytics

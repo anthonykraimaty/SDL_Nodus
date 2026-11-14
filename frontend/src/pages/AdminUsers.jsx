@@ -7,6 +7,10 @@ import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminUsers.css';
 
+// The branches of the federation, as Inscription/Keycloak name them.
+// Must stay in step with BRANCHES in backend/src/utils/keycloakAccess.js.
+const BRANCHES = ['Eclaireurs', 'Eclaireuses', 'Louveteaux', 'Louvettes', 'Route', 'Pionnières'];
+
 const AdminUsers = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -32,6 +36,7 @@ const AdminUsers = () => {
     email: '',
     password: '',
     role: 'CHEF_TROUPE',
+    branches: [],
     troupeId: '',
     isActive: true,
     forcePasswordChange: false,
@@ -224,6 +229,7 @@ const AdminUsers = () => {
         name: userForm.name,
         email: userForm.email,
         role: userForm.role,
+        branches: userForm.role === 'BRANCHE_ECLAIREURS' ? userForm.branches || [] : [],
         troupeId: userForm.troupeId ? parseInt(userForm.troupeId) : null,
         isActive: userForm.isActive,
         forcePasswordChange: userForm.forcePasswordChange,
@@ -284,6 +290,7 @@ const AdminUsers = () => {
       email: userToEdit.email,
       password: '',
       role: userToEdit.role,
+      branches: userToEdit.branches || [],
       troupeId: userToEdit.troupeId || '',
       isActive: userToEdit.isActive,
       forcePasswordChange: userToEdit.forcePasswordChange || false,
@@ -336,6 +343,7 @@ const AdminUsers = () => {
       email: '',
       password: '',
       role: 'CHEF_TROUPE',
+      branches: [],
       troupeId: '',
       isActive: true,
       forcePasswordChange: false,
@@ -858,6 +866,36 @@ const AdminUsers = () => {
                   />
                   <span>Grant admin dashboard access</span>
                 </label>
+              </div>
+            )}
+
+            {userForm.role === 'BRANCHE_ECLAIREURS' && (
+              <div className="form-group">
+                <label>Branches reviewed</label>
+                <div className="branche-boxes">
+                  {BRANCHES.map((b) => (
+                    <label key={b}>
+                      <input
+                        type="checkbox"
+                        checked={(userForm.branches || []).includes(b)}
+                        onChange={(e) =>
+                          setUserForm({
+                            ...userForm,
+                            branches: e.target.checked
+                              ? [...(userForm.branches || []), b]
+                              : (userForm.branches || []).filter((x) => x !== b),
+                          })
+                        }
+                      />
+                      <span>{b}</span>
+                    </label>
+                  ))}
+                </div>
+                <small className="form-hint">
+                  Leave every box unchecked for every branche (the behaviour before
+                  Eclaireuses existed). A Keycloak sign-in overwrites this from the
+                  Admin &rarr; Acc&egrave;s rules.
+                </small>
               </div>
             )}
 

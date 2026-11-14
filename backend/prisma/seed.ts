@@ -1,3 +1,12 @@
+// !! DESTRUCTIVE DEMO SEED — NOT WIRED TO ANY npm SCRIPT. DO NOT RUN ON REAL DATA.
+//
+// This file DELETES EVERY ROW (pictures, picture sets, users, troupes, groups,
+// districts...) and replaces them with a handful of fake demo records. It
+// exists only as a reference for a blank development database.
+//
+// `npm run prisma:seed` runs prisma/seed.js instead, which UPSERTS and
+// destroys nothing. That is almost certainly the one you want.
+
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -6,6 +15,27 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting database seed...\n');
+
+  // --- safety gate ---------------------------------------------------------
+  // Two independent conditions, because this wipes everything.
+  if (process.env.I_UNDERSTAND_THIS_DELETES_EVERYTHING !== 'yes') {
+    throw new Error(
+      'Refusing to run: this seed DELETES EVERY ROW. Use `npm run prisma:seed` ' +
+      '(prisma/seed.js) instead, which upserts and destroys nothing. To force ' +
+      'this demo seed on a throwaway database, set ' +
+      'I_UNDERSTAND_THIS_DELETES_EVERYTHING=yes.'
+    );
+  }
+  const existingSets = await prisma.pictureSet.count();
+  const existingPictures = await prisma.picture.count();
+  if (existingSets > 0 || existingPictures > 0) {
+    throw new Error(
+      `Refusing to run: the database already holds ${existingSets} picture set(s) ` +
+      `and ${existingPictures} picture(s), which this seed would delete. ` +
+      'Point DATABASE_URL at an empty database.'
+    );
+  }
+  // -------------------------------------------------------------------------
 
   // Clear existing data
   console.log('Clearing existing data...');

@@ -1006,6 +1006,7 @@ router.post(
           type: 'SCHEMATIC',
           status: 'PENDING',
           uploadedById: user.id,
+          uploaderEmail: user.email,
           troupeId: user.troupeId,
           patrouilleId: parseInt(patrouilleId),
           categoryId: categoryIdInt,

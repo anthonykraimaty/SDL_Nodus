@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, authorize, optionalAuth, brancheHasDistrictAccess } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth, brancheHasDistrictAccess, checkReviewScope, userBranches } from '../middleware/auth.js';
 import { upload, handleUploadError, processUpload } from '../middleware/upload.js';
 import { deleteFromR2, isR2Configured, uploadMultipleToR2 } from '../services/r2Storage.js';
 import fs from 'fs/promises';
@@ -38,7 +38,13 @@ router.get('/archive/list', authenticate, async (req, res) => {
         return res.json({ pictures: [], pagination: { total: 0, page: 1, limit: parseInt(limit), totalPages: 0 } });
       }
       where.pictureSet = {
-        troupe: { group: { districtId: { in: allowedDistrictIds } } },
+        troupe: {
+          group: { districtId: { in: allowedDistrictIds } },
+          // Narrow to the branches this reviewer handles (empty = all).
+          ...(userBranches(req.user).length
+            ? { branche: { in: userBranches(req.user) } }
+            : {}),
+        },
       };
     }
     // ADMIN sees all
@@ -404,11 +410,15 @@ router.get('/', optionalAuth, async (req, res) => {
           // No district access assigned - return empty result
           where.id = -1; // Will match nothing
         } else {
-          // Filter by assigned districts only
+          // Filter by assigned districts, and by the branches this reviewer
+          // handles (an empty branche list means every branche).
           where.troupe = {
             group: {
               districtId: { in: allowedDistrictIds },
             },
+            ...(userBranches(req.user).length
+              ? { branche: { in: userBranches(req.user) } }
+              : {}),
           };
         }
 
@@ -668,6 +678,9 @@ router.post(
         type,
         status: 'PENDING', // Always start as PENDING
         uploadedById: req.user.id,
+        // Snapshot, so the set keeps its provenance if the account is later
+        // removed (uploadedById is SET NULL, never a cascade).
+        uploaderEmail: req.user.email,
         troupeId: req.user.troupeId,
         patrouilleId: patrouilleId ? parseInt(patrouilleId) : null,
         pictures: {
@@ -764,9 +777,15 @@ router.put('/:id/classify', authenticate, async (req, res) => {
 
       const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
       const pictureDistrictId = pictureSet.troupe?.group?.district?.id;
+      const mine = userBranches(req.user);
+      const brancheOk = mine.length === 0 || mine.includes(pictureSet.troupe?.branche);
 
-      // SECURITY: Deny-by-default - branche must have explicit district access
-      canModify = allowedDistrictIds.length > 0 && allowedDistrictIds.includes(pictureDistrictId);
+      // SECURITY: Deny-by-default - branche must have explicit district access,
+      // and the set's troupe must belong to a branche they handle.
+      canModify =
+        allowedDistrictIds.length > 0 &&
+        allowedDistrictIds.includes(pictureDistrictId) &&
+        brancheOk;
     }
 
     if (!canModify) {
@@ -873,21 +892,28 @@ router.put('/:id/classify-bulk', authenticate, async (req, res) => {
   try {
     const pictureSet = await prisma.pictureSet.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { pictures: true },
+      // The troupe's district and branche are needed for the scope check below.
+      include: {
+        pictures: true,
+        troupe: { include: { group: { include: { district: true } } } },
+      },
     });
 
     if (!pictureSet) {
       return res.status(404).json({ error: 'Picture set not found' });
     }
 
-    // Check permissions
-    const canModify =
-      req.user.role === 'ADMIN' ||
-      req.user.role === 'BRANCHE_ECLAIREURS' ||
-      pictureSet.uploadedById === req.user.id;
-
-    if (!canModify) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+    // Check permissions. An uploader may always classify their own set; an
+    // ADMIN anything. A Branche reviewer is held to their district AND branche
+    // scope, like every other review action (this endpoint used to let any
+    // Branche member classify any set, bypassing district access entirely).
+    const isOwnerUpload = pictureSet.uploadedById === req.user.id;
+    if (!isOwnerUpload && req.user.role !== 'ADMIN') {
+      if (req.user.role !== 'BRANCHE_ECLAIREURS') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      const scope = await checkReviewScope(req.user, pictureSet);
+      if (scope) return res.status(scope.status).json({ error: scope.error });
     }
 
     const { classifications, woodCount, type, force } = req.body;
@@ -1039,15 +1065,12 @@ router.post('/:id/approve', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN
       });
     }
 
-    // District access check (BRANCHE only; ADMIN short-circuits to true)
-    if (req.user.role === 'BRANCHE_ECLAIREURS') {
-      const districtId = existingSet.troupe?.group?.district?.id;
-      const ok = await brancheHasDistrictAccess(req.user, districtId);
-      if (!ok) {
-        return res.status(403).json({
-          error: 'You do not have access to approve pictures from this district',
-        });
-      }
+    // District + branche scope check (BRANCHE only; ADMIN short-circuits).
+    // A reviewer may only approve a set whose district is one of theirs AND
+    // whose troupe belongs to a branche they review (Eclaireurs/Eclaireuses).
+    const approveScope = await checkReviewScope(req.user, existingSet);
+    if (approveScope) {
+      return res.status(approveScope.status).json({ error: approveScope.error });
     }
 
     // Resolve excluded pictures up front (constrain to this set) for auditing.
@@ -1193,15 +1216,10 @@ router.post('/:setId/approve-single/:pictureId', authenticate, authorize('BRANCH
       });
     }
 
-    // District access check
-    if (req.user.role === 'BRANCHE_ECLAIREURS') {
-      const districtId = originalSet.troupe?.group?.district?.id;
-      const ok = await brancheHasDistrictAccess(req.user, districtId);
-      if (!ok) {
-        return res.status(403).json({
-          error: 'You do not have access to approve pictures from this district',
-        });
-      }
+    // District + branche scope check
+    const singleScope = await checkReviewScope(req.user, originalSet);
+    if (singleScope) {
+      return res.status(singleScope.status).json({ error: singleScope.error });
     }
 
     const picture = originalSet.pictures.find(p => p.id === pictureId);
@@ -1326,15 +1344,10 @@ router.post('/:id/reject', authenticate, authorize('BRANCHE_ECLAIREURS', 'ADMIN'
       });
     }
 
-    // District access check
-    if (req.user.role === 'BRANCHE_ECLAIREURS') {
-      const districtId = existingSet.troupe?.group?.district?.id;
-      const ok = await brancheHasDistrictAccess(req.user, districtId);
-      if (!ok) {
-        return res.status(403).json({
-          error: 'You do not have access to reject pictures from this district',
-        });
-      }
+    // District + branche scope check
+    const rejectScope = await checkReviewScope(req.user, existingSet);
+    if (rejectScope) {
+      return res.status(rejectScope.status).json({ error: rejectScope.error });
     }
 
     const pictureSet = await prisma.pictureSet.update({

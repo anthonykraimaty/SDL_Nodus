@@ -75,3 +75,8 @@ coverage/
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Playwright MCP scratch output (console logs, page dumps)
+.playwright-mcp/
+# Local pentest scratch config
+nodus-pentest.yaml

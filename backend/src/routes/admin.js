@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { hashPassword } from '../utils/auth.js';
 import { sanitizeInput } from '../utils/sanitize.js';
 import { sensitiveLimiter } from '../middleware/rateLimiter.js';
+import { BRANCHES } from '../utils/keycloakAccess.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -24,6 +25,18 @@ const validatePasswordComplexity = (password) => {
     errors.push('Password must contain at least one number');
   }
   return errors;
+};
+
+/**
+ * The branches a Branche member reviews. Only meaningful for
+ * BRANCHE_ECLAIREURS; an empty list means every branche, which is the
+ * behaviour every Branche account had before Eclaireuses existed.
+ * Unknown names are dropped rather than trusted.
+ */
+const sanitizeBranches = (value, role) => {
+  if (role !== 'BRANCHE_ECLAIREURS') return [];
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(String).filter((b) => BRANCHES.includes(b)))];
 };
 
 // Get all users (ADMIN only)
@@ -130,6 +143,7 @@ router.post('/users', authenticate, authorize('ADMIN'), sensitiveLimiter, async 
       // isAdmin flag is only meaningful for BRANCHE_ECLAIREURS (ADMIN role is
       // implicitly admin). Ignore it for other roles to prevent misuse.
       isAdmin: role === 'BRANCHE_ECLAIREURS' ? !!isAdmin : false,
+      branches: sanitizeBranches(req.body.branches, role),
     };
 
     // Require troupeId for CHEF_TROUPE
@@ -214,6 +228,14 @@ router.put('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, asy
       updateData.isAdmin = false;
     }
 
+    // Branche scoping, same rule as isAdmin: only a Branche member carries it,
+    // and demoting to another role clears it.
+    if (req.body.branches !== undefined) {
+      updateData.branches = sanitizeBranches(req.body.branches, effectiveRoleForAdmin);
+    } else if (role && effectiveRoleForAdmin !== 'BRANCHE_ECLAIREURS') {
+      updateData.branches = [];
+    }
+
     // Update password if provided
     if (password && password.trim() !== '') {
       updateData.password = await hashPassword(password);
@@ -275,6 +297,7 @@ router.delete('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { id: parseInt(id) },
+      include: { _count: { select: { uploadedPictureSets: true } } },
     });
 
     if (!existingUser) {
@@ -286,11 +309,44 @@ router.delete('/users/:id', authenticate, authorize('ADMIN'), sensitiveLimiter, 
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
+    // A chief who has uploaded is DEACTIVATED by default, not deleted. Their
+    // photos survive either way (PictureSet.uploadedById is SET NULL), but
+    // deactivating also keeps the sets attributed to a real account, which is
+    // what the review queue and the statistics show.
+    // ?force=1 deletes the account anyway: the sets stay, attributed to
+    // uploaderEmail alone.
+    const uploads = existingUser._count.uploadedPictureSets;
+    const force = req.query.force === '1' || req.query.force === 'true';
+
+    if (uploads > 0 && !force) {
+      const deactivated = await prisma.user.update({
+        where: { id: parseInt(id) },
+        data: { isActive: false },
+      });
+      const { password: _pw, ...safe } = deactivated;
+      console.log(
+        `[admin] ${req.user.email} deactivated ${existingUser.email} (${uploads} picture set(s) kept)`
+      );
+      return res.json({
+        message: `Account deactivated — it uploaded ${uploads} picture set(s), which are kept. Use ?force=1 to delete the account anyway (the pictures still stay).`,
+        deactivated: true,
+        pictureSets: uploads,
+        user: safe,
+      });
+    }
+
     await prisma.user.delete({
       where: { id: parseInt(id) },
     });
 
-    res.json({ message: 'User deleted successfully' });
+    console.log(
+      `[admin] ${req.user.email} deleted account ${existingUser.email}${uploads ? ` (${uploads} picture set(s) kept, now attributed by email only)` : ''}`
+    );
+    res.json({
+      message: 'User deleted successfully',
+      deactivated: false,
+      pictureSetsKept: uploads,
+    });
   } catch (error) {
     console.error('Failed to delete user:', error);
     res.status(500).json({ error: 'Failed to delete user' });

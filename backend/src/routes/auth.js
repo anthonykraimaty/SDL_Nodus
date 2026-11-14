@@ -1,10 +1,12 @@
 import express from 'express';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword, comparePassword, generateToken } from '../utils/auth.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { sanitizeInput } from '../utils/sanitize.js';
 import { authLimiter, passwordChangeLimiter } from '../middleware/rateLimiter.js';
 import { blacklistToken } from '../utils/tokenBlacklist.js';
+import { keycloak, localAdmin, passwordLogin } from '../config/keycloak.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -108,13 +110,96 @@ router.post('/register', authenticate, authorize('ADMIN'), async (req, res) => {
   }
 });
 
-// POST /api/auth/login - Login (rate limited)
+// GET /api/auth/methods - how may someone sign in on this server?
+// The login page asks this first, so it knows whether to show the Keycloak
+// button, the password form, or both.
+router.get('/methods', (req, res) => {
+  res.json({
+    keycloak: keycloak.enabled,
+    // The password form is drawn when ordinary passwords still work, or when
+    // only the break-glass admin can use it (then behind a discreet link).
+    password: passwordLogin,
+    breakGlass: !passwordLogin && localAdmin.enabled,
+    realm: keycloak.enabled ? keycloak.issuer.split('/realms/')[1] || null : null,
+  });
+});
+
+/**
+ * The break-glass administrator from the environment: signs in on the password
+ * form even when Keycloak is down or LOCAL_LOGIN=false, is always an ADMIN, and
+ * its password is compared against the env on every sign-in — never stored.
+ * Its User row carries no password hash, so it cannot be used any other way.
+ */
+const loginAsBreakGlassAdmin = async (identifier, password) => {
+  if (!localAdmin.enabled) return null;
+  const given = String(identifier || '').trim().toLowerCase();
+  if (given !== localAdmin.username && given !== localAdmin.email) return null;
+  // Constant-time compare so the password length/content does not leak.
+  const a = Buffer.from(password || '');
+  const b = Buffer.from(localAdmin.password);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+  // Find or create the row the session hangs off. Never given a hash.
+  let user = await prisma.user.findUnique({ where: { email: localAdmin.email } });
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        email: localAdmin.email,
+        password: null,
+        name: localAdmin.name,
+        role: 'ADMIN',
+        provider: 'LOCAL',
+        forcePasswordChange: false,
+      },
+    });
+    console.warn(`[auth] break-glass admin row created for ${localAdmin.email}`);
+  } else if (user.role !== 'ADMIN' || !user.isActive) {
+    // It can never be demoted or disabled — that is the point of break-glass.
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { role: 'ADMIN', isActive: true },
+    });
+  }
+  console.warn(`[auth] break-glass admin signed in (${localAdmin.email})`);
+  return user;
+};
+
+// POST /api/auth/login - Login with email + password (rate limited)
 router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // The break-glass admin first: it must work even when passwords are off.
+    const breakGlass = await loginAsBreakGlassAdmin(email, password);
+    if (breakGlass) {
+      await prisma.user.update({
+        where: { id: breakGlass.id },
+        data: { lastLogin: new Date() },
+      });
+      const { password: _bgPw, ...safeUser } = breakGlass;
+      return res.json({
+        message: 'Login successful',
+        token: generateToken(breakGlass.id),
+        user: safeUser,
+        forcePasswordChange: false,
+        breakGlass: true,
+      });
+    }
+
+    // Ordinary password login, only while it is switched on. Note this also
+    // answers a wrong break-glass password: deliberately, so the response never
+    // confirms that the break-glass username exists.
+    if (!passwordLogin) {
+      return res.status(403).json({
+        error: localAdmin.enabled
+          ? 'Identifiants invalides, ou connexion par mot de passe désactivée. Utilisez votre compte Scouts du Liban.'
+          : 'La connexion par mot de passe est désactivée. Utilisez votre compte Scouts du Liban.',
+        code: 'PASSWORD_LOGIN_DISABLED',
+      });
     }
 
     // Find user
@@ -141,6 +226,15 @@ router.post('/login', authLimiter, async (req, res) => {
     // Check if user is active
     if (!user.isActive) {
       return res.status(401).json({ error: 'Account is disabled' });
+    }
+
+    // A Keycloak-only account has no password of its own: send them to the
+    // Scouts du Liban button rather than letting them guess a password forever.
+    if (!user.password) {
+      return res.status(403).json({
+        error: 'Ce compte se connecte avec un compte Scouts du Liban.',
+        code: 'USE_KEYCLOAK',
+      });
     }
 
     // Verify password
@@ -220,6 +314,15 @@ router.put('/profile', authenticate, async (req, res) => {
     // Validate that at least one field is provided
     if ((!name || !name.trim()) && (!email || !email.trim())) {
       return res.status(400).json({ error: 'Name or email is required' });
+    }
+
+    // Name and email of a Keycloak account are refreshed from the realm at every
+    // sign-in, so editing them here would silently revert at the next login.
+    if (req.user.provider === 'KEYCLOAK') {
+      return res.status(403).json({
+        error: 'Votre nom et votre email proviennent de votre compte Scouts du Liban.',
+        code: 'USE_KEYCLOAK',
+      });
     }
 
     const updateData = {};
@@ -304,6 +407,15 @@ router.post('/change-password', authenticate, passwordChangeLimiter, async (req,
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
     });
+
+    // A Keycloak account has no nodus password: it is changed in the Scouts du
+    // Liban account, not here.
+    if (!user.password || user.provider === 'KEYCLOAK') {
+      return res.status(403).json({
+        error: 'Votre mot de passe se change sur votre compte Scouts du Liban.',
+        code: 'USE_KEYCLOAK',
+      });
+    }
 
     // Verify current password
     const isValidPassword = await comparePassword(currentPassword, user.password);

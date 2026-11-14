@@ -19,6 +19,12 @@ enum UserRole {
   BRANCHE_ECLAIREURS
 }
 
+// How an account signs in. KEYCLOAK accounts have no password of their own.
+enum AuthProvider {
+  LOCAL
+  KEYCLOAK
+}
+
 enum PictureType {
   INSTALLATION_PHOTO
   SCHEMATIC
@@ -49,6 +55,13 @@ model District {
   id                    Int                    @id @default(autoincrement())
   name                  String
   code                  String                 @unique
+  // Inscription (QG) district id, as a string. Lets a Keycloak sign-in map a
+  // chief's district straight onto the nodus row. Backfilled by name/code.
+  externalId            String?                @unique
+  // Mirrors SEVA: a row that disappears from Inscription is DEACTIVATED, never
+  // deleted, so the pictures of groups that no longer exist stay browsable.
+  isActive              Boolean                @default(true)
+  lastSyncedAt          DateTime?
   groups                Group[]
   brancheAccessUsers    UserDistrictAccess[]
   createdAt             DateTime               @default(now())
@@ -59,21 +72,43 @@ model Group {
   id         Int      @id @default(autoincrement())
   name       String
   code       String   @unique
+  // Inscription (QG) group id. Backfilled by name (scripts/syncInscriptionIds.js).
+  externalId String?  @unique
+  // Deactivated, never deleted, when it leaves Inscription — its troupes'
+  // pictures must survive. Hidden from pickers, still shown when browsing.
+  isActive   Boolean  @default(true)
+  lastSyncedAt DateTime?
   districtId Int
-  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: deleting a district must never wipe its groups
+  // (and through them, every picture). Deactivate instead — see isActive.
+  district   District @relation(fields: [districtId], references: [id], onDelete: Restrict)
   troupes    Troupe[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@index([districtId])
+  @@index([isActive])
 }
 
 model Troupe {
   id          Int          @id @default(autoincrement())
   name        String
   code        String       @unique
+  // Inscription (QG) unit id. A Chef Troupe signing in through Keycloak is
+  // linked to their troupe by this id (utils/inscription.js).
+  externalId  String?      @unique
+  // Which branche this unit belongs to, as Inscription names it: "Eclaireurs",
+  // "Eclaireuses", ... It decides which Branche team may approve its pictures
+  // (utils/keycloakAccess.js#brancheAllowed). Existing rows are Eclaireurs.
+  branche     String       @default("Eclaireurs")
+  // Deactivated, never deleted, when the unit leaves Inscription. Past camps
+  // keep their photos; the troupe simply stops appearing in upload pickers.
+  isActive    Boolean      @default(true)
+  lastSyncedAt DateTime?
   groupId     Int
-  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  // Restrict: deleting a group used to cascade into its troupes and destroy
+  // all their picture sets. Deactivate the group instead.
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Restrict)
   users       User[]
   patrouilles Patrouille[]
   pictureSets PictureSet[]
@@ -81,6 +116,8 @@ model Troupe {
   updatedAt   DateTime     @updatedAt
 
   @@index([groupId])
+  @@index([branche])
+  @@index([isActive])
 }
 
 model Patrouille {
@@ -89,7 +126,8 @@ model Patrouille {
   totem              String
   cri                String
   troupeId           Int
-  troupe             Troupe               @relation(fields: [troupeId], references: [id], onDelete: Cascade)
+  // Restrict: patrouilles hold schematic and category progress history.
+  troupe             Troupe               @relation(fields: [troupeId], references: [id], onDelete: Restrict)
   pictureSets        PictureSet[]
   schematicProgress  SchematicProgress[]
   categoryProgress   CategoryProgress[]
@@ -103,9 +141,26 @@ model Patrouille {
 model User {
   id                     Int                    @id @default(autoincrement())
   email                  String                 @unique
-  password               String
+  // Null for accounts that only ever sign in through Keycloak. A password is
+  // only ever set on legacy/local accounts (see utils/auth.js).
+  password               String?
   name                   String
   role                   UserRole               @default(CHEF_TROUPE)
+  // --- Keycloak identity (null on legacy password accounts) ---
+  keycloakSub            String?                @unique
+  provider               AuthProvider           @default(LOCAL)
+  username               String?
+  // Raw Keycloak claims, refreshed at every sign-in. Used by the access rules
+  // (utils/keycloakAccess.js) to decide role, branches and districts.
+  realmRoles             String[]               @default([])
+  clientRoles            String[]               @default([])
+  keycloakGroups         String[]               @default([])
+  // Which branche(s) this user acts for, e.g. ["Eclaireurs", "Eclaireuses"].
+  // Only meaningful for BRANCHE_ECLAIREURS; an empty list means "all branches"
+  // for backward compatibility with pre-Keycloak Branche accounts.
+  branches               String[]               @default([])
+  // Inscription (QG) identity, read at sign-in: { memberId, roles: [...], at }
+  inscription            Json?
   troupeId               Int?
   troupe                 Troupe?                @relation(fields: [troupeId], references: [id], onDelete: SetNull)
   uploadedPictureSets    PictureSet[]           @relation("PictureSetUploader")
@@ -195,11 +250,21 @@ model PictureSet {
   status      PictureStatus @default(PENDING)
 
   // Relationships
-  uploadedById  Int
-  uploadedBy    User          @relation("PictureSetUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  // Nullable + SetNull: deleting the chief who uploaded a set must NOT delete
+  // the set. The photos belong to the troupe and its camps, not to the account.
+  // (This was Cascade: deleting one chief destroyed up to 179 picture sets.)
+  // Matches approvedById / rejectedById / classifiedById, which were already
+  // SetNull. uploaderEmail below keeps the attribution readable afterwards.
+  uploadedById  Int?
+  uploadedBy    User?         @relation("PictureSetUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  // Snapshot of who uploaded, so a set keeps its provenance even if the
+  // account is later removed.
+  uploaderEmail String?
 
   troupeId      Int
-  troupe        Troupe        @relation(fields: [troupeId], references: [id], onDelete: Cascade)
+  // Restrict: the photos themselves. A troupe that no longer exists is
+  // deactivated, never deleted, so its past camps stay browsable.
+  troupe        Troupe        @relation(fields: [troupeId], references: [id], onDelete: Restrict)
 
   patrouilleId  Int?
   patrouille    Patrouille?   @relation(fields: [patrouilleId], references: [id], onDelete: SetNull)
@@ -440,8 +505,10 @@ model DesignGroup {
   pictures          Picture[] @relation("DesignGroupPictures")
 
   // Metadata
-  createdById       Int
-  createdBy         User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  // SetNull, not Cascade: a design group curated by someone who later leaves
+  // must not vanish along with their account.
+  createdById       Int?
+  createdBy         User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

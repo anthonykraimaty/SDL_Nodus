@@ -692,3 +692,28 @@
   color: white;
   border-color: var(--error);
 }
+
+/* Branches a Branche member reviews (Eclaireurs / Eclaireuses / ...) */
+.branche-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+
+.branche-boxes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-weight: 400;
+  font-size: 0.88rem;
+  cursor: pointer;
+  margin: 0;
+}
+
+.form-hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}

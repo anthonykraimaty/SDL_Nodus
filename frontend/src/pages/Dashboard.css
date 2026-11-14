@@ -1162,3 +1162,26 @@
     font-size: 2.25rem;
   }
 }
+
+/* Shown to a chief whose Keycloak account matched no nodus troupe. */
+.dashboard-notice {
+  background-color: rgba(212, 165, 116, 0.15);
+  border: 2px solid var(--accent-dark);
+  border-radius: 8px;
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  color: var(--text-secondary);
+}
+
+.dashboard-notice strong {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.dashboard-notice p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 70ch;
+}

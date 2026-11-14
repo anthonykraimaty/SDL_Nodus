@@ -81,6 +81,59 @@ export const brancheHasDistrictAccess = async (user, districtId) => {
   return !!access;
 };
 
+// Which branches a BRANCHE_ECLAIREURS user may review.
+// An empty list means "every branche": that is the case for ADMIN, and for
+// Branche accounts created before branches existed, so nothing an existing
+// reviewer could do is taken away by this feature.
+export const userBranches = (user) =>
+  user?.role === 'ADMIN' || isEffectiveAdmin(user)
+    ? []
+    : Array.isArray(user?.branches)
+      ? user.branches
+      : [];
+
+/**
+ * Returns true if the user may act on a troupe of `branche`.
+ * Deny-by-default does NOT apply here on purpose: a reviewer with no branche
+ * set keeps the pre-Keycloak behaviour (all branches). Keycloak sign-in is what
+ * narrows them, by writing `branches` from the Admin → Accès rules.
+ */
+export const brancheHasAccess = (user, branche) => {
+  const mine = userBranches(user);
+  if (mine.length === 0) return true;
+  if (!branche) return true; // unknown: the district check still applies
+  return mine.includes(branche);
+};
+
+/**
+ * The combined scope check for a Branche reviewer acting on a picture set:
+ * the set's district must be one of theirs AND its troupe's branche must be
+ * one they review. ADMIN passes both.
+ *
+ * `set` must have been loaded with troupe → group → district.
+ * Returns null when allowed, or an { status, error } to send back.
+ */
+export const checkReviewScope = async (user, set) => {
+  if (user?.role !== 'BRANCHE_ECLAIREURS') return null;
+
+  const districtId = set?.troupe?.group?.district?.id;
+  if (!(await brancheHasDistrictAccess(user, districtId))) {
+    return {
+      status: 403,
+      error: "Vous n'avez pas accès aux photos de ce district",
+    };
+  }
+
+  const branche = set?.troupe?.branche;
+  if (!brancheHasAccess(user, branche)) {
+    return {
+      status: 403,
+      error: `Vous ne traitez pas la branche ${branche} (vos branches : ${userBranches(user).join(', ')})`,
+    };
+  }
+  return null;
+};
+
 // Optional authentication (for public endpoints that behave differently when authenticated)
 export const optionalAuth = async (req, res, next) => {
   try {

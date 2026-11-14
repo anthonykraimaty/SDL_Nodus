@@ -1,6 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, userBranches } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -334,7 +334,12 @@ router.get('/pictures/by-category', authenticate, authorize('BRANCHE_ECLAIREURS'
       }
       pictureWhere.pictureSet = {
         ...pictureWhere.pictureSet,
-        troupe: { group: { districtId: { in: allowedDistrictIds } } },
+        troupe: {
+          group: { districtId: { in: allowedDistrictIds } },
+          ...(userBranches(req.user).length
+            ? { branche: { in: userBranches(req.user) } }
+            : {}),
+        },
       };
     }
 
@@ -553,7 +558,12 @@ router.get('/dashboard-summary', authenticate, async (req, res) => {
       });
       const allowedDistrictIds = userDistrictAccess.map(uda => uda.districtId);
       if (allowedDistrictIds.length === 0) return res.json(empty);
-      setWhere.troupe = { group: { districtId: { in: allowedDistrictIds } } };
+      setWhere.troupe = {
+        group: { districtId: { in: allowedDistrictIds } },
+        ...(userBranches(req.user).length
+          ? { branche: { in: userBranches(req.user) } }
+          : {}),
+      };
     } else if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Forbidden' });
     }

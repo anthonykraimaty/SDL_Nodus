@@ -388,8 +388,21 @@ const AdminTroupes = () => {
                 </tr>
               ) : (
                 troupes.map((troupe) => (
-                  <tr key={troupe.id}>
-                    <td>{troupe.name}</td>
+                  <tr key={troupe.id} className={troupe.isActive === false ? 'inactive-row' : ''}>
+                    <td>
+                      {troupe.name}
+                      {troupe.isActive === false && (
+                        <span
+                          className="inactive-badge"
+                          title="Plus dans Inscription. Ses photos restent consultables ; la troupe n'apparaît plus dans les listes de dépôt."
+                        >
+                          inactive
+                        </span>
+                      )}
+                      {troupe.branche && troupe.branche !== 'Eclaireurs' && (
+                        <span className="branche-badge">{troupe.branche}</span>
+                      )}
+                    </td>
                     <td><code>{troupe.code}</code></td>
                     <td>{troupe.group?.name || '-'}</td>
                     <td>{troupe.group?.district?.name || '-'}</td>

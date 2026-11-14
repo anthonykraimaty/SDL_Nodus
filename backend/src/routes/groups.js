@@ -39,9 +39,14 @@ const upload = multer({
 // GET /api/groups - Public gets limited data, authenticated gets full details
 router.get('/', optionalAuth, async (req, res) => {
   try {
+    // ?activeOnly=1 hides groups that have left Inscription — for pickers only.
+    // Browsing keeps showing them so their past camps remain reachable.
+    const activeOnly = req.query.activeOnly === '1' || req.query.activeOnly === 'true';
+    const activeWhere = activeOnly ? { isActive: true } : {};
     // Authenticated users get full details including district and troupe counts
     if (req.user) {
       const groups = await prisma.group.findMany({
+        where: activeWhere,
         include: {
           district: true,
           _count: {
@@ -59,6 +64,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     // Public users get only basic info (no hierarchy details)
     const groups = await prisma.group.findMany({
+      where: activeWhere,
       select: {
         id: true,
         name: true,
@@ -209,12 +215,29 @@ router.delete('/:id', authenticate, authorize('ADMIN'), async (req, res) => {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    // Delete group (will cascade to troupes due to schema)
+    // A group that still has troupes is DEACTIVATED, never deleted: its
+    // troupes hold picture sets, and a group folding must not erase the photos
+    // of the camps it ran. (Before this guard, deleting one group cascaded
+    // through its troupes and destroyed every picture set they owned.)
+    // Deactivated groups disappear from pickers but stay browsable.
+    if (group._count.troupes > 0) {
+      const deactivated = await prisma.group.update({
+        where: { id: parseInt(id) },
+        data: { isActive: false },
+      });
+      return res.json({
+        message: `Group deactivated (it still has ${group._count.troupes} troupe(s), whose pictures are kept)`,
+        deactivated: true,
+        group: deactivated,
+      });
+    }
+
+    // Genuinely empty: a real delete is safe.
     await prisma.group.delete({
       where: { id: parseInt(id) },
     });
 
-    res.json({ message: 'Group deleted successfully' });
+    res.json({ message: 'Group deleted successfully', deactivated: false });
   } catch (error) {
     console.error('Failed to delete group:', error);
     res.status(500).json({ error: 'Failed to delete group' });

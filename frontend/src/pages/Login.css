@@ -94,3 +94,85 @@
     padding: var(--spacing-xl);
   }
 }
+
+/* --- Keycloak (compte Scouts du Liban) sign-in --- */
+
+.login-error {
+  margin-bottom: var(--spacing-lg);
+}
+
+.login-checking {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--spacing-lg) 0;
+  margin: 0;
+}
+
+.login-sso {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.btn-sso {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid var(--primary);
+  background-color: var(--primary);
+  color: var(--paper-0);
+  transition: background-color 0.15s ease, transform 0.08s ease;
+}
+
+.btn-sso:hover {
+  background-color: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
+.btn-sso:active {
+  transform: translateY(1px);
+}
+
+.login-sso-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* "Connexion de secours" — discreet, it is not the normal way in. */
+.login-password-toggle {
+  display: block;
+  margin: var(--spacing-lg) auto 0;
+  background: none;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.login-password-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.login-separator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin: var(--spacing-xl) 0 var(--spacing-lg);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.login-separator::before,
+.login-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--border);
+}

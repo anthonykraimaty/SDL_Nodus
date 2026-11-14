@@ -1,4 +1,8 @@
+// Must come first: loads .env before any imported module reads process.env.
+import './config/env.js';
+
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -6,9 +10,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import { generalLimiter } from './middleware/rateLimiter.js';
+import { keycloak, localAdmin, passwordLogin } from './config/keycloak.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
+import keycloakAuthRoutes from './routes/authKeycloak.js';
+import accessRoutes from './routes/access.js';
 import pictureRoutes from './routes/pictures.js';
 import categoryRoutes from './routes/categories.js';
 import announcementRoutes from './routes/announcements.js';
@@ -29,6 +36,7 @@ import recoveredRoutes from './routes/recovered.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// .env is already loaded by ./config/env.js (imported first); kept for clarity.
 dotenv.config();
 
 const app = express();
@@ -81,6 +89,9 @@ app.use(cors({
 // Rate limiting - apply to all routes
 app.use(generalLimiter);
 
+// The Keycloak round trip keeps its PKCE verifier in a short-lived cookie.
+app.use(cookieParser());
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -99,7 +110,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth/keycloak', keycloakAuthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/access', accessRoutes);
 app.use('/api/pictures', pictureRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/announcements', announcementRoutes);
@@ -135,6 +148,18 @@ process.on('SIGTERM', async () => {
 
 app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+
+  // Say out loud how people can sign in, so a misconfigured realm is obvious.
+  if (keycloak.enabled) {
+    console.log(`[auth] Keycloak: ${keycloak.issuer} (client ${keycloak.clientId})`);
+    if (!keycloak.clientSecret) {
+      console.warn('[auth] OIDC_CLIENT_SECRET is empty — the client must be public, and Admin → Accès will have no dropdowns');
+    }
+  } else {
+    console.log('[auth] Keycloak off — email + password login only');
+  }
+  if (passwordLogin) console.log('[auth] password login: on');
+  if (localAdmin.enabled) console.log(`[auth] break-glass admin: ${localAdmin.username}`);
 
   // Backfill: set Picture.type from PictureSet.type for pictures with null type
   try {

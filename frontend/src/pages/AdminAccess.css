@@ -1,0 +1,351 @@
+.admin-access {
+  padding: var(--spacing-lg);
+  max-width: 1000px;
+}
+
+.access-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-lg);
+}
+
+.access-header h1 {
+  margin: 0 0 var(--spacing-xs);
+  color: var(--text-primary);
+}
+
+.access-sub {
+  margin: 0;
+  color: var(--text-muted);
+  max-width: 60ch;
+}
+
+.access-realm {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 var(--spacing-lg);
+}
+
+.access-realm code {
+  background-color: var(--bg-light);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.access-muted {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.access-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+/* --- banners --- */
+
+.access-error,
+.access-success,
+.access-warning {
+  padding: var(--spacing-md);
+  border-radius: 6px;
+  margin-bottom: var(--spacing-lg);
+  border: 2px solid;
+  font-weight: 500;
+}
+
+.access-error {
+  background-color: rgba(239, 83, 80, 0.1);
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.access-success {
+  background-color: rgba(102, 187, 106, 0.12);
+  border-color: var(--success, #66bb6a);
+  color: #2e7d32;
+}
+
+.access-warning {
+  background-color: rgba(212, 165, 116, 0.15);
+  border-color: var(--accent-dark);
+  color: var(--text-secondary);
+}
+
+/* --- sections --- */
+
+.access-section {
+  background-color: var(--bg-medium);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.access-section h2 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.access-hint {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin: 0 0 var(--spacing-md);
+  max-width: 70ch;
+}
+
+.access-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 var(--spacing-md);
+}
+
+.access-env {
+  margin: var(--spacing-md) 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border);
+  padding-top: var(--spacing-sm);
+}
+
+.access-env code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.access-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+/* --- checkbox with description --- */
+
+.access-check {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  cursor: pointer;
+  margin-bottom: var(--spacing-md);
+}
+
+.access-check input {
+  margin-top: 0.25em;
+  flex-shrink: 0;
+}
+
+.access-check span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-primary);
+}
+
+.access-check small {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* --- entry lists --- */
+
+.access-field label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.access-chips {
+  list-style: none;
+  margin: 0 0 var(--spacing-sm);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.access-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  background-color: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15em 0.3em 0.15em 0.7em;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.access-chips button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.3em;
+  border-radius: 50%;
+}
+
+.access-chips button:hover {
+  color: var(--error);
+}
+
+.access-add {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.access-add input {
+  flex: 1;
+  min-width: 0;
+}
+
+.access-add button,
+.access-add-rule,
+.access-rule-remove {
+  background-color: var(--bg-light);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  padding: var(--spacing-xs) var(--spacing-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.access-add button:hover:not(:disabled),
+.access-add-rule:hover,
+.access-rule-remove:hover {
+  background-color: var(--hover);
+}
+
+.access-add button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- approver rules --- */
+
+.access-rule {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background-color: var(--bg-dark);
+}
+
+.access-rule-head {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.access-rule-match {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.access-rule-remove {
+  color: var(--error);
+  border-color: rgba(239, 83, 80, 0.35);
+}
+
+.access-rule-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.access-rule-body fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+  margin: 0;
+  min-width: 0;
+}
+
+.access-rule-body legend {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0 var(--spacing-xs);
+}
+
+.access-rule-body legend small {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.access-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs) var(--spacing-md);
+}
+
+.access-boxes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 400;
+  margin: 0;
+}
+
+.access-boxes-dense label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.access-warn-inline {
+  margin: var(--spacing-sm) 0 0;
+  font-size: 0.82rem;
+  color: var(--accent-dark);
+}
+
+.access-add-rule {
+  display: block;
+  width: 100%;
+  text-align: center;
+  border-style: dashed;
+}
+
+/* --- footer --- */
+
+.access-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  padding-top: var(--spacing-md);
+}
+
+@media (max-width: 640px) {
+  .admin-access {
+    padding: var(--spacing-md);
+  }
+  .access-header {
+    flex-direction: column;
+  }
+  .access-rule-body {
+    grid-template-columns: 1fr;
+  }
+}
