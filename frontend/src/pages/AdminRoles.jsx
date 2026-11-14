@@ -141,7 +141,7 @@ const AdminRoles = () => {
     <div className="admin-roles">
       <div className="container">
         <div className="page-header">
-          <h2>🔐 Branche Member Access Management</h2>
+          <h1>Branche Member Access</h1>
           <p className="header-description">
             Manage which districts Branche Éclaireurs members can access for picture classification
           </p>
@@ -259,10 +259,10 @@ const AdminRoles = () => {
           </div>
         </Modal.Body>
         <Modal.Actions>
-          <button onClick={handleSaveAccess} className="primary">
+          <button onClick={handleSaveAccess} className="btn btn-primary">
             Save Changes
           </button>
-          <button onClick={handleCancel} className="secondary">
+          <button onClick={handleCancel} className="btn btn-outline-secondary">
             Cancel
           </button>
         </Modal.Actions>

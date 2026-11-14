@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { ToastContainer, useToast } from '../components/Toast';
 import './Admin.css';
+import Icon from '../components/Icon';
 
 const AdminGroups = () => {
   const { user } = useAuth();
@@ -207,16 +208,16 @@ const AdminGroups = () => {
 
   return (
     <div className="admin-container">
-      <div className="admin-header">
+      <div className="page-header">
         <h1>Group Management</h1>
-        <div className="admin-actions">
-          <button onClick={handleAddGroup} className="btn-primary">
+        <div className="header-actions">
+          <button onClick={handleAddGroup} className="btn btn-primary">
             + Add Group
           </button>
-          <button onClick={handleExport} className="btn-secondary">
+          <button onClick={handleExport} className="btn btn-outline-secondary">
             Export CSV
           </button>
-          <label className="btn-secondary">
+          <label className="btn btn-outline-secondary">
             Import CSV
             <input
               type="file"
@@ -274,17 +275,17 @@ const AdminGroups = () => {
                     <div className="table-actions">
                       <button
                         onClick={() => handleEditGroup(group)}
-                        className="btn-edit"
+                        className="btn btn-sm btn-outline-secondary btn-edit"
                         title="Edit group"
                       >
-                        ✏️
+                        <Icon name="edit" size={16} />
                       </button>
                       <button
                         onClick={() => handleDeleteGroup(group.id)}
-                        className="btn-delete"
+                        className="btn btn-sm btn-outline-danger btn-delete"
                         title="Delete group"
                       >
-                        🗑️
+                        <Icon name="trash" size={16} />
                       </button>
                     </div>
                   </td>
@@ -344,10 +345,10 @@ const AdminGroups = () => {
             </div>
           </Modal.Body>
           <Modal.Actions>
-            <button type="submit" className="primary">
+            <button type="submit" className="btn btn-primary">
               {editingGroup ? 'Update Group' : 'Create Group'}
             </button>
-            <button type="button" onClick={() => setShowModal(false)} className="secondary">
+            <button type="button" onClick={() => setShowModal(false)} className="btn btn-outline-secondary">
               Cancel
             </button>
           </Modal.Actions>

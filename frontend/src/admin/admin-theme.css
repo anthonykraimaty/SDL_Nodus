@@ -1,0 +1,733 @@
+/*
+ * Admin theme — sits between the public site's global element styles
+ * (index.css) and each admin page's own stylesheet.
+ *
+ * Most rules are wrapped in :where(.admin-layout) so their specificity equals
+ * a bare element selector: they beat index.css (same weight, loaded later)
+ * but lose to any class a page sets. The few rules that must win everywhere
+ * (fonts, checkbox sizing, heading scale) use a real .admin-layout prefix.
+ */
+
+/* ---------- tokens ---------- */
+.admin-layout {
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --code-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --adm-bg: #f6f3ee;
+  --adm-surface: #ffffff;
+  --adm-surface-2: #faf8f4;
+  --adm-border: #e3ddd3;
+  --adm-border-strong: #d9d1c5;
+  --adm-text: #2b211c;
+  --adm-muted: #6f625a;
+  --adm-primary: #795548;
+  --adm-primary-hover: #5d4037;
+  --adm-primary-soft: rgba(121, 85, 72, 0.1);
+  --adm-radius: 0.5rem;
+  --adm-radius-lg: 0.75rem;
+  --adm-shadow: 0 1px 2px rgba(43, 33, 28, 0.05), 0 1px 3px rgba(43, 33, 28, 0.04);
+
+  /* Re-point the shared palette so page CSS that uses these vars follows. */
+  --bg-dark: var(--adm-bg);
+  --bg-medium: var(--adm-surface);
+  --bg-light: var(--adm-surface-2);
+  --text-primary: var(--adm-text);
+  --text-secondary: #4a3d35;
+  --text-muted: var(--adm-muted);
+  --border: var(--adm-border);
+  --border-light: #eee8df;
+  --glass-bg: var(--adm-surface);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --shadow-sm: var(--adm-shadow);
+  --shadow-md: 0 2px 8px rgba(43, 33, 28, 0.06);
+  --shadow-lg: 0 8px 24px rgba(43, 33, 28, 0.1);
+  --gradient-primary: var(--adm-primary);
+  --gradient-dark: var(--adm-bg);
+
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--adm-text);
+  background: var(--adm-bg);
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.admin-layout code,
+.admin-layout kbd,
+.admin-layout pre,
+.admin-layout .mono {
+  font-family: var(--code-font);
+  font-size: 0.85em;
+}
+
+/* ---------- headings: one consistent scale ---------- */
+.admin-layout .admin-main h1 {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--adm-text);
+  font-style: normal;
+  font-variation-settings: normal;
+}
+
+.admin-layout .admin-main h2 {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  font-style: normal;
+  font-variation-settings: normal;
+}
+
+.admin-layout .admin-main h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  font-style: normal;
+  font-variation-settings: normal;
+}
+
+.admin-layout .admin-main h4 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+:where(.admin-layout) p {
+  line-height: 1.55;
+}
+
+:where(.admin-layout) a {
+  color: var(--adm-primary);
+}
+
+:where(.admin-layout) a:hover {
+  color: var(--adm-primary-hover);
+}
+
+/* ---------- form fields ---------- */
+:where(.admin-layout) input:where(:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='submit'], [type='button'])),
+:where(.admin-layout) select,
+:where(.admin-layout) textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--adm-border-strong);
+  border-radius: var(--adm-radius);
+  background: var(--adm-surface);
+  backdrop-filter: none;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  min-height: 38px;
+  color: var(--adm-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+:where(.admin-layout) input:focus,
+:where(.admin-layout) select:focus,
+:where(.admin-layout) textarea:focus {
+  border-color: #a1887f;
+  background: var(--adm-surface);
+  box-shadow: 0 0 0 0.2rem rgba(121, 85, 72, 0.18);
+  transform: none;
+  outline: none;
+}
+
+/* Checkboxes and radios: the global `input { width: 100% }` stretched these
+   across the whole box and pushed their labels off the edge. */
+:where(.admin-layout) input:where([type='checkbox'], [type='radio']) {
+  width: 1.05rem;
+  height: 1.05rem;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  border-radius: 0.25rem;
+  box-shadow: none;
+  backdrop-filter: none;
+  accent-color: var(--adm-primary);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+:where(.admin-layout) input:where([type='checkbox'], [type='radio']):focus {
+  box-shadow: none;
+  transform: none;
+}
+
+:where(.admin-layout) input:where([type='checkbox'], [type='radio']):focus-visible {
+  outline: 2px solid #a1887f;
+  outline-offset: 2px;
+}
+
+:where(.admin-layout) input:where([type='range']) {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: var(--adm-primary);
+}
+
+:where(.admin-layout) label {
+  font-size: 0.875rem;
+}
+
+/* ---------- buttons: flat, no lift, no shine ---------- */
+:where(.admin-layout) button {
+  padding: 0.5rem 1rem;
+  min-height: 38px;
+  min-width: 0;
+  border-radius: var(--adm-radius);
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  background: var(--adm-primary);
+  color: #fff;
+  box-shadow: none;
+  overflow: visible;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+:where(.admin-layout) button::before {
+  display: none;
+}
+
+:where(.admin-layout) button:hover {
+  transform: none;
+  box-shadow: none;
+  background-color: var(--adm-primary-hover);
+}
+
+:where(.admin-layout) button:active {
+  transform: none;
+  box-shadow: none;
+}
+
+:where(.admin-layout) button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(121, 85, 72, 0.25);
+}
+
+:where(.admin-layout) button.primary {
+  background: var(--adm-primary);
+  color: #fff;
+  box-shadow: none;
+}
+
+:where(.admin-layout) button.primary:hover {
+  background: var(--adm-primary-hover);
+  box-shadow: none;
+}
+
+:where(.admin-layout) button.secondary {
+  background: var(--adm-surface);
+  color: var(--adm-text);
+  border: 1px solid var(--adm-border-strong);
+  backdrop-filter: none;
+}
+
+:where(.admin-layout) button.secondary:hover {
+  background: var(--adm-surface-2);
+  border-color: #bfb3a5;
+}
+
+:where(.admin-layout) button.danger {
+  background: #c62828;
+  color: #fff;
+  box-shadow: none;
+}
+
+:where(.admin-layout) button.danger:hover {
+  background: #a31f1f;
+  box-shadow: none;
+}
+
+/* Bootstrap .btn keeps its own colours; just stop the global gradient image. */
+.admin-layout .btn {
+  background-image: none;
+  min-height: 0;
+}
+
+/* ---------- tables ---------- */
+:where(.admin-layout) table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+:where(.admin-layout) th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+  background: var(--adm-surface-2);
+  border-bottom: 1px solid var(--adm-border);
+  padding: 0.625rem 0.75rem;
+  white-space: nowrap;
+}
+
+:where(.admin-layout) td {
+  border-bottom: 1px solid #eee8df;
+  padding: 0.625rem 0.75rem;
+  vertical-align: middle;
+}
+
+:where(.admin-layout) tbody tr:hover {
+  background: #fbf9f6;
+}
+
+/* ---------- surfaces ---------- */
+/* index.css gives .card a lift-on-hover and a coloured top bar; neither
+   belongs on a data screen. */
+.admin-layout .card {
+  transform: none;
+  backdrop-filter: none;
+  box-shadow: var(--adm-shadow);
+  border: 1px solid var(--adm-border);
+  border-radius: var(--adm-radius-lg);
+  background: var(--adm-surface);
+  overflow: visible;
+}
+
+.admin-layout .card::before {
+  display: none;
+}
+
+.admin-layout .card:hover {
+  transform: none;
+  box-shadow: var(--adm-shadow);
+  background: var(--adm-surface);
+  border-color: var(--adm-border);
+}
+
+/* Every box can shrink inside its grid/flex track instead of overflowing. */
+:where(.admin-main) :where(div, section, article, form, aside) {
+  min-width: 0;
+}
+
+:where(.admin-main) :where(img) {
+  max-width: 100%;
+}
+
+/* =========================================================================
+ * Normalisation layer — wins over individual page stylesheets so that every
+ * admin screen shares the same header, buttons, tables and boxes.
+ * ========================================================================= */
+
+/* ---------- page wrappers: the shell already pads the content ---------- */
+.admin-layout .admin-shell-page .container,
+.admin-layout .admin-shell-page .admin-container {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-layout .admin-shell-page > * {
+  padding-top: 0;
+}
+
+/* ---------- page header: title + subtitle left, actions right ---------- */
+.admin-layout .admin-shell-page .page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1.5rem;
+  row-gap: 0.25rem;
+  margin: 0 0 1.5rem;
+  padding: 0 0 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--adm-border);
+  background: none;
+  text-align: left;
+  box-shadow: none;
+}
+
+.admin-layout .admin-shell-page .page-header > :is(h1, h2, div:first-child, p) {
+  grid-column: 1;
+  margin: 0;
+  text-align: left;
+}
+
+.admin-layout .admin-shell-page .page-header > :is(h1, h2) {
+  color: var(--adm-text);
+  font-size: 1.625rem;
+  font-weight: 700;
+  -webkit-text-fill-color: currentColor;
+  background: none;
+}
+
+.admin-layout .admin-shell-page .page-header p {
+  color: var(--adm-muted);
+  font-size: 0.9rem;
+  max-width: 72ch;
+  margin: 0.25rem 0 0;
+}
+
+.admin-layout .admin-shell-page .page-header > :is(.header-actions, button, .btn) {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  margin: 0;
+}
+
+.admin-layout .admin-shell-page .header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin: 0;
+}
+
+@media (max-width: 767.98px) {
+  .admin-layout .admin-shell-page .page-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-layout .admin-shell-page .page-header > :is(.header-actions, button, .btn) {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+    margin-top: 0.75rem;
+  }
+
+  .admin-layout .admin-shell-page .header-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ---------- Bootstrap buttons win over legacy page button rules ---------- */
+.admin-layout .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x);
+  font-size: var(--bs-btn-font-size);
+  font-weight: var(--bs-btn-font-weight);
+  line-height: var(--bs-btn-line-height);
+  color: var(--bs-btn-color);
+  background: var(--bs-btn-bg);
+  border: var(--bs-btn-border-width) solid var(--bs-btn-border-color);
+  border-radius: var(--bs-btn-border-radius);
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: none;
+  transform: none;
+  white-space: nowrap;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.admin-layout .admin-main .btn:hover:not(:disabled),
+.admin-layout .admin-main .btn:focus-visible {
+  color: var(--bs-btn-hover-color);
+  background: var(--bs-btn-hover-bg);
+  border-color: var(--bs-btn-hover-border-color);
+  transform: none;
+  box-shadow: none;
+}
+
+.admin-layout .admin-main .btn:disabled {
+  color: var(--bs-btn-disabled-color);
+  background: var(--bs-btn-disabled-bg);
+  border-color: var(--bs-btn-disabled-border-color);
+  opacity: var(--bs-btn-disabled-opacity);
+}
+
+.admin-layout .btn::before {
+  display: none;
+}
+
+.admin-layout .btn-outline-secondary {
+  --bs-btn-color: #4a3d35;
+  --bs-btn-bg: #fff;
+  --bs-btn-border-color: var(--adm-border-strong);
+  --bs-btn-hover-color: var(--adm-text);
+  --bs-btn-hover-bg: var(--adm-surface-2);
+  --bs-btn-hover-border-color: #bfb3a5;
+}
+
+/* ---------- tables: compact cells, scroll instead of clipping ---------- */
+.admin-layout .admin-shell-page :is(th, td) {
+  padding: 0.625rem 0.75rem;
+}
+
+.admin-layout .admin-shell-page th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+  background: var(--adm-surface-2);
+}
+
+.admin-layout .admin-shell-page td {
+  font-size: 0.875rem;
+}
+
+.admin-layout .admin-shell-page div:has(> table) {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* ---------- boxes ---------- */
+.admin-layout .admin-shell-page :is(
+  .stats-box, .stat-card, .admin-card, .access-section,
+  .table-container, .admin-table-container, .users-table-container,
+  .pictures-table, .filters, .filter-panel, .import-preview
+) {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-radius: var(--adm-radius-lg);
+  box-shadow: var(--adm-shadow);
+  backdrop-filter: none;
+}
+
+.admin-layout .admin-shell-page .stats-container {
+  grid-template-columns: 220px repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-layout .admin-shell-page .stats-box h3 {
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--adm-muted);
+  margin: 0 0 0.75rem;
+}
+
+.admin-layout .admin-shell-page .stats-box.total-count {
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-left: 4px solid var(--adm-primary);
+}
+
+.admin-layout .admin-shell-page .stats-box.total-count h3 {
+  color: var(--adm-muted);
+}
+
+.admin-layout .admin-shell-page .stats-box .count-number {
+  color: var(--adm-text);
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.admin-layout .admin-shell-page .admin-stats {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-layout .admin-shell-page .admin-stats .stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 1rem 1.25rem;
+  text-align: left;
+}
+
+.admin-layout .admin-shell-page .admin-stats .stat-card h3 {
+  order: 2;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--adm-text);
+  margin: 0.125rem 0 0;
+}
+
+.admin-layout .admin-shell-page .admin-stats .stat-card p {
+  order: 1;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--adm-muted);
+}
+
+/* Message banners */
+.admin-layout .admin-shell-page :is(.error-message, .access-error) {
+  padding: 0.75rem 1rem;
+  border-radius: var(--adm-radius);
+  border: 1px solid #f1c2c2;
+  background: #fdf0f0;
+  color: #8f1f1f;
+  margin-bottom: 1rem;
+}
+
+.admin-layout .admin-shell-page :is(.success-message, .access-success) {
+  padding: 0.75rem 1rem;
+  border-radius: var(--adm-radius);
+  border: 1px solid #bfe0c1;
+  background: #eff8ef;
+  color: #1f5f23;
+  margin-bottom: 1rem;
+}
+
+.admin-layout .admin-shell-page :is(.access-warning, .access-warn-inline) {
+  padding: 0.75rem 1rem;
+  border-radius: var(--adm-radius);
+  border: 1px solid #f0d9a8;
+  background: #fff8e6;
+  color: #6b4d0f;
+}
+
+/* ---------- form fields set by page CSS: one size everywhere ---------- */
+.admin-layout .admin-shell-page :is(
+  input:not([type]),
+  input[type='text'], input[type='search'], input[type='email'], input[type='number'],
+  input[type='password'], input[type='date'], input[type='datetime-local'], input[type='url'],
+  select, textarea
+):not(.form-control):not(.form-select) {
+  padding: 0.5rem 0.75rem;
+  min-height: 38px;
+  font-size: 0.9rem;
+  border: 1px solid var(--adm-border-strong);
+  border-radius: var(--adm-radius);
+  background-color: var(--adm-surface);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.admin-layout .admin-shell-page :is(input, select, textarea):focus {
+  border-color: #a1887f;
+  box-shadow: 0 0 0 0.2rem rgba(121, 85, 72, 0.18);
+  transform: none;
+}
+
+/* ---------- row action cells ---------- */
+/* Several pages set td.actions to display:flex, which takes the cell out of
+   table layout and misaligns its borders with the rest of the row. */
+.admin-layout .admin-shell-page td.actions {
+  display: table-cell;
+}
+
+.admin-layout .admin-shell-page td.actions,
+.admin-layout .admin-shell-page .table-actions {
+  white-space: nowrap;
+}
+
+.admin-layout .admin-shell-page .header-actions > * {
+  margin: 0;
+}
+
+.admin-layout .admin-shell-page .settings-section .section-header h2 {
+  margin: 0;
+  padding: 0;
+}
+
+.admin-layout .admin-shell-page td.actions .btn + .btn,
+.admin-layout .admin-shell-page .table-actions .btn + .btn {
+  margin-left: 0.375rem;
+}
+
+.admin-layout .admin-shell-page .btn-sm:has(> .nodus-icon:only-child) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+/* ---------- settings / link cards ---------- */
+.admin-layout .admin-shell-page .settings-section {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin-top: 2rem;
+}
+
+.admin-layout .admin-shell-page .settings-section .section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.875rem;
+  padding: 0;
+  border: 0;
+}
+
+.admin-layout .admin-shell-page .section-subtitle {
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--adm-muted);
+}
+
+.admin-layout .admin-shell-page .org-link-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 0.625rem;
+  background: var(--adm-primary-soft);
+  color: var(--adm-primary);
+  font-size: 0;
+}
+
+/* ---------- final polish ---------- */
+.admin-layout .admin-main h1 {
+  -webkit-text-fill-color: currentColor;
+  background: none;
+}
+
+/* Legacy page CSS sets .btn-primary { flex: 1 } globally. */
+.admin-layout .admin-shell-page :is(.filter-actions, .header-actions, .table-actions, td.actions) .btn {
+  flex: 0 0 auto;
+}
+
+.admin-layout .admin-shell-page .admin-management {
+  min-height: 0;
+  background: none;
+}
+
+.admin-layout .admin-shell-page :is(.table-container, .admin-table-container, .users-table-container, .data-table-wrapper) > table {
+  margin: 0;
+}
+
+.admin-layout .admin-shell-page .stats-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.admin-layout .admin-shell-page .stats-container > .stats-box {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.admin-layout .admin-shell-page .stats-container > .stats-box.total-count {
+  flex: 0 0 220px;
+}
+
+@media (max-width: 575.98px) {
+  .admin-layout .admin-shell-page .stats-container > .stats-box.total-count {
+    flex: 1 1 100%;
+  }
+}
+
+.admin-layout .admin-shell-page :is(.btn-view, .btn-edit, .btn-delete):not(.btn) {
+  min-height: 0;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  border-radius: 0.375rem;
+  box-shadow: none;
+}

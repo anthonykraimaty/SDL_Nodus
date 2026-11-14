@@ -45,7 +45,7 @@
 }
 
 .btn-primary, .btn-add.primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #795548 0%, #5d4037 100%);
   color: white;
 }
 
@@ -56,12 +56,12 @@
 
 .btn-secondary {
   background-color: #fff;
-  color: #667eea;
-  border: 2px solid #667eea;
+  color: #795548;
+  border: 2px solid #795548;
 }
 
 .btn-secondary:hover {
-  background-color: #667eea;
+  background-color: #795548;
   color: white;
 }
 
@@ -75,7 +75,7 @@
 }
 
 .btn-submit {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #795548 0%, #5d4037 100%);
   color: white;
 }
 
@@ -102,7 +102,7 @@
 
 .stats-box h3 {
   margin: 0 0 1rem 0;
-  color: #667eea;
+  color: #795548;
   font-size: 1.1rem;
   font-weight: 700;
   text-align: center;
@@ -113,7 +113,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #795548 0%, #5d4037 100%);
   border: none;
 }
 
@@ -215,7 +215,7 @@
 
 .import-preview-header h3 {
   margin: 0;
-  color: #667eea;
+  color: #795548;
   font-size: 1.3rem;
 }
 
@@ -275,7 +275,7 @@
 }
 
 .data-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #795548 0%, #5d4037 100%);
   color: white;
 }
 
@@ -312,7 +312,7 @@
   border-radius: 4px;
   font-family: 'Courier New', monospace;
   font-size: 0.85rem;
-  color: #667eea;
+  color: #795548;
 }
 
 .data-table .empty-state {
@@ -338,7 +338,7 @@
 }
 
 .btn-edit {
-  background-color: #667eea;
+  background-color: #795548;
   color: white;
 }
 
@@ -418,7 +418,7 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #795548;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -448,7 +448,7 @@
 
 .spinner {
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
+  border-top: 4px solid #795548;
   border-radius: 50%;
   width: 50px;
   height: 50px;

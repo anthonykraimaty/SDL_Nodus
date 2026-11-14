@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminManagement.css';
+import Icon from '../components/Icon';
 
 const AdminDistricts = () => {
   const { user } = useAuth();
@@ -224,10 +225,10 @@ const AdminDistricts = () => {
         <div className="page-header">
           <h1>District Management</h1>
           <div className="header-actions">
-            <button onClick={downloadTemplate} className="btn-secondary">
+            <button onClick={downloadTemplate} className="btn btn-outline-secondary">
               Download Template
             </button>
-            <label className="btn-secondary file-upload-btn">
+            <label className="btn btn-outline-secondary file-upload-btn mb-0">
               Import Excel
               <input
                 type="file"
@@ -236,7 +237,7 @@ const AdminDistricts = () => {
                 style={{ display: 'none' }}
               />
             </label>
-            <button onClick={() => setShowModal(true)} className="btn-add primary">
+            <button onClick={() => setShowModal(true)} className="btn btn-primary">
               Add New District
             </button>
           </div>
@@ -251,10 +252,10 @@ const AdminDistricts = () => {
             <div className="import-preview-header">
               <h3>Import Preview ({importPreview.length} districts)</h3>
               <div className="import-actions">
-                <button onClick={() => setImportPreview(null)} className="btn-cancel">
+                <button onClick={() => setImportPreview(null)} className="btn btn-outline-secondary">
                   Cancel
                 </button>
-                <button onClick={handleImport} className="btn-primary" disabled={importing}>
+                <button onClick={handleImport} className="btn btn-primary" disabled={importing}>
                   {importing ? 'Importing...' : 'Confirm Import'}
                 </button>
               </div>
@@ -307,11 +308,11 @@ const AdminDistricts = () => {
                     <td><code>{district.code}</code></td>
                     <td>{district._count?.groups || 0}</td>
                     <td className="actions">
-                      <button onClick={() => handleEdit(district)} className="btn-icon btn-edit">
-                        Edit
+                      <button onClick={() => handleEdit(district)} className="btn btn-sm btn-outline-secondary btn-edit" title="Modifier" aria-label="Modifier">
+                        <Icon name="edit" size={16} />
                       </button>
-                      <button onClick={() => handleDelete(district.id)} className="btn-icon btn-delete">
-                        Delete
+                      <button onClick={() => handleDelete(district.id)} className="btn btn-sm btn-outline-danger btn-delete" title="Supprimer" aria-label="Supprimer">
+                        <Icon name="trash" size={16} />
                       </button>
                     </td>
                   </tr>
@@ -355,10 +356,10 @@ const AdminDistricts = () => {
             </div>
           </Modal.Body>
           <Modal.Actions>
-            <button type="submit" className="primary">
+            <button type="submit" className="btn btn-primary">
               {editingDistrict ? 'Update' : 'Create'} District
             </button>
-            <button type="button" onClick={resetForm} className="secondary">
+            <button type="button" onClick={resetForm} className="btn btn-outline-secondary">
               Cancel
             </button>
           </Modal.Actions>

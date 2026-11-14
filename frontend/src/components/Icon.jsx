@@ -120,6 +120,81 @@ const paths = {
       <path d="m21 21-4.3-4.3" />
     </>
   ),
+  // Admin navigation
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  shield: <path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3Z" />,
+  idCard: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M15 10h3M15 13h3" />
+    </>
+  ),
+  map: (
+    <>
+      <path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2V6Z" />
+      <path d="M9 4v14M15 6v14" />
+    </>
+  ),
+  home: (
+    <>
+      <path d="M3 11 12 4l9 7" />
+      <path d="M5 10v10h14V10" />
+    </>
+  ),
+  tent: (
+    <>
+      <path d="M12 4 3 20h18L12 4Z" />
+      <path d="M12 13l-2.5 7M12 13l2.5 7" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M5 21V4" />
+      <path d="M5 4h11l-2 4 2 4H5" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5M12 7v5l3 2" />
+    </>
+  ),
+  recycle: (
+    <>
+      <path d="M7 19H4.5a1.5 1.5 0 0 1-1.3-2.2L5 13.5" />
+      <path d="M17 19h2.5a1.5 1.5 0 0 0 1.3-2.2L18.5 13" />
+      <path d="m9 5.5 1.7-2.8a1.5 1.5 0 0 1 2.6 0L15.5 7" />
+      <path d="m7 22-3-3 3-3M15 4l.5 3-3 .5M17 22l3-3-3-3" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+      <path d="M10 17l-5-5 5-5M5 12h11" />
+    </>
+  ),
+  menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+  trash: (
+    <>
+      <path d="M4 7h16M10 11v6M14 11v6" />
+      <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" />
+    </>
+  ),
+  arrowLeft: <path d="M19 12H5M12 19l-7-7 7-7" />,
 };
 
 const Icon = ({ name, size = 22, strokeWidth = 1.75, className = '', style, title }) => {

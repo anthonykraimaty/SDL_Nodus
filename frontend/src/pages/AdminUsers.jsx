@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import './AdminUsers.css';
+import Icon from '../components/Icon';
 
 // The branches of the federation, as Inscription/Keycloak name them.
 // Must stay in step with BRANCHES in backend/src/utils/keycloakAccess.js.
@@ -565,13 +566,13 @@ const AdminUsers = () => {
         <div className="page-header">
           <h1>User Management</h1>
           <div className="header-actions">
-            <button onClick={exportUsers} className="btn-secondary">
+            <button onClick={exportUsers} className="btn btn-outline-secondary">
               Export Data
             </button>
-            <button onClick={downloadTemplate} className="btn-secondary">
+            <button onClick={downloadTemplate} className="btn btn-outline-secondary">
               Download Template
             </button>
-            <label className="btn-secondary file-upload-btn">
+            <label className="btn btn-outline-secondary file-upload-btn mb-0">
               Import Excel
               <input
                 type="file"
@@ -580,7 +581,7 @@ const AdminUsers = () => {
                 style={{ display: 'none' }}
               />
             </label>
-            <button onClick={() => setShowModal(true)} className="btn-add primary">
+            <button onClick={() => setShowModal(true)} className="btn btn-primary">
               Add New User
             </button>
           </div>
@@ -593,7 +594,7 @@ const AdminUsers = () => {
         <div className="never-logged-in-section">
           <button
             onClick={toggleNeverLoggedIn}
-            className={`btn-toggle-dashboard ${showNeverLoggedIn ? 'active' : ''}`}
+            className={`btn btn-outline-secondary btn-toggle-dashboard ${showNeverLoggedIn ? "active" : ""}`}
           >
             {showNeverLoggedIn ? 'Masquer' : 'Afficher'} les utilisateurs jamais connectés
             {!showNeverLoggedIn && neverLoggedInUsers.length > 0 && (
@@ -606,7 +607,7 @@ const AdminUsers = () => {
               <div className="dashboard-header">
                 <h3>Utilisateurs jamais connectés</h3>
                 {neverLoggedInUsers.length > 0 && (
-                  <button onClick={exportNeverLoggedInCSV} className="btn-export-csv">
+                  <button onClick={exportNeverLoggedInCSV} className="btn btn-sm btn-outline-secondary">
                     Télécharger CSV
                   </button>
                 )}
@@ -704,10 +705,10 @@ const AdminUsers = () => {
             <div className="import-preview-header">
               <h3>Import Preview ({importPreview.length} users)</h3>
               <div className="import-actions">
-                <button onClick={() => setImportPreview(null)} className="btn-cancel">
+                <button onClick={() => setImportPreview(null)} className="btn btn-outline-secondary">
                   Cancel
                 </button>
-                <button onClick={handleImport} className="btn-primary" disabled={importing}>
+                <button onClick={handleImport} className="btn btn-primary" disabled={importing}>
                   {importing ? 'Importing...' : 'Confirm Import'}
                 </button>
               </div>
@@ -789,12 +790,12 @@ const AdminUsers = () => {
                     </span>
                   </td>
                   <td className="actions">
-                    <button onClick={() => handleEdit(u)} className="btn-icon btn-edit">
-                      ✏️
-                    </button>
-                    <button onClick={() => handleDelete(u.id)} className="btn-icon btn-delete">
-                      🗑️
-                    </button>
+                    <button onClick={() => handleEdit(u)} className="btn btn-sm btn-outline-secondary btn-edit" title="Modifier" aria-label="Modifier">
+                        <Icon name="edit" size={16} />
+                      </button>
+                    <button onClick={() => handleDelete(u.id)} className="btn btn-sm btn-outline-danger btn-delete" title="Supprimer" aria-label="Supprimer">
+                        <Icon name="trash" size={16} />
+                      </button>
                   </td>
                 </tr>
               ))}
@@ -976,10 +977,10 @@ const AdminUsers = () => {
             </div>
           </Modal.Body>
           <Modal.Actions>
-            <button type="submit" className="primary">
+            <button type="submit" className="btn btn-primary">
               {editingUser ? 'Update' : 'Create'} User
             </button>
-            <button type="button" onClick={resetForm} className="secondary">
+            <button type="button" onClick={resetForm} className="btn btn-outline-secondary">
               Cancel
             </button>
           </Modal.Actions>

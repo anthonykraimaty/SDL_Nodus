@@ -180,7 +180,7 @@ const AdminAudit = () => {
     <div className="admin-audit">
       <div className="container">
         <div className="page-header">
-          <h2>📜 Picture Lifecycle Audit</h2>
+          <h1>Picture Lifecycle Audit</h1>
           <p className="header-description">
             Track who archived, deleted, or excluded pictures — useful for diagnosing disappearances
             that are not rejections.
@@ -310,10 +310,10 @@ const AdminAudit = () => {
           </div>
 
           <div className="filter-actions">
-            <button type="submit" className="btn-apply" disabled={loading}>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? 'Loading…' : 'Apply'}
             </button>
-            <button type="button" className="btn-reset" onClick={handleReset} disabled={loading}>
+            <button type="button" className="btn btn-outline-secondary" onClick={handleReset} disabled={loading}>
               Reset
             </button>
             <span className="result-count">

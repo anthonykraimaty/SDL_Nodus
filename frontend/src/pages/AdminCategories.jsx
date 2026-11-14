@@ -395,8 +395,8 @@ const AdminCategories = () => {
     <div className="admin-categories">
       <div className="container">
         <div className="page-header">
-          <h2>Category Management</h2>
-          <button onClick={() => setShowAddModal(true)} className="btn-add primary">
+          <h1>Category Management</h1>
+          <button onClick={() => setShowAddModal(true)} className="btn btn-primary">
             Add New Category
           </button>
         </div>
@@ -460,7 +460,7 @@ const AdminCategories = () => {
                   Group categories into named sets to track patrouille progress per set
                 </p>
               </div>
-              <button onClick={openAddSet} className="btn-add primary">
+              <button onClick={openAddSet} className="btn btn-primary">
                 Add New Set
               </button>
             </div>
@@ -596,10 +596,10 @@ const AdminCategories = () => {
             </div>
           </Modal.Body>
           <Modal.Actions>
-            <button type="submit" className="primary">
+            <button type="submit" className="btn btn-primary">
               Create Category
             </button>
-            <button type="button" onClick={() => setShowAddModal(false)} className="secondary">
+            <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-outline-secondary">
               Cancel
             </button>
           </Modal.Actions>
@@ -709,12 +709,12 @@ const AdminCategories = () => {
         </Modal.Body>
         <Modal.Actions>
           <button
-            className="danger"
+            className="btn btn-danger"
             onClick={() => handleDeleteClick(selectedCategory)}
           >
             Delete
           </button>
-          <button className="secondary" onClick={() => setSelectedCategory(null)}>
+          <button className="btn btn-outline-secondary" onClick={() => setSelectedCategory(null)}>
             Close
           </button>
         </Modal.Actions>
@@ -733,10 +733,10 @@ const AdminCategories = () => {
           <p className="warning-text">This action cannot be undone.</p>
         </Modal.Body>
         <Modal.Actions>
-          <button className="danger" onClick={handleDeleteCategory}>
+          <button className="btn btn-danger" onClick={handleDeleteCategory}>
             Delete
           </button>
-          <button className="secondary" onClick={() => setDeleteConfirm(null)}>
+          <button className="btn btn-outline-secondary" onClick={() => setDeleteConfirm(null)}>
             Cancel
           </button>
         </Modal.Actions>
@@ -773,10 +773,10 @@ const AdminCategories = () => {
             </div>
           </Modal.Body>
           <Modal.Actions>
-            <button type="submit" className="primary">
+            <button type="submit" className="btn btn-primary">
               {editingSet ? 'Update' : 'Create'}
             </button>
-            <button type="button" onClick={() => { setShowAddSetModal(false); setEditingSet(null); }} className="secondary">
+            <button type="button" onClick={() => { setShowAddSetModal(false); setEditingSet(null); }} className="btn btn-outline-secondary">
               Cancel
             </button>
           </Modal.Actions>
@@ -796,10 +796,10 @@ const AdminCategories = () => {
           <p className="warning-text">This will remove the set grouping but will not delete the categories themselves.</p>
         </Modal.Body>
         <Modal.Actions>
-          <button className="danger" onClick={handleDeleteSet}>
+          <button className="btn btn-danger" onClick={handleDeleteSet}>
             Delete Set
           </button>
-          <button className="secondary" onClick={() => setDeleteSetConfirm(null)}>
+          <button className="btn btn-outline-secondary" onClick={() => setDeleteSetConfirm(null)}>
             Cancel
           </button>
         </Modal.Actions>
@@ -846,14 +846,14 @@ const AdminCategories = () => {
         </Modal.Body>
         <Modal.Actions>
           <button
-            className="primary"
+            className="btn btn-primary"
             onClick={handleAddItemsToSet}
             disabled={selectedCategoryIds.size === 0}
           >
             Add Selected
           </button>
           <button
-            className="secondary"
+            className="btn btn-outline-secondary"
             onClick={() => { setAddCategoryModal({ open: false, setId: null }); setSelectedCategoryIds(new Set()); setAddCategorySearch(''); }}
           >
             Cancel

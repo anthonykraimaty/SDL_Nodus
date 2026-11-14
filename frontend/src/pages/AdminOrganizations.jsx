@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { settingsService } from '../services/api';
+import Icon from '../components/Icon';
 import './AdminOrganizations.css';
 
 const FLAG_LABELS = {
@@ -115,35 +116,35 @@ const AdminOrganizations = () => {
     <div className="admin-organizations">
       <div className="admin-container">
         <div className="page-header">
-          <h1>🏢 Organization Management</h1>
+          <h1>Organization Management</h1>
           <p>Gérer l'organisation et les réglages globaux de la plateforme</p>
         </div>
 
         {/* Org links */}
         <div className="org-links-grid">
           <Link to="/admin/districts" className="org-link-card">
-            <span className="org-link-icon">🗺️</span>
+            <span className="org-link-icon"><Icon name="map" size={22} /></span>
             <div>
               <h3>Districts</h3>
               <p>Créer, renommer, supprimer les districts</p>
             </div>
           </Link>
           <Link to="/admin/groups" className="org-link-card">
-            <span className="org-link-icon">🏘️</span>
+            <span className="org-link-icon"><Icon name="home" size={22} /></span>
             <div>
               <h3>Groupes</h3>
               <p>Gérer les groupes par district</p>
             </div>
           </Link>
           <Link to="/admin/troupes" className="org-link-card">
-            <span className="org-link-icon">⛺</span>
+            <span className="org-link-icon"><Icon name="tent" size={22} /></span>
             <div>
               <h3>Troupes</h3>
               <p>Gérer les troupes par groupe</p>
             </div>
           </Link>
           <Link to="/admin/patrouilles" className="org-link-card">
-            <span className="org-link-icon">🧭</span>
+            <span className="org-link-icon"><Icon name="flag" size={22} /></span>
             <div>
               <h3>Patrouilles</h3>
               <p>Gérer les patrouilles par troupe</p>
@@ -154,7 +155,7 @@ const AdminOrganizations = () => {
         {/* Feature flags */}
         <div className="settings-section">
           <div className="section-header">
-            <h2>⚙️ Réglages de la plateforme</h2>
+            <h2>Réglages de la plateforme</h2>
             <span className="section-subtitle">
               Activer ou désactiver des fonctionnalités au niveau global
             </span>
@@ -179,18 +180,24 @@ const AdminOrganizations = () => {
                       <h4>{meta.title}</h4>
                       <p>{meta.description}</p>
                     </div>
-                    <label className={`toggle-switch ${saving ? 'saving' : ''}`}>
+                    <div className="form-check form-switch d-flex align-items-center gap-2 m-0 flex-shrink-0">
                       <input
+                        id={`setting-${key}`}
+                        className="form-check-input m-0"
                         type="checkbox"
+                        role="switch"
                         checked={checked}
                         onChange={() => toggle(key)}
                         disabled={saving}
                       />
-                      <span className="toggle-slider" />
-                      <span className="toggle-label">
+                      <label
+                        htmlFor={`setting-${key}`}
+                        className={`form-check-label small fw-medium ${checked ? 'text-success' : 'text-secondary'}`}
+                        style={{ minWidth: '5.5rem' }}
+                      >
                         {checked ? 'Activé' : 'Désactivé'}
-                      </span>
-                    </label>
+                      </label>
+                    </div>
                   </div>
                 );
               })}

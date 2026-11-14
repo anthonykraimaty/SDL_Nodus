@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_URL, getImageUrl } from '../config/api';
 import Icon from '../components/Icon';
 import './AdminDashboard.css';
+import './AdminDashboardClean.css';
 
 // Animated digit reveal for hero metric — plays once per mount
 const AnimatedNumber = ({ value }) => {
@@ -888,7 +889,7 @@ const AdminDashboard = () => {
               value={troupeSearch}
               onChange={(e) => setTroupeSearch(e.target.value)}
             />
-            <button className="btn-export-csv" onClick={exportTroupeCSV}>
+            <button className="btn btn-sm btn-outline-secondary" onClick={exportTroupeCSV}>
               Export CSV
             </button>
           </div>
@@ -1035,7 +1036,7 @@ const AdminDashboard = () => {
                     Uploaded ({compData.summary.uploadedBetween})
                   </button>
                 </div>
-                <button className="btn-export-csv" onClick={exportComparisonCSV}>
+                <button className="btn btn-sm btn-outline-secondary" onClick={exportComparisonCSV}>
                   Export CSV
                 </button>
               </div>
@@ -1173,7 +1174,7 @@ const AdminDashboard = () => {
               </div>
               <div className="maintenance-actions">
                 <button
-                  className="btn-secondary"
+                  className="btn btn-outline-secondary"
                   onClick={checkPictureSync}
                   disabled={syncingPictures}
                 >
@@ -1181,7 +1182,7 @@ const AdminDashboard = () => {
                 </button>
                 {pictureSyncData && pictureSyncData.totalPictures > 0 && (
                   <button
-                    className="btn-primary"
+                    className="btn btn-primary"
                     onClick={syncPictureCategories}
                     disabled={syncingPictures}
                   >
@@ -1230,7 +1231,7 @@ const AdminDashboard = () => {
               </div>
               <div className="maintenance-actions">
                 <button
-                  className="btn-secondary"
+                  className="btn btn-outline-secondary"
                   onClick={checkTypeSync}
                   disabled={syncingTypes}
                 >
@@ -1238,7 +1239,7 @@ const AdminDashboard = () => {
                 </button>
                 {typeSyncData && typeSyncData.totalPictures > 0 && (
                   <button
-                    className="btn-primary"
+                    className="btn btn-primary"
                     onClick={syncPictureTypes}
                     disabled={syncingTypes}
                   >
@@ -1272,7 +1273,7 @@ const AdminDashboard = () => {
               </div>
               <div className="maintenance-actions">
                 <button
-                  className="btn-secondary"
+                  className="btn btn-outline-secondary"
                   onClick={debugPictureTypes}
                 >
                   Debug

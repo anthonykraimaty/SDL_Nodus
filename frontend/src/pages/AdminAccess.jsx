@@ -179,7 +179,7 @@ const AdminAccess = () => {
 
   return (
     <div className="admin-access">
-      <header className="access-header">
+      <header className="access-header page-header">
         <div>
           <h1>Accès</h1>
           <p className="access-sub">
@@ -187,7 +187,7 @@ const AdminAccess = () => {
             quelle branche.
           </p>
         </div>
-        <button className="primary" onClick={save} disabled={saving}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </header>
@@ -452,7 +452,7 @@ const AdminAccess = () => {
       </section>
 
       <footer className="access-footer">
-        <button className="primary" onClick={save} disabled={saving}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
         <p className="access-hint">

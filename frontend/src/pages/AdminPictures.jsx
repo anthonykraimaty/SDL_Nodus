@@ -573,7 +573,7 @@ const AdminPictures = () => {
             <div className="sync-actions">
               {syncInfo.typesNeedSync && (
                 <button
-                  className="btn-sync"
+                  className="btn btn-sm btn-primary"
                   onClick={handleSyncTypes}
                   disabled={syncing}
                 >
@@ -582,7 +582,7 @@ const AdminPictures = () => {
               )}
               {syncInfo.categoriesNeedSync && (
                 <button
-                  className="btn-sync"
+                  className="btn btn-sm btn-primary"
                   onClick={handleSyncCategories}
                   disabled={syncing}
                 >
@@ -884,14 +884,14 @@ const AdminPictures = () => {
                           View
                         </button>
                         <button
-                          className="btn-edit"
+                          className="btn btn-sm btn-outline-secondary btn-edit"
                           onClick={() => handleEditClick(picture)}
                           title="Edit classification"
                         >
                           Edit
                         </button>
                         <button
-                          className="btn-delete"
+                          className="btn btn-sm btn-outline-danger btn-delete"
                           onClick={() => setShowDeleteConfirm(picture)}
                           disabled={deleting === picture.id}
                           title="Delete picture"
@@ -1005,11 +1005,11 @@ const AdminPictures = () => {
             <Modal.Actions>
               <button
                 onClick={() => setImageEditingPicture(viewingPicture)}
-                className="primary"
+                className="btn btn-primary"
               >
                 Edit Image
               </button>
-              <button onClick={() => setViewingPicture(null)} className="secondary">
+              <button onClick={() => setViewingPicture(null)} className="btn btn-outline-secondary">
                 Close
               </button>
             </Modal.Actions>
@@ -1103,14 +1103,14 @@ const AdminPictures = () => {
           <Modal.Actions>
             <button
               onClick={handleEditSave}
-              className="primary"
+              className="btn btn-primary"
               disabled={saving}
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               onClick={() => setEditingPicture(null)}
-              className="secondary"
+              className="btn btn-outline-secondary"
               disabled={saving}
             >
               Cancel
@@ -1155,14 +1155,14 @@ const AdminPictures = () => {
           <Modal.Actions>
             <button
               onClick={() => handleDelete(showDeleteConfirm?.id)}
-              className="danger"
+              className="btn btn-danger"
               disabled={deleting === showDeleteConfirm?.id}
             >
               {deleting === showDeleteConfirm?.id ? 'Deleting...' : 'Yes, Delete'}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(null)}
-              className="secondary"
+              className="btn btn-outline-secondary"
               disabled={deleting === showDeleteConfirm?.id}
             >
               Cancel
@@ -1333,14 +1333,14 @@ const AdminPictures = () => {
           <Modal.Actions>
             <button
               onClick={handleBulkEditSave}
-              className="primary"
+              className="btn btn-primary"
               disabled={bulkSaving || (!bulkEditForm.type && !bulkEditForm.categoryId && !bulkEditForm.troupeId && !bulkEditForm.rating && !bulkEditForm.pinned)}
             >
               {bulkSaving ? 'Updating...' : 'Update Pictures'}
             </button>
             <button
               onClick={() => setShowBulkEdit(false)}
-              className="secondary"
+              className="btn btn-outline-secondary"
               disabled={bulkSaving}
             >
               Cancel
@@ -1370,14 +1370,14 @@ const AdminPictures = () => {
           <Modal.Actions>
             <button
               onClick={handleBulkDeleteConfirm}
-              className="danger"
+              className="btn btn-danger"
               disabled={bulkSaving}
             >
               {bulkSaving ? 'Deleting...' : 'Yes, Delete All'}
             </button>
             <button
               onClick={() => setShowBulkDelete(false)}
-              className="secondary"
+              className="btn btn-outline-secondary"
               disabled={bulkSaving}
             >
               Cancel
@@ -1413,14 +1413,14 @@ const AdminPictures = () => {
           <Modal.Actions>
             <button
               onClick={handleCreateGroupConfirm}
-              className="primary"
+              className="btn btn-primary"
               disabled={bulkSaving}
             >
               {bulkSaving ? 'Creating...' : 'Create Group'}
             </button>
             <button
               onClick={() => setShowCreateGroup(false)}
-              className="secondary"
+              className="btn btn-outline-secondary"
               disabled={bulkSaving}
             >
               Cancel
@@ -1483,14 +1483,14 @@ const AdminPictures = () => {
           <Modal.Actions>
             <button
               onClick={handleAddToGroupConfirm}
-              className="primary"
+              className="btn btn-primary"
               disabled={bulkSaving || !selectedGroupId || existingGroups.length === 0}
             >
               {bulkSaving ? 'Adding...' : 'Add to Group'}
             </button>
             <button
               onClick={() => setShowAddToGroup(false)}
-              className="secondary"
+              className="btn btn-outline-secondary"
               disabled={bulkSaving}
             >
               Cancel
