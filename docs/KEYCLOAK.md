@@ -159,6 +159,16 @@ Paste this block at the end of `backend/.env` and fill in the secret.
 
 ### For production
 
+> **Copy the contents of the block below, not its opening and closing fence
+> lines.** Docker Compose's env parser is stricter than dotenv's: a stray fence
+> stops the whole container with
+> *unexpected character in variable name*.
+>
+> This check should print nothing — anything it lists is not a valid
+> `KEY=value` line or comment, and must go:
+>
+>     grep -nvE '^[[:space:]]*(#|$)|^[A-Za-z_][A-Za-z0-9_]*=' backend/.env
+
 ```ini
 # --- Keycloak ---------------------------------------------------------------
 KEYCLOAK_URL=https://inscription-auth.scoutsduliban.org
