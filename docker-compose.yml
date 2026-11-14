@@ -41,13 +41,25 @@ services:
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-5020}:3001"
+    # Everything in backend/.env is passed to the container. The image never
+    # contains it (.dockerignore excludes .env), so without this line the
+    # Keycloak settings would silently not reach the app and sign-in would
+    # stay on email + password.
+    #
+    # `environment:` below still wins over env_file, so DATABASE_URL keeps
+    # pointing at the compose network rather than whatever a developer has in
+    # backend/.env for their laptop.
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-nodus_user}:${POSTGRES_PASSWORD:-kaftaaa}@postgres:5432/${POSTGRES_DB:-nodus_db}?schema=public
       PORT: 3001
       NODE_ENV: production
-      CLIENT_URL: ${CLIENT_URL:-https://nodus.scoutsduliban.org}
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production-nodus-2025}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      # CLIENT_URL / JWT_SECRET / JWT_EXPIRES_IN deliberately come from
+      # backend/.env via env_file above. Re-declaring them here would override
+      # it — and the old JWT_SECRET default was a public placeholder from this
+      # repo, which would have replaced the real secret and invalidated every
+      # session token the moment the container restarted.
       B2_ENDPOINT: ${B2_ENDPOINT}
       B2_BUCKET_NAME: ${B2_BUCKET_NAME}
       B2_KEY_ID: ${B2_KEY_ID}
